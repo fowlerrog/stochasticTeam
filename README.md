@@ -16,6 +16,7 @@ Structure:
 To use:
 
 python runPlanner.py /path/to/settings.json
+python plotPlan.py /path/to/results/folder/
 
 ----
 

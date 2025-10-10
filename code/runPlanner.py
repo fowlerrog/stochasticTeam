@@ -10,7 +10,6 @@ from copy import deepcopy
 
 # project imports
 from ourPlanner import *
-from plotUtils import *
 
 def runPlannerFromParams(params):
 	"""
@@ -56,27 +55,27 @@ def runPlannerFromParams(params):
 			params=params
 		)
 
-		# # if params[showPlots or figureFolder is not None:
-		# figureFolder = params["RUN_FOLDER"]
-		# TSP_figure_name = os.path.join(figureFolder, 'TSP_path.png')
-		# if tsp_points:
-		# 	plot_path(tsp_points,
-		# 				filename=TSP_figure_name)
-		# else:
-		# 	# If no solution, just scatter the reordered points for reference
-		# 	plot_points(points,
-		# 				filename=TSP_figure_name)
-
-		# # if plot:
-		# plotFilename = os.path.join(figureFolder, 'clusters.png')
-		# plot_clusters(cycles, result["clusters"], tsp_points, result["mapping_to_points"], result["path"], plotFilename)
-
 		mission_time = result["total_cost"] / 100
 		print("Total mission time (s):", mission_time)
 
 		tsp_time = tsp_end_time - tsp_start_time
 		glns_time = result["solver_time"] or -1  # fallback in case it's None
 		cycle_tsp_total_time = -1  # or fill if you compute it elsewhere
+
+		# Save if desired
+		if "SAVE_PATH_FOLDER" in params:
+			# construct save dict
+			result.update({
+				'tsp_points': tsp_points,
+				'cycles': cycles
+				})
+			result['mapping_to_points'] = {k:list(v) for k,v in result["mapping_to_points"].items()} # json does not like np.array
+			# create folder if it doesn't exist
+			absSavePathFolder = os.path.join(params["RUN_FOLDER"], params["SAVE_PATH_FOLDER"])
+			if not os.path.exists(absSavePathFolder):
+				os.makedirs(absSavePathFolder)
+			with open(os.path.join(absSavePathFolder, 'plan_results.json'), 'w') as f:
+				json.dump(result, f)
 
 	except Exception:
 		print("\nFailure during planning")
@@ -149,15 +148,16 @@ def runPlannerFromSettings(settingsFile):
 		thisRunParams.update(thisRunIndParams)
 		print('Running independent parameters:\n', thisRunIndParams, sep='')
 
+		# set results save location, if desired
+		if "SAVE_PATHS" in params and params["SAVE_PATHS"]:
+			thisRunParams["SAVE_PATH_FOLDER"] = 'results_' + '_'.join(['%s=%s'%(k,v) for k,v in thisRunIndParams.items()])
+
 		# run
 		thisRunOutput = runPlannerFromParams(thisRunParams)
 
 		# store results
 		independentResultsDict = appendDict(independentResultsDict, thisRunIndParams)
 		dependentResultsDict = appendDict(dependentResultsDict, thisRunOutput)
-
-		# write path to file
-		# plot path
 
 	# write overall results
 	independentResultsDict.update(dependentResultsDict) # combine

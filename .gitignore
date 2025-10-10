@@ -5,6 +5,9 @@
 # python cache
 **/__pycache__
 
-# run artifacts we don't want to keep
-**/GTSP_input.gtsp
-**/GTSP_output.txt
+# run artifacts we don't want to keep (by default)
+runs/**/GTSP_input.gtsp
+runs/**/GTSP_output.txt
+runs/**/*.png
+runs/**/our_cr2.json
+runs/**/results*
