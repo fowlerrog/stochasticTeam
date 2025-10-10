@@ -50,7 +50,7 @@ def plot_clusters(cycles, clusters, points, mapping_to_points, path, filename=No
 	# print(f"Mapping to points: {mapping_to_points}")
 	for i, point in enumerate(points):
 		x,y = point
-		print(x,y)
+		# print(x,y)
 		color = cluster_colors(clusters_for_plot[i])
 		ax.plot(x, y, 'o', color=color, markersize=16)
 		ax.text(x + 15, y + 15, f"{i}", fontsize=16, color=color)
