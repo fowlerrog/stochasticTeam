@@ -1,38 +1,22 @@
 import os
-import time
 import subprocess
 import numpy as np
 from pprint import pprint
 from scipy.spatial.distance import euclidean
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
- 
+
 from nodeUtils import *
 from gtspUtils import *
-from plotUtils import *
 
 INF = 999999
-UAV_SPEED = 10.0
-UGV_SPEED = 2.5
-TAKEOFF_LANDING_TIME = 100.0
-UAV_BATTERY_TIME = 600.0
-START_POINT = (0, 0)
-END_POINT = (4000, 4000)
-DUMMY_POINT = (4000, 0)
-SPACE_SIZE = 4000
-CHARGE_RATE = 1
-KSI = 1e5 # GLNS PARAMETER
-SEEDS = [77]
-# SEEDS = [77, 42, 12, 777, 888, 17, 21, 314, 2000, 93, 
-        #  2496, 1377, 454, 935, 142, 1775, 2128, 2801, 
-        #  2903, 2803, 214, 2360, 1114, 668, 1630]
-# SEEDS = [77, 42, 12, 666, 777, 888, 17, 21, 314, 2000, 93]
-# NS = [25, 50, 75, 100]
-NS = [50]
-UGV_SPEEDS = [2.5]
-SPACE_SIZE = 4000
-FIXED_Z = 500
 
-def buildt_GTSP_matrix(mapping_to_release, mapping_to_collect, points, cycles, start_point, end_point, collect_to_cycle_times, dim):
+def buildt_GTSP_matrix(mapping_to_release, mapping_to_collect, points, cycles, start_point, end_point, collect_to_cycle_times, dim, params):
+    """
+    Builds a distance matrix and cluster grouping list for UGV's GTSP solution
+    """
+    UGV_SPEED = params["UGV_SPEEDS"]
+    CHARGE_RATE = params["CHARGE_RATE"]
+
     matrix = np.ones((dim, dim)) * INF
 
     first_release_point = points[cycles[0][0]]
@@ -77,7 +61,13 @@ def buildt_GTSP_matrix(mapping_to_release, mapping_to_collect, points, cycles, s
     print(f"Clusters: {clusters}")
     return matrix, clusters
 
-def solve_gtsp_with_release_collect(points, cycles, start_point, end_point, collect_to_cycle_times, plot=False, plotfilename=None):
+def solve_gtsp_with_release_collect(points, cycles, start_point, end_point, collect_to_cycle_times, params):
+    """
+    Solves the UGV's GTSP problem: chooses a release and collect point for each UAV cycle in points
+    """
+    KSI = params["KSI"]
+    runFolder = params["RUN_FOLDER"]
+
     points = np.array(points)[:, :2]
     graph_index = 1
     mapping_to_release = {}
@@ -95,7 +85,7 @@ def solve_gtsp_with_release_collect(points, cycles, start_point, end_point, coll
             graph_index += 1
 
     mapping_to_points[graph_index] = end_point
-    mapping_to_points[graph_index+1] = (4000, 0)  # Dummy point
+    mapping_to_points[graph_index+1] = params["DUMMY_POINT"]  # Dummy point
     graph_index += 2
     dim = graph_index
 
@@ -104,9 +94,9 @@ def solve_gtsp_with_release_collect(points, cycles, start_point, end_point, coll
     print(f"Mapping to collect:")
     pprint(mapping_to_collect)
 
-    distance_matrix, clusters = buildt_GTSP_matrix(mapping_to_release, mapping_to_collect, points, cycles, start_point, end_point, collect_to_cycle_times, dim)
-    gtsp_input_path = os.path.abspath("GTSP_input.gtsp")
-    gtsp_output_path = os.path.abspath("GTSP_output.txt")
+    distance_matrix, clusters = buildt_GTSP_matrix(mapping_to_release, mapping_to_collect, points, cycles, start_point, end_point, collect_to_cycle_times, dim, params)
+    gtsp_input_path = os.path.join(runFolder, "GTSP_input.gtsp")
+    gtsp_output_path = os.path.join(runFolder, "GTSP_output.txt")
     write_gtsp_file(dim, clusters, distance_matrix, gtsp_input_path)
 
     max_run_time = KSI * len(points) ** 3
@@ -120,9 +110,6 @@ def solve_gtsp_with_release_collect(points, cycles, start_point, end_point, coll
 
     path = tour_to_path(tour, start_idx=0, dummy_idx=dim-1)
     print(f"Path: {path}")
-    
-    if plot:
-        plot_clusters(cycles, clusters, points, mapping_to_points, path, plotfilename)
 
     return {
         "raw_tour": tour,
@@ -130,10 +117,12 @@ def solve_gtsp_with_release_collect(points, cycles, start_point, end_point, coll
         "gtsp_file": gtsp_input_path,
         "output_file": gtsp_output_path,
         "solver_time": solver_time,
-        "total_cost": total_cost
+        "total_cost": total_cost,
+        "clusters": clusters,
+        "mapping_to_points": mapping_to_points
     }
 
-def compute_all_cycle_times(cycles, points):
+def compute_all_cycle_times(cycles, points, params):
     """
     Computes UAV times for all cycles and all possible collect points in each cycle.
     Adds fixed takeoff and landing time to each.
@@ -142,6 +131,11 @@ def compute_all_cycle_times(cycles, points):
         all_times_list: list of dicts mapping all collect_idx to UAV time
         feasible_times_list: list of dicts mapping only feasible collect_idx to UAV time
     """
+    UAV_SPEED = params["UAV_SPEED"]
+    UGV_SPEED = params["UGV_SPEEDS"]
+    TAKEOFF_LANDING_TIME = params["TAKEOFF_LANDING_TIME"]
+    UAV_BATTERY_TIME = params["UAV_BATTERY_TIME"]
+
     points = np.array(points)
  
     collect_points = []
@@ -233,14 +227,14 @@ def solve_tsp_with_fixed_start_end(points, start_point, end_point):
     # Step 7: Setting first solution heuristic
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()
     search_parameters.first_solution_strategy = (
-        # routing_enums_pb2.FirstSolutionStrategy.CHRISTOFIDES)
-        routing_enums_pb2.FirstSolutionStrategy.PARALLEL_CHEAPEST_INSERTION)
+        routing_enums_pb2.FirstSolutionStrategy.CHRISTOFIDES)
+        # routing_enums_pb2.FirstSolutionStrategy.PARALLEL_CHEAPEST_INSERTION)
 
     # COMMENT IF ONLY WANT TO USE THE FIRST SOL
     # Set local search metaheuristic to GUIDED_LOCAL_SEARCH
-    search_parameters.local_search_metaheuristic = (
-        routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
-    search_parameters.time_limit.seconds = 5
+    # search_parameters.local_search_metaheuristic = (
+    #     routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
+    # search_parameters.time_limit.seconds = 5
  
     # Step 8: Solve the problem
     solution = routing.SolveWithParameters(search_parameters)
@@ -265,7 +259,12 @@ def solve_tsp_with_fixed_start_end(points, start_point, end_point):
 
     return tsp_air_points
 
-def create_cycles_CAHIT(tsp_tour):
+def create_cycles_CAHIT(tsp_tour, params):
+    TAKEOFF_LANDING_TIME = params["TAKEOFF_LANDING_TIME"]
+    UAV_SPEED = params["UAV_SPEED"]
+    UGV_SPEED = params["UGV_SPEEDS"]
+    UAV_BATTERY_TIME = params["UAV_BATTERY_TIME"]
+
     cycles = []
     cycle_times = []
     current_cycle = [0]
@@ -366,70 +365,3 @@ def create_cycles_CAHIT(tsp_tour):
     pprint(cycles)
     print(f"Cycle times CAHIT = {cycle_times}")
     return cycles
-
-def run_experiments():
-    filename = "our_cr2.txt"
-    showPlots = True
-    saveFigures = True
-    figureFolder = os.path.abspath('.') if saveFigures else None
-
-    # Open results file in append mode
-    with open(filename, "a", encoding="utf-8") as file:
-        file.write("UGV_Speed, Num_Targets, Seed, Mission_Time, TSP_Computational_Time, GLNS_Computational_Time, Second_TSP_Comput_Time\n")  # Header
-        for UGV_SPEED in UGV_SPEEDS:
-            for num_points in NS:
-                for seed in SEEDS:
-                    # Generate points
-                    points = generate_points(num_points,
-                                             x_range=(0,SPACE_SIZE),
-                                             y_range=(0,SPACE_SIZE),
-                                             FIXED_Z=FIXED_Z,
-                                             seed=seed)
-
-                    tsp_start_time = time.perf_counter()
-                    # Solve TSP
-                    tsp_points = solve_tsp_with_fixed_start_end(
-                        points, START_POINT, END_POINT
-                    )
-
-                    if showPlots or figureFolder is not None:
-                        TSP_figure_name = filename=os.path.join(figureFolder, 'TSP_path.png')
-                        if tsp_points:
-                            plot_path(tsp_points,
-                                      filename=TSP_figure_name)
-                        else:
-                            # If no solution, just scatter the reordered points for reference
-                            plot_points(points,
-                                        filename=TSP_figure_name)
-
-                    # cycles = create_cycles(tsp_points)
-                    tsp_end_time = time.perf_counter()
-
-                    cycles = create_cycles_CAHIT(tsp_points)
-
-                    collect_to_cycle_times = compute_all_cycle_times(
-                        cycles,
-                        tsp_points
-                    )
-
-                    result = solve_gtsp_with_release_collect(
-                        points=tsp_points,
-                        cycles=cycles,
-                        start_point=(0, 0),
-                        end_point=END_POINT,
-                        collect_to_cycle_times=collect_to_cycle_times,
-                        plot=showPlots,
-                        plotfilename=os.path.join(figureFolder, 'clusters.png')
-                    )
-
-                    mission_time = result["total_cost"] / 100
-                    print("Total mission time (s):", mission_time)
-
-                    tsp_time = tsp_end_time - tsp_start_time
-                    glns_time = result["solver_time"] or -1  # fallback in case it's None
-                    cycle_tsp_total_time = -1  # or fill if you compute it elsewhere
-
-                    file.write(f"{UGV_SPEED},{num_points},{seed},{mission_time:.2f},{tsp_time:.4f},{glns_time:.4f},{cycle_tsp_total_time:.4f}\n")
-
-if __name__ == '__main__':
-    run_experiments()

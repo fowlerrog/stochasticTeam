@@ -4,3 +4,7 @@
 
 # python cache
 **/__pycache__
+
+# run artifacts we don't want to keep
+**/GTSP_input.gtsp
+**/GTSP_output.txt

@@ -1,5 +1,5 @@
-import sys
 import matplotlib.pyplot as plt
+import numpy as np
 
 def plot_points(points, filename=None, show=True):
 	"""Plot points with no path"""
@@ -48,6 +48,7 @@ def plot_clusters(cycles, clusters, points, mapping_to_points, path, filename=No
 	cluster_colors = plt.cm.get_cmap('tab20', len(clusters))
 	fig, ax = plt.subplots(figsize=(8, 6))
 	# print(f"Mapping to points: {mapping_to_points}")
+	points = np.array(points)[:, :2]
 	for i, point in enumerate(points):
 		x,y = point
 		# print(x,y)

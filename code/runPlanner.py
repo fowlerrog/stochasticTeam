@@ -1,29 +1,27 @@
 
 # python imports
 import sys
-import os.path
+import time
+import os
 import json
 import traceback
 from itertools import product
 from copy import deepcopy
 
 # project imports
-from OURS import *
+from ourPlanner import *
+from plotUtils import *
 
-
-
-
-
-
-
-
-
-
-def runPlannerFromParams(params, outputFolder):
+def runPlannerFromParams(params):
 	"""
-	Run a planner from a parameter dict
+	Run a planner from a parameter dict (including run folder)
 	which will only produce ONE run
 	"""
+
+	mission_time = None
+	tsp_time = None
+	glns_time = None
+	cycle_tsp_total_time = None
 
 	try:
 		# Generate points
@@ -41,12 +39,13 @@ def runPlannerFromParams(params, outputFolder):
 		tsp_end_time = time.perf_counter()
 
 		# Break into UAV cycles
-		cycles = create_cycles_CAHIT(tsp_points)
+		cycles = create_cycles_CAHIT(tsp_points, params)
 
 		# Solve UGV GTSP
 		collect_to_cycle_times = compute_all_cycle_times(
 			cycles,
-			tsp_points
+			tsp_points,
+			params
 		)
 		result = solve_gtsp_with_release_collect(
 			points=tsp_points,
@@ -54,19 +53,23 @@ def runPlannerFromParams(params, outputFolder):
 			start_point=params["START_POINT"],
 			end_point=params["END_POINT"],
 			collect_to_cycle_times=collect_to_cycle_times,
-			plot=False,
-			plotfilename=os.path.join(outputFolder, 'clusters.png')
-		) # TODO pull plotting out of this with returned values
+			params=params
+		)
 
-		# if params[showPlots or figureFolder is not None:
-		# 	TSP_figure_name = filename=os.path.join(figureFolder, 'TSP_path.png')
-		# 	if tsp_points:
-		# 		plot_path(tsp_points,
-		# 					filename=TSP_figure_name)
-		# 	else:
-		# 		# If no solution, just scatter the reordered points for reference
-		# 		plot_points(points,
-		# 					filename=TSP_figure_name)
+		# # if params[showPlots or figureFolder is not None:
+		# figureFolder = params["RUN_FOLDER"]
+		# TSP_figure_name = os.path.join(figureFolder, 'TSP_path.png')
+		# if tsp_points:
+		# 	plot_path(tsp_points,
+		# 				filename=TSP_figure_name)
+		# else:
+		# 	# If no solution, just scatter the reordered points for reference
+		# 	plot_points(points,
+		# 				filename=TSP_figure_name)
+
+		# # if plot:
+		# plotFilename = os.path.join(figureFolder, 'clusters.png')
+		# plot_clusters(cycles, result["clusters"], tsp_points, result["mapping_to_points"], result["path"], plotFilename)
 
 		mission_time = result["total_cost"] / 100
 		print("Total mission time (s):", mission_time)
@@ -75,11 +78,25 @@ def runPlannerFromParams(params, outputFolder):
 		glns_time = result["solver_time"] or -1  # fallback in case it's None
 		cycle_tsp_total_time = -1  # or fill if you compute it elsewhere
 
-		# file.write(f"{UGV_SPEED},{num_points},{seed},{mission_time:.2f},{tsp_time:.4f},{glns_time:.4f},{cycle_tsp_total_time:.4f}\n")
 	except Exception:
 		print("\nFailure during planning")
 		print(traceback.format_exc())
-		return
+
+	return {
+		"MISSION_TIME": mission_time,
+		"TSP_TIME": tsp_time,
+		"GLNS_TIME": glns_time,
+		"CYCLE_TSP_TOTAL_TIME": cycle_tsp_total_time
+	}
+
+def appendDict(d1, d2):
+	"""Appends the values in d2 to the values of d1, for matching keys"""
+	for k in d2.keys():
+		if k in d1:
+			d1[k].append(d2[k])
+		else:
+			d1[k] = [d2[k]]
+	return d1
 
 def runPlannerFromSettings(settingsFile):
 	"""
@@ -105,8 +122,10 @@ def runPlannerFromSettings(settingsFile):
 		print('Params not found')
 		return
 
+	params["RUN_FOLDER"] = absFolder
+
 	# make sure independent variables are present
-	independentVars = ["SEEDS","NUM_POINTS","UGV_SPEEDS"]
+	independentVars = params["INDEPENDENT_VARIABLES"]
 	notPresent = [k not in params for k in independentVars]
 	if any(notPresent):
 		print('Did not find required independent variables:\n\t',
@@ -118,8 +137,11 @@ def runPlannerFromSettings(settingsFile):
 	independentDict = {k:params[k] for k in independentVars}
 	independentValueCombos = product(*[v for v in independentDict.values()])
 
-	# call each combination
+	# set up run result lists
+	independentResultsDict = {}
+	dependentResultsDict = {}
 
+	# call each combination
 	for combo in independentValueCombos:
 		# combine with other variables in params
 		thisRunParams = deepcopy(params)
@@ -127,14 +149,20 @@ def runPlannerFromSettings(settingsFile):
 		thisRunParams.update(thisRunIndParams)
 		print('Running independent parameters:\n', thisRunIndParams, sep='')
 
-		runPlannerFromParams(thisRunParams, absFolder)
+		# run
+		thisRunOutput = runPlannerFromParams(thisRunParams)
 
-		# collect dependent variables
+		# store results
+		independentResultsDict = appendDict(independentResultsDict, thisRunIndParams)
+		dependentResultsDict = appendDict(dependentResultsDict, thisRunOutput)
+
 		# write path to file
 		# plot path
 
 	# write overall results
-
+	independentResultsDict.update(dependentResultsDict) # combine
+	with open(os.path.join(absFolder, 'our_cr2.json'), 'w') as f:
+		json.dump(independentResultsDict, f)
 
 ### main function
 if __name__ == '__main__':
@@ -145,4 +173,7 @@ if __name__ == '__main__':
 	
 	# for each provided settings file, run planner
 	for s in sys.argv[1:]:
-		runPlannerFromSettings(s)
+		try:
+			runPlannerFromSettings(s)
+		except Exception:
+			print(traceback.format_exc())
