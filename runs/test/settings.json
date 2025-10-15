@@ -3,7 +3,7 @@
 	"SAVE_PATHS": true,
 
 	"SEEDS": [77],
-	"NUM_POINTS": [25, 50],
+	"NUM_POINTS": [25, 100],
 
 	"START_POINT": [0, 0],
 	"END_POINT": [4000, 4000],

@@ -9,7 +9,12 @@ various python packages
 Structure:
 
 /code contains python code
+	runnable scripts begin with lowercase, whereas source code files begin with uppercase
+
 /runs contains various runs
+	settings.json files are lists of inputs. INDEPENDENT_VARIABLES define which variables will be varied across runs
+	our_cr2.json files are output timing information for benchmarking
+	results_* folders are single-run path solutions
 
 ----
 

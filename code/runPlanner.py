@@ -1,7 +1,6 @@
 
 # python imports
 import sys
-import time
 import os
 import json
 import traceback
@@ -9,7 +8,8 @@ from itertools import product
 from copy import deepcopy
 
 # project imports
-from ourPlanner import *
+from NodeUtils import *
+import OurPlanner
 
 def runPlannerFromParams(params):
 	"""
@@ -17,76 +17,22 @@ def runPlannerFromParams(params):
 	which will only produce ONE run
 	"""
 
-	mission_time = None
-	tsp_time = None
-	glns_time = None
-	cycle_tsp_total_time = None
+	# Generate points
+	points = generate_points(params["NUM_POINTS"],
+							x_range=(0,params["SPACE_SIZE"]),
+							y_range=(0,params["SPACE_SIZE"]),
+							FIXED_Z=params["FIXED_Z"],
+							seed=params["SEEDS"])
 
-	try:
-		# Generate points
-		points = generate_points(params["NUM_POINTS"],
-								x_range=(0,params["SPACE_SIZE"]),
-								y_range=(0,params["SPACE_SIZE"]),
-								FIXED_Z=params["FIXED_Z"],
-								seed=params["SEEDS"])
+	# Construct and call solver
+	ourPlanner = OurPlanner.OurPlanner(params)
+	ourPlanner.solve(points)
 
-		# Solve TSP
-		tsp_start_time = time.perf_counter()
-		tsp_points = solve_tsp_with_fixed_start_end(
-			points, params["START_POINT"], params["END_POINT"]
-		)
-		tsp_end_time = time.perf_counter()
+	# Save if desired
+	if "SAVE_PATH_FOLDER" in params:
+		ourPlanner.print_results_to_json()
 
-		# Break into UAV cycles
-		cycles = create_cycles_CAHIT(tsp_points, params)
-
-		# Solve UGV GTSP
-		collect_to_cycle_times = compute_all_cycle_times(
-			cycles,
-			tsp_points,
-			params
-		)
-		result = solve_gtsp_with_release_collect(
-			points=tsp_points,
-			cycles=cycles,
-			start_point=params["START_POINT"],
-			end_point=params["END_POINT"],
-			collect_to_cycle_times=collect_to_cycle_times,
-			params=params
-		)
-
-		mission_time = result["total_cost"] / 100
-		print("Total mission time (s):", mission_time)
-
-		tsp_time = tsp_end_time - tsp_start_time
-		glns_time = result["solver_time"] or -1  # fallback in case it's None
-		cycle_tsp_total_time = -1  # or fill if you compute it elsewhere
-
-		# Save if desired
-		if "SAVE_PATH_FOLDER" in params:
-			# construct save dict
-			result.update({
-				'tsp_points': tsp_points,
-				'cycles': cycles
-				})
-			result['mapping_to_points'] = {k:list(v) for k,v in result["mapping_to_points"].items()} # json does not like np.array
-			# create folder if it doesn't exist
-			absSavePathFolder = os.path.join(params["RUN_FOLDER"], params["SAVE_PATH_FOLDER"])
-			if not os.path.exists(absSavePathFolder):
-				os.makedirs(absSavePathFolder)
-			with open(os.path.join(absSavePathFolder, 'plan_results.json'), 'w') as f:
-				json.dump(result, f)
-
-	except Exception:
-		print("\nFailure during planning")
-		print(traceback.format_exc())
-
-	return {
-		"MISSION_TIME": mission_time,
-		"TSP_TIME": tsp_time,
-		"GLNS_TIME": glns_time,
-		"CYCLE_TSP_TOTAL_TIME": cycle_tsp_total_time
-	}
+	return ourPlanner.time_info
 
 def appendDict(d1, d2):
 	"""Appends the values in d2 to the values of d1, for matching keys"""
@@ -150,7 +96,7 @@ def runPlannerFromSettings(settingsFile):
 
 		# set results save location, if desired
 		if "SAVE_PATHS" in params and params["SAVE_PATHS"]:
-			thisRunParams["SAVE_PATH_FOLDER"] = 'results_' + '_'.join(['%s=%s'%(k,v) for k,v in thisRunIndParams.items()])
+			thisRunParams["SAVE_PATH_FOLDER"] = 'results_' + '_'.join(['%s_%s'%(k,v) for k,v in thisRunIndParams.items()])
 
 		# run
 		thisRunOutput = runPlannerFromParams(thisRunParams)

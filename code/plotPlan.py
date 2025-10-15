@@ -7,7 +7,7 @@ import json
 import matplotlib.pyplot as plt
 
 # project imports
-from plotUtils import *
+from PlotUtils import *
 
 def loadPlanResultsFromFolder(folderPath):
 	"""Loads planning results from a json in a result folder"""
