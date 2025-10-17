@@ -8,12 +8,12 @@ import matplotlib.pyplot as plt
 
 # project imports
 from PlotUtils import *
+from Constants import planPathResultsFilename
 
 def loadPlanResultsFromFolder(folderPath):
 	"""Loads planning results from a json in a result folder"""
 
-	defaultFileName = 'plan_results.json'
-	absFile = os.path.abspath(os.path.join(folderPath, defaultFileName))
+	absFile = os.path.abspath(os.path.join(folderPath, planPathResultsFilename))
 	print('Loading planning results from', absFile)
     
 	# load run parameters from json

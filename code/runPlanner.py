@@ -9,7 +9,8 @@ from copy import deepcopy
 
 # project imports
 from NodeUtils import *
-import OurPlanner
+from OurPlanner import OurPlanner
+from Constants import planSettingsFilename, planTimeResultsFilename
 
 def runPlannerFromParams(params):
 	"""
@@ -25,7 +26,7 @@ def runPlannerFromParams(params):
 							seed=params["SEEDS"])
 
 	# Construct and call solver
-	ourPlanner = OurPlanner.OurPlanner(params)
+	ourPlanner = OurPlanner(params)
 	ourPlanner.solve(points)
 
 	# Save if desired
@@ -49,9 +50,8 @@ def runPlannerFromSettings(settingsFile):
 	which may generate several sets of parameters for separate runs
 	"""
 
-	defaultSettingsFileName = 'settings.json'
 	if os.path.isdir(settingsFile):
-		settingsFile = os.path.join(settingsFile, defaultSettingsFileName)
+		settingsFile = os.path.join(settingsFile, planSettingsFilename)
 	print('Planning from settings', settingsFile)
 	absFile = os.path.abspath(settingsFile)
 	absFolder = os.path.dirname(absFile)
@@ -107,7 +107,7 @@ def runPlannerFromSettings(settingsFile):
 
 	# write overall results
 	independentResultsDict.update(dependentResultsDict) # combine
-	with open(os.path.join(absFolder, 'our_cr2.json'), 'w') as f:
+	with open(os.path.join(absFolder, planTimeResultsFilename), 'w') as f:
 		json.dump(independentResultsDict, f)
 
 ### main function

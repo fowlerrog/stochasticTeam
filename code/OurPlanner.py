@@ -14,6 +14,7 @@ from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 from NodeUtils import *
 from GtspUtils import *
 from Planner import Planner
+from Constants import gtspInputFilename, gtspOutputFilename, planPathResultsFilename
 
 class OurPlanner(Planner):
     """Defines a planner class which implements our planning algorithm"""
@@ -76,7 +77,7 @@ class OurPlanner(Planner):
         absSavePathFolder = os.path.join(self.params["RUN_FOLDER"], self.params["SAVE_PATH_FOLDER"])
         if not os.path.exists(absSavePathFolder):
             os.makedirs(absSavePathFolder)
-        with open(os.path.join(absSavePathFolder, 'plan_results.json'), 'w') as f:
+        with open(os.path.join(absSavePathFolder, planPathResultsFilename), 'w') as f:
             json.dump(result, f)
 
     def solve_tsp_with_fixed_start_end(self, points):
@@ -403,8 +404,8 @@ class OurPlanner(Planner):
         pprint(mapping_to_collect)
 
         distance_matrix, clusters = self.buildt_GTSP_matrix(mapping_to_release, mapping_to_collect, points, cycles, collect_to_cycle_times, dim)
-        gtsp_input_path = os.path.join(runFolder, "GTSP_input.gtsp")
-        gtsp_output_path = os.path.join(runFolder, "GTSP_output.txt")
+        gtsp_input_path = os.path.join(runFolder, gtspInputFilename)
+        gtsp_output_path = os.path.join(runFolder, gtspOutputFilename)
         write_gtsp_file(dim, clusters, distance_matrix, gtsp_input_path)
 
         max_run_time = KSI * len(points) ** 3

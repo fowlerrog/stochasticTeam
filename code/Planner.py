@@ -12,10 +12,6 @@ class Planner(object):
 		"""
 		self.params = params
 
-	def getRuntimeInfo(self):
-		"""Returns runtime info dict"""
-		raise NotImplementedError("Planner subclass must implement getRuntimeInfo(self)")
-
 	def solve(self, points):
-		"""Solves a """
+		"""Solves the routing problem for a set of visited points"""
 		pass

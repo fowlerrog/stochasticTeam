@@ -120,5 +120,3 @@ def plot_original_cycles(original_points, original_cycles, start_point=None, end
 		plt.savefig(filename)
 	if show:
 		plt.show()
-
-# TODO - add main?
