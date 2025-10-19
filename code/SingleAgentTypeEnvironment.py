@@ -1,0 +1,48 @@
+
+from math import sqrt
+from random import gauss
+from scipy.spatial.distance import euclidean
+
+class SingleAgentTypeEnvironment(object):
+	"""Environmental model responsible for estimating and generating travel times for a single agent type"""
+
+	def __init__(self, params):
+		self.params = params
+
+	def estimateMean(self, p1, p2):
+		"""Estimates mean travel time from p1 to p2"""
+		raise NotImplementedError("SingleAgentTypeEnvironment subclass must implement estimateMean(self, p1, p2)")
+
+	def estimateVariance(self, p1, p2):
+		"""Estimates mean travel variance from p1 to p2"""
+		raise NotImplementedError("SingleAgentTypeEnvironment subclass must implement estimateVariance(self, p1, p2)")
+
+	def evaluate(self, p1, p2):
+		"""Evaluates actual random travel time from p1 to p2"""
+		raise NotImplementedError("SingleAgentTypeEnvironment subclass must implement evaluate(self, p1, p2)")
+
+class GaussianEnvironment(SingleAgentTypeEnvironment):
+	"""
+	Environment that directly evaluates a gaussian multiplied by distance
+	limited to +- 3 sigma and nonnegative
+	"""
+
+	def __init__(self, params):
+		super().__init__(params)
+		# make sure the required things are here
+		self.weight = params['WEIGHT'] # edge weight, time/dist
+		self.weight_std_dev = sqrt(params['WEIGHT_VARIANCE']) # edge weight standard deviation, time/dist
+
+	def estimateMean(self, p1, p2):
+		"""Mean = dist / speed"""
+		return euclidean(p1, p2) * self.weight
+
+	def estimateVariance(self, p1, p2):
+		"""var(time) = var(dist / speed) = dist^2 * var(weight)"""
+		return (euclidean(p1, p2) * self.weight_std_dev) ** 2
+
+	def evaluate(self, p1, p2):
+		return max(0, \
+			min(3, max(-3, gauss(0, 1))) \
+			* self.weight_std_dev + self.weight_std_dev) \
+			* euclidean(p1, p2)
