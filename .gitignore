@@ -9,5 +9,5 @@
 runs/**/GTSP_input.gtsp
 runs/**/GTSP_output.txt
 runs/**/*.png
-runs/**/our_cr2.json
+runs/**/*_results.json
 runs/**/results*

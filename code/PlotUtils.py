@@ -49,6 +49,8 @@ def plot_clusters(cycles, clusters, points, mapping_to_points, path, filename=No
 	fig, ax = plt.subplots(figsize=(8, 6))
 	# print(f"Mapping to points: {mapping_to_points}")
 	points = np.array(points)[:, :2]
+
+	# plot colored circles
 	for i, point in enumerate(points):
 		x,y = point
 		# print(x,y)
@@ -56,11 +58,14 @@ def plot_clusters(cycles, clusters, points, mapping_to_points, path, filename=No
 		ax.plot(x, y, 'o', color=color, markersize=16)
 		ax.text(x + 15, y + 15, f"{i}", fontsize=16, color=color)
 
-	for i in range(len(points)):
+	# plot uav path
+	for i in range(len(points) - 1):
 		x1, y1 = points[i]
 		x2, y2 = points[(i + 1) % len(points)]
 		ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
 					arrowprops=dict(arrowstyle="-", color='black', lw=2))
+
+	# plot ugv path
 	for i in range(len(path)):
 		x1, y1 = mapping_to_points[path[i]]
 		x2, y2 = mapping_to_points[path[(i + 1) % len(path)]]
@@ -69,6 +74,7 @@ def plot_clusters(cycles, clusters, points, mapping_to_points, path, filename=No
 		print(f"Drawing edge from {path[i]} to {path[(i + 1) % len(path)]}: ({x1}, {y1}) to ({x2}, {y2})")
 		ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
 					arrowprops=dict(arrowstyle="->", color='red', lw=2))
+
 	# ax.set_xlim(-100, 4000)
 	# ax.set_ylim(-100, 4000)
 	ax.grid(True)

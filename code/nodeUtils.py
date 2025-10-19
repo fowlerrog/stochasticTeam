@@ -1,21 +1,18 @@
 
 from numpy import zeros
-from random import seed as randomSeed, uniform
+from random import uniform
 from scipy.spatial.distance import euclidean
 from pprint import pprint
 
-def generate_points(n, x_range=(0, 1), y_range=(0, 1), FIXED_Z=0, decimals=2, seed=None):
+def generate_points(n, x_range=(0, 1), y_range=(0, 1), FIXED_Z=0, decimals=2):
     """
     Randomly generates n points in a rectangle x_range by y_range, with a fixed z coordinate
     n = int
     x_range, y_range = tuple
     fixed_z = float
     decimals = int
-    seed = int
     returns a list of tuples
     """
-    if seed is not None:
-        randomSeed(seed)
     points = [
         (
             round(uniform(*x_range), decimals),

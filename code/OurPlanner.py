@@ -15,6 +15,7 @@ from NodeUtils import *
 from GtspUtils import *
 from Planner import Planner
 from Constants import gtspInputFilename, gtspOutputFilename, planPathResultsFilename
+from RunnerUtils import writeJson
 
 class OurPlanner(Planner):
     """Defines a planner class which implements our planning algorithm"""
@@ -73,12 +74,8 @@ class OurPlanner(Planner):
         # construct save dict
         result = self.solution
         result['mapping_to_points'] = {k:list(v) for k,v in result["mapping_to_points"].items()} # json does not like np.array
-        # create folder if it doesn't exist
-        absSavePathFolder = os.path.join(self.params["RUN_FOLDER"], self.params["SAVE_PATH_FOLDER"])
-        if not os.path.exists(absSavePathFolder):
-            os.makedirs(absSavePathFolder)
-        with open(os.path.join(absSavePathFolder, planPathResultsFilename), 'w') as f:
-            json.dump(result, f)
+        absSavePath = os.path.join(self.params["RUN_FOLDER"], self.params["SAVE_PATH_FOLDER"], planPathResultsFilename)
+        writeJson(result, absSavePath)
 
     def solve_tsp_with_fixed_start_end(self, points):
         """Solves a TSP with a fixed start and end point"""
@@ -156,7 +153,7 @@ class OurPlanner(Planner):
     def close_cycle(self, current_cycle, tsp_tour, prev_point, cycle_start_point, current_time):
         """Find best collect point for closing a cycle"""
         UAV_SPEED = self.params["UAV_SPEED"]
-        UGV_SPEED = self.params["UGV_SPEEDS"]
+        UGV_SPEED = self.params["UGV_SPEED"]
         UAV_BATTERY_TIME = self.params["UAV_BATTERY_TIME"]
 
         best_return_time = float('inf')
@@ -182,7 +179,7 @@ class OurPlanner(Planner):
     def create_cycles_CAHIT(self, tsp_tour):
         TAKEOFF_LANDING_TIME = self.params["TAKEOFF_LANDING_TIME"]
         UAV_SPEED = self.params["UAV_SPEED"]
-        UGV_SPEED = self.params["UGV_SPEEDS"]
+        UGV_SPEED = self.params["UGV_SPEED"]
         UAV_BATTERY_TIME = self.params["UAV_BATTERY_TIME"]
 
         cycles = []
@@ -264,7 +261,7 @@ class OurPlanner(Planner):
             collect_points: list of dicts mapping only feasible collect_idx to UAV time
         """
         UAV_SPEED = self.params["UAV_SPEED"]
-        UGV_SPEED = self.params["UGV_SPEEDS"]
+        UGV_SPEED = self.params["UGV_SPEED"]
         TAKEOFF_LANDING_TIME = self.params["TAKEOFF_LANDING_TIME"]
         UAV_BATTERY_TIME = self.params["UAV_BATTERY_TIME"]
 
@@ -319,7 +316,7 @@ class OurPlanner(Planner):
         start_point = self.params["START_POINT"]
         end_point = self.params["END_POINT"]
 
-        UGV_SPEED = self.params["UGV_SPEEDS"]
+        UGV_SPEED = self.params["UGV_SPEED"]
         CHARGE_RATE = self.params["CHARGE_RATE"]
 
         matrix = np.ones((dim, dim)) * self.INF

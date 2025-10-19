@@ -6,11 +6,13 @@ import json
 import traceback
 from itertools import product
 from copy import deepcopy
+from random import seed
 
 # project imports
 from NodeUtils import *
 from OurPlanner import OurPlanner
 from Constants import planSettingsFilename, planTimeResultsFilename
+from RunnerUtils import *
 
 def runPlannerFromParams(params):
 	"""
@@ -18,12 +20,15 @@ def runPlannerFromParams(params):
 	which will only produce ONE run
 	"""
 
+	# Set seed if specified
+	if 'SEED' in params and params['SEED'] is not None:
+		seed(params['SEED'])
+
 	# Generate points
 	points = generate_points(params["NUM_POINTS"],
 							x_range=(0,params["SPACE_SIZE"]),
 							y_range=(0,params["SPACE_SIZE"]),
-							FIXED_Z=params["FIXED_Z"],
-							seed=params["SEEDS"])
+							FIXED_Z=params["FIXED_Z"])
 
 	# Construct and call solver
 	ourPlanner = OurPlanner(params)
@@ -35,38 +40,15 @@ def runPlannerFromParams(params):
 
 	return ourPlanner.time_info
 
-def appendDict(d1, d2):
-	"""Appends the values in d2 to the values of d1, for matching keys"""
-	for k in d2.keys():
-		if k in d1:
-			d1[k].append(d2[k])
-		else:
-			d1[k] = [d2[k]]
-	return d1
-
 def runPlannerFromSettings(settingsFile):
 	"""
 	Run a planner from a settings file (or folder) path
 	which may generate several sets of parameters for separate runs
 	"""
 
-	if os.path.isdir(settingsFile):
-		settingsFile = os.path.join(settingsFile, planSettingsFilename)
-	print('Planning from settings', settingsFile)
-	absFile = os.path.abspath(settingsFile)
-	absFolder = os.path.dirname(absFile)
-    
-	# load run parameters from json
-	params = {}
-	with open(absFile, 'r') as f:
-		try:
-			params = json.load(f)
-		except Exception:
-			print(traceback.format_exc())
-	if len(params) == 0:
-		print('Params not found')
-		return
-
+	# load parameters from json
+	params = loadJsonContents(settingsFile, planSettingsFilename)
+	absFolder = settingsFile
 	params["RUN_FOLDER"] = absFolder
 
 	# make sure independent variables are present
@@ -114,7 +96,7 @@ def runPlannerFromSettings(settingsFile):
 if __name__ == '__main__':
 	# print help message if necessary
 	if len(sys.argv) < 2 or any([s == '--help' or s == '-h' for s in sys.argv[1:]]):
-		print('Usage: python runPlanner.py /path/to/run/settings.json [/path/to/run/settings2.json ...]')
+		print('Usage: python runPlanner.py /path/to/%s [/path/to/another/%s ...]'%tuple(2*[planSettingsFilename]))
 		exit()
 	
 	# for each provided settings file, run planner
