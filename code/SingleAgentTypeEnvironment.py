@@ -31,7 +31,13 @@ class GaussianEnvironment(SingleAgentTypeEnvironment):
 		super().__init__(params)
 		# make sure the required things are here
 		self.weight = params['WEIGHT'] # edge weight, time/dist
-		self.weight_std_dev = sqrt(params['WEIGHT_VARIANCE']) # edge weight standard deviation, time/dist
+		# edge weight standard deviation, time/dist
+		if 'WEIGHT_VAR' in params:
+			self.weight_std_dev = sqrt(params['WEIGHT_VAR'])
+		elif 'WEIGHT_STD_DEV' in params:
+			self.weight_std_dev = params['WEIGHT_STD_DEV']
+		else:
+			raise(ImportError('GaussianEnvironment requires WEIGHT_VAR or WEIGHT_STD_DEV'))
 
 	def estimateMean(self, p1, p2):
 		"""Mean = dist / speed"""
@@ -44,5 +50,5 @@ class GaussianEnvironment(SingleAgentTypeEnvironment):
 	def evaluate(self, p1, p2):
 		return max(0, \
 			min(3, max(-3, gauss(0, 1))) \
-			* self.weight_std_dev + self.weight_std_dev) \
+			* self.weight_std_dev + self.weight) \
 			* euclidean(p1, p2)

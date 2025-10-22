@@ -28,8 +28,8 @@ def loadPlanResultsFromFolder(folderPath):
 		return
 
 	# standardize:
-	# mapping_to_points keys should be ints
-	params['mapping_to_points'] = {int(k):v for k,v in params['mapping_to_points'].items()}
+	# ugv_mapping_to_points keys should be ints
+	params['ugv_mapping_to_points'] = {int(k):v for k,v in params['ugv_mapping_to_points'].items()}
 	
 	return params
 
@@ -42,19 +42,19 @@ def plotPlanFromFolder(folderPath):
 		return
 
 	TSP_figure_name = os.path.join(absFolderPath, 'TSP_path.png')
-	if 'tsp_points' in plan:
-		plot_path(plan['tsp_points'], filename=TSP_figure_name, show=False)
+	if 'uav_points' in plan:
+		plot_path(plan['uav_points'], filename=TSP_figure_name, show=False)
 	# else:
 	# 	# If no solution, just scatter the reordered points for reference
 	# 	plot_points(points,
 	# 				filename=TSP_figure_name)
 
 	cycles_figure_name = os.path.join(absFolderPath, 'clusters.png')
-	plot_clusters(plan['cycles'],
+	plot_clusters(plan['uav_cycles'],
 			    plan["clusters"],
-				plan['tsp_points'],
-				plan["mapping_to_points"],
-				plan["path"],
+				plan['uav_points'],
+				plan["ugv_mapping_to_points"],
+				plan["ugv_path"],
 				cycles_figure_name,
 				False)
 	

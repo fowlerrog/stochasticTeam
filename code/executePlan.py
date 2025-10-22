@@ -7,7 +7,7 @@ from random import seed
 # project imports
 from MultiAgentTypeEnvironment import *
 from Constants import executeSettingsFilename, planSettingsFilename, planPathResultsFilename, executeResultsFilename
-from RunnerUtils import *
+from RunnerUtils import writeJson, loadJsonContents, toDir
 
 def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPath):
 	"""Executes a number of runs for a given plan"""
@@ -28,14 +28,14 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 	env = envClass(envParams)
 
 	# parse path
-	uavPoints = resultsDict['tsp_points']
-	uavCycles = resultsDict['cycles']
-	ugvOrder = resultsDict['path']
-	ugvPoints = resultsDict['mapping_to_points']
+	uavPoints = resultsDict['uav_points']
+	uavCycles = resultsDict['uav_cycles']
+	ugvOrder = resultsDict['ugv_path']
+	ugvPoints = resultsDict['ugv_mapping_to_points']
 	ugvPoints = {int(k):[*v, 0] for k,v in ugvPoints.items()} # str -> int : 2d -> 3d
 
 	# TODO perhaps this should be in its own agent definition file, or the environment?
-	uavExtraTime = planParams['TAKEOFF_LANDING_TIME']
+	uavTakeoffTime = planParams['TAKEOFF_LANDING_TIME']
 	uavMaxTime = planParams['UAV_BATTERY_TIME']
 
 	# set up RNG
@@ -67,8 +67,7 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 
 			# evaluate success / failure
 			failure = False
-			remainingFlightTimesThisRun.append(uavMaxTime - uavTime)
-			# TODO should we consider ugv time for the above?
+			remainingFlightTimesThisRun.append(uavMaxTime - max(uavTime, ugvTime))
 			if ugvTime > uavMaxTime:
 				ugvTimeoutFailures += 1
 				failure = True

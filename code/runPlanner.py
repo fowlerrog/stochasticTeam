@@ -48,7 +48,7 @@ def runPlannerFromSettings(settingsFile):
 
 	# load parameters from json
 	params = loadJsonContents(settingsFile, planSettingsFilename)
-	absFolder = settingsFile
+	absFolder = toDir(settingsFile)
 	params["RUN_FOLDER"] = absFolder
 
 	# make sure independent variables are present

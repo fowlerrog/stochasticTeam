@@ -2,7 +2,6 @@
 # python imports
 import os
 import time
-import json
 import subprocess
 import numpy as np
 import traceback
@@ -21,6 +20,7 @@ class OurPlanner(Planner):
     """Defines a planner class which implements our planning algorithm"""
 
     INF = 999999
+    GTSP_SCALING = 100 # glns wants integers
 
     def solve(self, points):
         """Solves a path for a set of points"""
@@ -28,41 +28,41 @@ class OurPlanner(Planner):
         try:
             # Solve TSP
             tsp_start_time = time.perf_counter()
-            tsp_points = self.solve_tsp_with_fixed_start_end(points)
+            uav_points = self.solve_tsp_with_fixed_start_end(points)
             tsp_end_time = time.perf_counter()
 
             # Break into UAV cycles
-            cycles = self.create_cycles_CAHIT(tsp_points)
+            cycles = self.create_cycles_CAHIT(uav_points)
 
             # Solve UGV GTSP
             collect_to_cycle_times = self.compute_all_cycle_times(
                 cycles,
-                tsp_points
+                uav_points
             )
             result = self.solve_gtsp_with_release_collect(
-                points=tsp_points,
+                points=uav_points,
                 cycles=cycles,
                 collect_to_cycle_times=collect_to_cycle_times,
             )
 
-            mission_time = result["total_cost"] / 100
+            mission_time = result["total_cost"] / self.GTSP_SCALING
             print("Total mission time (s):", mission_time)
 
             tsp_time = tsp_end_time - tsp_start_time
-            glns_time = result["solver_time"] or -1  # fallback in case it's None
+            gtsp_time = result["gtsp_solver_time"] or -1  # fallback in case it's None
             cycle_tsp_total_time = -1  # or fill if you compute it elsewhere
 
             self.time_info = {
                 "MISSION_TIME": mission_time,
                 "TSP_TIME": tsp_time,
-                "GLNS_TIME": glns_time,
+                "GTSP_TIME": gtsp_time,
                 "CYCLE_TSP_TOTAL_TIME": cycle_tsp_total_time
             }
 
             self.solution = result
             self.solution.update({
-				'tsp_points': tsp_points,
-				'cycles': cycles
+				'uav_points': uav_points,
+				'uav_cycles': cycles
 				})
 
         except Exception:
@@ -73,7 +73,7 @@ class OurPlanner(Planner):
         """Prints solution results to a json file"""
         # construct save dict
         result = self.solution
-        result['mapping_to_points'] = {k:list(v) for k,v in result["mapping_to_points"].items()} # json does not like np.array
+        result['ugv_mapping_to_points'] = {k:list(v) for k,v in result["ugv_mapping_to_points"].items()} # json does not like np.array
         absSavePath = os.path.join(self.params["RUN_FOLDER"], self.params["SAVE_PATH_FOLDER"], planPathResultsFilename)
         writeJson(result, absSavePath)
 
@@ -358,7 +358,7 @@ class OurPlanner(Planner):
             matrix[mapping_to_collect[collect_idx], dim-2] = euclidean(points[collect_idx], end_point) / UGV_SPEED
             matrix[dim-2, mapping_to_collect[collect_idx]] = euclidean(points[collect_idx], end_point) / UGV_SPEED
 
-        matrix *= 100
+        matrix *= self.GTSP_SCALING
         matrix = matrix.astype(int)
         print(f"Clusters: {clusters}")
         return matrix, clusters
@@ -418,12 +418,9 @@ class OurPlanner(Planner):
         print(f"Path: {path}")
 
         return {
-            "raw_tour": tour,
-            "path": path,
-            "gtsp_file": gtsp_input_path,
-            "output_file": gtsp_output_path,
-            "solver_time": solver_time,
+            "ugv_path": path,
+            "gtsp_solver_time": solver_time,
             "total_cost": total_cost,
             "clusters": clusters,
-            "mapping_to_points": mapping_to_points
+            "ugv_mapping_to_points": mapping_to_points
         }

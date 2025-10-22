@@ -6,13 +6,13 @@
 			"TYPE": "GaussianEnvironment",
 
 			"WEIGHT": 0.1,
-			"WEIGHT_VARIANCE": 0.0001
+			"WEIGHT_STD_DEV": 0.0
 		},
 		"UGV": {
 			"TYPE": "GaussianEnvironment",
 
 			"WEIGHT": 0.4,
-			"WEIGHT_VARIANCE": 0.0001
+			"WEIGHT_STD_DEV": 0.0
 		}
 	}
 }
