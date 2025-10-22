@@ -4,7 +4,7 @@ from random import uniform
 from scipy.spatial.distance import euclidean
 from pprint import pprint
 
-def generate_points(n, x_range=(0, 1), y_range=(0, 1), FIXED_Z=0, decimals=2):
+def generate_points(n, x_range=(0, 1), y_range=(0, 1), fixed_z=0, decimals=2):
     """
     Randomly generates n points in a rectangle x_range by y_range, with a fixed z coordinate
     n = int
@@ -17,7 +17,7 @@ def generate_points(n, x_range=(0, 1), y_range=(0, 1), FIXED_Z=0, decimals=2):
         (
             round(uniform(*x_range), decimals),
             round(uniform(*y_range), decimals),
-            FIXED_Z
+            fixed_z
         )
         for _ in range(n)
     ]
@@ -38,7 +38,7 @@ def create_distance_matrix(points):
 
 def find_closest_point(points, reference_point):
     """Find the index of the closest point to a given reference point."""
-    return min(range(len(points)), key=lambda i: euclidean(points[i][:2], reference_point))
+    return min(range(len(points)), key=lambda i: euclidean(points[i], reference_point))
 
 def reorder_list(l, start_index, end_index):
     """Reorder points with the start and end points in the correct positions."""

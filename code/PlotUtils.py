@@ -39,13 +39,14 @@ def plot_path(points, filename=None, show=True):
 	if show:
 		plt.show()
 
-def plot_clusters(cycles, clusters, points, mapping_to_points, path, filename=None, show=True):
+def plot_cycles(cycles, points, mapping_to_points, path, filename=None, show=True):
 	"""Plot points, clustered into cycles"""
-	clusters_for_plot = []
+	cycle_color_groups = [0] * len(points)
 	for cix, cycle in enumerate(cycles):
-		clusters_for_plot.extend([cix]*len(cycle))
+		for p in cycle:
+			cycle_color_groups[p] = cix
 
-	cluster_colors = plt.cm.get_cmap('tab20', len(clusters))
+	cycle_colors = plt.cm.get_cmap('tab20', len(cycles))
 	fig, ax = plt.subplots(figsize=(8, 6))
 	# print(f"Mapping to points: {mapping_to_points}")
 	points = np.array(points)[:, :2]
@@ -53,17 +54,18 @@ def plot_clusters(cycles, clusters, points, mapping_to_points, path, filename=No
 	# plot colored circles
 	for i, point in enumerate(points):
 		x,y = point
-		# print(x,y)
-		color = cluster_colors(clusters_for_plot[i])
+		# print(x, y, cycle_color_groups[i], cycle_colors(cycle_color_groups[i]))
+		color = cycle_colors(cycle_color_groups[i])
 		ax.plot(x, y, 'o', color=color, markersize=16)
 		ax.text(x + 15, y + 15, f"{i}", fontsize=16, color=color)
 
 	# plot uav path
-	for i in range(len(points) - 1):
-		x1, y1 = points[i]
-		x2, y2 = points[(i + 1) % len(points)]
-		ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
-					arrowprops=dict(arrowstyle="-", color='black', lw=2))
+	for cycle in cycles:
+		for i in range(len(cycle) - 1):
+			x1, y1 = points[cycle[i]]
+			x2, y2 = points[cycle[i + 1]]
+			ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
+						arrowprops=dict(arrowstyle="-", color='black', lw=2))
 
 	# plot ugv path
 	for i in range(len(path)):

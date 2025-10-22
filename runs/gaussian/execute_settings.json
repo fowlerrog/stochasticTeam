@@ -1,5 +1,5 @@
 {
 	"SEED": 0,
-	"NUM_RUNS": 1,
+	"NUM_RUNS": 1000,
 	"ENVIRONMENT": "env_settings.json"
 }

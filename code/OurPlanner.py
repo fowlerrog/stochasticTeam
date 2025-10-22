@@ -45,6 +45,15 @@ class OurPlanner(Planner):
                 collect_to_cycle_times=collect_to_cycle_times,
             )
 
+            # Add collect points to UAV cycles
+            for iCycle in range(len(cycles)):
+                collect_point = result['ugv_mapping_to_points'][result['ugv_path'][2 + 2*iCycle]]
+                collect_point_projection = (*collect_point[:2], self.params['FIXED_Z'])
+                closest_uav_point_index = find_closest_point(uav_points, collect_point_projection)
+                if cycles[iCycle][-1] != closest_uav_point_index:
+                    cycles[iCycle].append(closest_uav_point_index)
+
+            # Save runtimes
             mission_time = result["total_cost"] / self.GTSP_SCALING
             print("Total mission time (s):", mission_time)
 
@@ -83,8 +92,8 @@ class OurPlanner(Planner):
         end_point = self.params["END_POINT"]
 
         # Step 1: Find the closest points to START_POINT and END_POINT
-        start_index = find_closest_point(points, start_point)
-        end_index = find_closest_point(points, end_point)
+        start_index = find_closest_point(points, (*start_point, 0))
+        end_index = find_closest_point(points, (*end_point, 0))
 
         # Step 2: Reorder the points with the closest points to start and end at the beginning and end
         reordered_points = reorder_list(points, start_index, end_index)
@@ -226,6 +235,7 @@ class OurPlanner(Planner):
                 # close cycle
                 best_return_time = self.close_cycle(current_cycle, tsp_tour, prev_point, cycle_start_point, current_time)
                 current_time += best_return_time
+
                 cycles.append(current_cycle)
                 cycle_times.append(current_time)
 
@@ -241,8 +251,8 @@ class OurPlanner(Planner):
         # Close final cycle
         print(f"\n*** Closing final cycle ***")
         best_return_time = self.close_cycle(current_cycle, tsp_tour, prev_point, cycle_start_point, current_time)
-
         current_time += best_return_time
+
         cycles.append(current_cycle)
         cycle_times.append(current_time)
         print(f"Final cycle closed: {current_cycle}, total time={current_time:.2f}")
@@ -421,6 +431,5 @@ class OurPlanner(Planner):
             "ugv_path": path,
             "gtsp_solver_time": solver_time,
             "total_cost": total_cost,
-            "clusters": clusters,
             "ugv_mapping_to_points": mapping_to_points
         }

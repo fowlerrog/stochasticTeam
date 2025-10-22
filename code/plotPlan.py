@@ -49,10 +49,9 @@ def plotPlanFromFolder(folderPath):
 	# 	plot_points(points,
 	# 				filename=TSP_figure_name)
 
-	cycles_figure_name = os.path.join(absFolderPath, 'clusters.png')
-	plot_clusters(plan['uav_cycles'],
-			    plan["clusters"],
-				plan['uav_points'],
+	cycles_figure_name = os.path.join(absFolderPath, 'uav_cycles.png')
+	plot_cycles(plan['uav_cycles'],
+			    plan['uav_points'],
 				plan["ugv_mapping_to_points"],
 				plan["ugv_path"],
 				cycles_figure_name,

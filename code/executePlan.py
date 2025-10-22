@@ -35,7 +35,6 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 	ugvPoints = {int(k):[*v, 0] for k,v in ugvPoints.items()} # str -> int : 2d -> 3d
 
 	# TODO perhaps this should be in its own agent definition file, or the environment?
-	uavTakeoffTime = planParams['TAKEOFF_LANDING_TIME']
 	uavMaxTime = planParams['UAV_BATTERY_TIME']
 
 	# set up RNG
@@ -51,19 +50,33 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 	for _ in range(numRuns):
 		remainingFlightTimesThisRun = []
 		for iCycle in range(len(uavCycles)):
+			print('icycle', iCycle)
 			# calculate ugv travel time
 			releasePoint = ugvPoints[ugvOrder[1 + 2*iCycle]]
 			collectPoint = ugvPoints[ugvOrder[2 + 2*iCycle]]
 			ugvTime = env.evaluate(releasePoint, collectPoint, 'UGV')
+			print('ugv', releasePoint, '->', collectPoint, '=', ugvTime)
 
 			# calculate uav travel time
 			thisUavCycle = uavCycles[iCycle]
-			uavTime = uavExtraTime + \
+			uavTime = \
+				env.evaluate(releasePoint, uavPoints[thisUavCycle[0]], 'UAV') + \
 				sum([
-				env.evaluate(uavPoints[thisUavCycle[j]], uavPoints[thisUavCycle[j+1]], 'UAV')
-				for j in range(len(thisUavCycle) - 1)
+					env.evaluate(uavPoints[thisUavCycle[j]], uavPoints[thisUavCycle[j+1]], 'UAV')
+					for j in range(0, len(thisUavCycle) - 1)
 				]) + \
 				env.evaluate(uavPoints[thisUavCycle[len(thisUavCycle)-1]], collectPoint, 'UAV') # TODO projection?
+			print('uav\n',
+		 		releasePoint, '->', uavPoints[thisUavCycle[0]], '=',
+				env.evaluate(releasePoint, uavPoints[thisUavCycle[0]], 'UAV'), '\n',
+				'\n'.join([
+					str(uavPoints[thisUavCycle[j]]) + ' -> ' +
+					str(uavPoints[thisUavCycle[j+1]]) + ' = ' +
+					str(env.evaluate(uavPoints[thisUavCycle[j]], uavPoints[thisUavCycle[j+1]], 'UAV') ) for j in range(0, len(thisUavCycle) - 1)
+				]), '\n',
+				uavPoints[thisUavCycle[len(thisUavCycle)-1]], '->', collectPoint, '=',
+				env.evaluate(uavPoints[thisUavCycle[len(thisUavCycle)-1]], collectPoint, 'UAV'), '\n=',
+				uavTime)
 
 			# evaluate success / failure
 			failure = False

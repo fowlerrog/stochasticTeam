@@ -1,0 +1,18 @@
+{
+	"TYPE": "SplitEnvironment",
+
+	"AGENT_ENVIRONMENTS": {
+		"UAV": {
+			"TYPE": "GaussianEnvironment",
+
+			"WEIGHT": 0.1,
+			"WEIGHT_STD_DEV": 0.01
+		},
+		"UGV": {
+			"TYPE": "GaussianEnvironment",
+
+			"WEIGHT": 0.4,
+			"WEIGHT_STD_DEV": 0.05
+		}
+	}
+}

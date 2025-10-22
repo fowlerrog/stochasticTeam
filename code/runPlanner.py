@@ -28,7 +28,7 @@ def runPlannerFromParams(params):
 	points = generate_points(params["NUM_POINTS"],
 							x_range=(0,params["SPACE_SIZE"]),
 							y_range=(0,params["SPACE_SIZE"]),
-							FIXED_Z=params["FIXED_Z"])
+							fixed_z=params["FIXED_Z"])
 
 	# Construct and call solver
 	ourPlanner = OurPlanner(params)
