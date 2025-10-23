@@ -23,7 +23,7 @@ class OurPlanner(Planner):
     GTSP_SCALING = 100 # glns wants integers
 
     def solve(self, points):
-        """Solves a path for a set of points"""
+        """Solves a uav/ugv path for a set of points"""
 
         try:
             # Solve TSP
@@ -130,11 +130,11 @@ class OurPlanner(Planner):
             routing_enums_pb2.FirstSolutionStrategy.CHRISTOFIDES)
             # routing_enums_pb2.FirstSolutionStrategy.PARALLEL_CHEAPEST_INSERTION)
 
-        # COMMENT IF ONLY WANT TO USE THE FIRST SOL
         # Set local search metaheuristic to GUIDED_LOCAL_SEARCH
-        # search_parameters.local_search_metaheuristic = (
-        #     routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
-        # search_parameters.time_limit.seconds = 5
+        if 'TSP_LOCAL_SEARCH' in self.params and self.params['TSP_LOCAL_SEARCH']:
+            search_parameters.local_search_metaheuristic = (
+                routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
+            search_parameters.time_limit.seconds = 5
 
         # Step 8: Solve the problem
         solution = routing.SolveWithParameters(search_parameters)
@@ -160,7 +160,7 @@ class OurPlanner(Planner):
         return tsp_air_points
 
     def close_cycle(self, current_cycle, tsp_tour, prev_point, cycle_start_point, current_time):
-        """Find best collect point for closing a cycle"""
+        """Find a valid collect point for closing a cycle"""
         UAV_SPEED = self.params["UAV_SPEED"]
         UGV_SPEED = self.params["UGV_SPEED"]
         UAV_BATTERY_TIME = self.params["UAV_BATTERY_TIME"]
@@ -310,7 +310,6 @@ class OurPlanner(Planner):
 
                 #TODO
                 #total_dist = total_dist - return_dist + last_uav_travel_actual_dist
-
 
             collect_points.append(collect_to_cycle_time)
 

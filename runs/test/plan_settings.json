@@ -13,6 +13,7 @@
 
 	"SOLVER_TYPE": ["DETERMINISTIC"],
 	"SOLVER_ENVIRONMENT": "env_settings.json",
+	"TSP_LOCAL_SEARCH": false,
 
 	"UGV_SPEED": 2.5,
 	"UAV_SPEED": 10.0,
