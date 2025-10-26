@@ -5,9 +5,8 @@ import traceback
 from random import seed
 
 # project imports
-from MultiAgentTypeEnvironment import *
 from Constants import executeSettingsFilename, planSettingsFilename, planPathResultsFilename, executeResultsFilename
-from RunnerUtils import writeJson, loadJsonContents, toDir
+from RunnerUtils import writeJson, loadJsonContents, toDir, envFromParamsOrFile
 
 def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPath):
 	"""Executes a number of runs for a given plan"""
@@ -21,11 +20,10 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 	resultsDict = loadJsonContents(absResultsPath, planPathResultsFilename)
 
 	# construct environment
-	executeFolder = toDir(absExecutePath)
-	envPath = os.path.join(executeFolder, executeParams['ENVIRONMENT'])
-	envParams = loadJsonContents(envPath)
-	envClass = getattr(sys.modules[__name__], envParams['TYPE'])
-	env = envClass(envParams)
+	envParams = executeParams['ENVIRONMENT']
+	if isinstance(envParams, str): # this is a path to another file, not params
+		envParams = os.path.join(toDir(absExecutePath), envParams)
+	env = envFromParamsOrFile(envParams)
 
 	# parse path
 	uavPoints = resultsDict['uav_points']

@@ -22,6 +22,9 @@ class OurPlanner(Planner):
     INF = 999999
     GTSP_SCALING = 100 # glns wants integers
 
+    def __init__(self, params):
+        super().__init__(params)
+
     def solve(self, points):
         """Solves a uav/ugv path for a set of points"""
 

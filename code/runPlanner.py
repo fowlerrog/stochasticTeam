@@ -10,7 +10,6 @@ from random import seed
 
 # project imports
 from NodeUtils import *
-from OurPlanner import OurPlanner
 from Constants import planSettingsFilename, planTimeResultsFilename
 from RunnerUtils import *
 
@@ -31,14 +30,14 @@ def runPlannerFromParams(params):
 							fixed_z=params["FIXED_Z"])
 
 	# Construct and call solver
-	ourPlanner = OurPlanner(params)
-	ourPlanner.solve(points)
+	planner = plannerFromParams(params)
+	planner.solve(points)
 
 	# Save if desired
 	if "SAVE_PATH_FOLDER" in params:
-		ourPlanner.print_results_to_json()
+		planner.print_results_to_json()
 
-	return ourPlanner.time_info
+	return planner.time_info
 
 def runPlannerFromSettings(settingsFile):
 	"""

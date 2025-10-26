@@ -21,6 +21,22 @@ class SingleAgentTypeEnvironment(object):
 		"""Evaluates actual random travel time from p1 to p2"""
 		raise NotImplementedError("SingleAgentTypeEnvironment subclass must implement evaluate(self, p1, p2)")
 
+class SimpleEnvironment(SingleAgentTypeEnvironment):
+	"""Environment that uses a constant speed"""
+
+	def __init__(self, params):
+		super().__init__(params)
+		self.agent_speed = params['SPEED']
+
+	def estimateMean(self, p1, p2):
+		return euclidean(p1, p2) / self.agent_speed
+
+	def estimateVariance(self, p1, p2):
+		return 0
+
+	def evaluate(self, p1, p2):
+		return self.estimateMean(p1, p2)
+
 class GaussianEnvironment(SingleAgentTypeEnvironment):
 	"""
 	Environment that directly evaluates a gaussian multiplied by distance

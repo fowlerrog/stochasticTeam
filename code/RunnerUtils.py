@@ -3,6 +3,10 @@ import os
 import json
 import traceback
 
+from MultiAgentTypeEnvironment import *
+from SingleAgentTypeEnvironment import *
+from OurPlanner import *
+
 def appendDict(d1, d2):
 	"""Appends the values in d2 to the values of d1, for matching keys"""
 	for k in d2.keys():
@@ -47,3 +51,13 @@ def writeJson(dataDict, savePath):
 def toDir(path):
 	"""Converts a folder or file path to a folder path"""
 	return path if os.path.isdir(path) else os.path.dirname(path)
+
+def envFromParamsOrFile(params):
+	if isinstance(params, str): # this is a filepath, not params
+		params = loadJsonContents(params)
+	envClass = getattr(sys.modules[__name__], params['TYPE'])
+	return envClass(params)
+
+def plannerFromParams(params):
+	plannerClass = getattr(sys.modules[__name__], params['PLANNER_TYPE'])
+	return plannerClass(params)
