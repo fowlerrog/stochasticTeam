@@ -1,6 +1,7 @@
 
-from RunnerUtils import envFromParamsOrFile, toDir
 import os
+
+from EnvUtils import envFromParamsOrFile
 
 class Planner(object):
 	"""Defines a Planner class which all other Planners should descend from"""

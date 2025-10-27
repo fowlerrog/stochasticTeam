@@ -9,5 +9,5 @@
 runs/**/GTSP_input.gtsp
 runs/**/GTSP_output.txt
 runs/**/*.png
-runs/**/*_results.json
+runs/**/*_results.yaml
 runs/**/results*

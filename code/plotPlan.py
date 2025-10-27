@@ -3,32 +3,28 @@
 import os
 import sys
 import traceback
-import json
+import yaml
 import matplotlib.pyplot as plt
 
 # project imports
 from PlotUtils import *
 from Constants import planPathResultsFilename
+from RunnerUtils import loadYamlContents
 
 def loadPlanResultsFromFolder(folderPath):
-	"""Loads planning results from a json in a result folder"""
+	"""Loads planning results from a yaml in a result folder"""
 
 	absFile = os.path.abspath(os.path.join(folderPath, planPathResultsFilename))
 	print('Loading planning results from', absFile)
     
-	# load run parameters from json
-	params = {}
-	with open(absFile, 'r') as f:
-		try:
-			params = json.load(f)
-		except Exception:
-			print(traceback.format_exc())
+	# load run parameters from yaml
+	params = loadYamlContents(folderPath, planPathResultsFilename)
 	if len(params) == 0:
 		print('Params not found')
 		return
 
 	# standardize:
-	# ugv_mapping_to_points keys should be ints
+	# ugv_mapping_to_points keys should be ints TODO is this necessary with yaml?
 	params['ugv_mapping_to_points'] = {int(k):v for k,v in params['ugv_mapping_to_points'].items()}
 	
 	return params

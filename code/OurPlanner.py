@@ -14,7 +14,7 @@ from NodeUtils import *
 from GtspUtils import *
 from Planner import Planner
 from Constants import gtspInputFilename, gtspOutputFilename, planPathResultsFilename
-from RunnerUtils import writeJson
+from RunnerUtils import writeYaml
 
 class OurPlanner(Planner):
     """Defines a planner class which implements our planning algorithm"""
@@ -81,13 +81,14 @@ class OurPlanner(Planner):
             print("\nFailure during planning")
             print(traceback.format_exc())
 
-    def print_results_to_json(self):
-        """Prints solution results to a json file"""
+    def print_results_to_yaml(self):
+        """Prints solution results to a yaml file"""
         # construct save dict
         result = self.solution
-        result['ugv_mapping_to_points'] = {k:list(v) for k,v in result["ugv_mapping_to_points"].items()} # json does not like np.array
+        result['uav_points'] = [list(v) for v in result['uav_points']] # tuple -> list
+        result['ugv_mapping_to_points'] = {k:[float(n) for n in v] for k,v in result["ugv_mapping_to_points"].items()} # yaml does not like np.array
         absSavePath = os.path.join(self.params["RUN_FOLDER"], self.params["SAVE_PATH_FOLDER"], planPathResultsFilename)
-        writeJson(result, absSavePath)
+        writeYaml(result, absSavePath)
 
     def solve_tsp_with_fixed_start_end(self, points):
         """Solves a TSP with a fixed start and end point"""

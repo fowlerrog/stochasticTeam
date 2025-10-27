@@ -2,7 +2,7 @@
 # python imports
 import sys
 import os
-import json
+import yaml
 import traceback
 from itertools import product
 from copy import deepcopy
@@ -11,7 +11,8 @@ from random import seed
 # project imports
 from NodeUtils import *
 from Constants import planSettingsFilename, planTimeResultsFilename
-from RunnerUtils import *
+from RunnerUtils import loadYamlContents, appendDict, toDir, writeYaml
+from PlannerUtils import plannerFromParams
 
 def runPlannerFromParams(params):
 	"""
@@ -35,7 +36,7 @@ def runPlannerFromParams(params):
 
 	# Save if desired
 	if "SAVE_PATH_FOLDER" in params:
-		planner.print_results_to_json()
+		planner.print_results_to_yaml()
 
 	return planner.time_info
 
@@ -45,8 +46,8 @@ def runPlannerFromSettings(settingsFile):
 	which may generate several sets of parameters for separate runs
 	"""
 
-	# load parameters from json
-	params = loadJsonContents(settingsFile, planSettingsFilename)
+	# load parameters from yaml
+	params = loadYamlContents(settingsFile, planSettingsFilename)
 	absFolder = toDir(settingsFile)
 	params["RUN_FOLDER"] = absFolder
 
@@ -88,8 +89,7 @@ def runPlannerFromSettings(settingsFile):
 
 	# write overall results
 	independentResultsDict.update(dependentResultsDict) # combine
-	with open(os.path.join(absFolder, planTimeResultsFilename), 'w') as f:
-		json.dump(independentResultsDict, f)
+	writeYaml(independentResultsDict, os.path.join(absFolder, planTimeResultsFilename))
 
 ### main function
 if __name__ == '__main__':

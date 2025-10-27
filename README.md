@@ -12,16 +12,17 @@ Structure:
 	runnable scripts begin with lowercase, whereas source code files begin with uppercase
 
 /runs contains various runs
-	settings.json files are lists of inputs. INDEPENDENT_VARIABLES define which variables will be varied across runs
-	our_cr2.json files are output timing information for benchmarking
+	*_settings.yaml files are lists of inputs. INDEPENDENT_VARIABLES define which variables will be varied across runs
+	plan_time_results.yaml files are output timing information for benchmarking
 	results_* folders are single-run path solutions
 
 ----
 
 To use:
 
-python runPlanner.py /path/to/settings.json
+python runPlanner.py /path/to/settings.yaml
 python plotPlan.py /path/to/results/folder/
+python executePlan.py /path/to/execute_settings.yaml /path/to/plan_settings.yaml /path/to/plan/results/folder/
 
 ----
 
@@ -37,7 +38,7 @@ source .venv/Scripts/activate
 
 And then run your scripts normally:
 
-python code/runPlanner.py runs/test/settings.json
+python code/runPlanner.py runs/test/settings.yaml
 
 To exit the venv:
 

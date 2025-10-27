@@ -5,12 +5,12 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Run Test Case settings.json",
+			"name": "Run Test Case settings.yaml",
 			"type": "debugpy",
 			"request": "launch",
 			"program": "${file}",
 			"console": "integratedTerminal",
-			"args": "runs/test/settings.json"
+			"args": "runs/test/plan_settings.yaml"
 		}
 	]
 }

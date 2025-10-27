@@ -6,18 +6,19 @@ from random import seed
 
 # project imports
 from Constants import executeSettingsFilename, planSettingsFilename, planPathResultsFilename, executeResultsFilename
-from RunnerUtils import writeJson, loadJsonContents, toDir, envFromParamsOrFile
+from RunnerUtils import writeYaml, loadYamlContents, toDir
+from EnvUtils import envFromParamsOrFile
 
 def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPath):
 	"""Executes a number of runs for a given plan"""
 
-	# load parameters from jsons
+	# load parameters from yamls
 	absExecutePath = os.path.abspath(executeSettingsPath)
-	executeParams = loadJsonContents(absExecutePath, executeSettingsFilename)
+	executeParams = loadYamlContents(absExecutePath, executeSettingsFilename)
 	absPlanSettingsPath = os.path.abspath(planSettingsPath)
-	planParams = loadJsonContents(absPlanSettingsPath, planSettingsFilename)
+	planParams = loadYamlContents(absPlanSettingsPath, planSettingsFilename)
 	absResultsPath = os.path.abspath(planResultsPath)
-	resultsDict = loadJsonContents(absResultsPath, planPathResultsFilename)
+	resultsDict = loadYamlContents(absResultsPath, planPathResultsFilename)
 
 	# construct environment
 	envParams = executeParams['ENVIRONMENT']
@@ -98,7 +99,7 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 		'REMAINING_FLIGHT_TIMES': remainingFlightTimes
 	}
 	planFolder = toDir(absResultsPath)
-	writeJson(results, os.path.join(planFolder, executeResultsFilename))
+	writeYaml(results, os.path.join(planFolder, executeResultsFilename))
 
 ### main function
 if __name__ == '__main__':
