@@ -8,10 +8,10 @@ from copy import deepcopy
 from random import seed
 
 # project imports
-from NodeUtils import *
-from Constants import planSettingsFilename, planTimeResultsFilename
-from RunnerUtils import loadYamlContents, appendDict, toDir, writeYaml
-from PlannerUtils import plannerFromParams
+from pathPlanning.NodeUtils import *
+from pathPlanning.Constants import planSettingsFilename, planTimeResultsFilename
+from pathPlanning.RunnerUtils import loadYamlContents, appendDict, toDir, writeYaml
+from pathPlanning.PlannerUtils import plannerFromParams
 
 def runPlannerFromParams(params):
 	"""

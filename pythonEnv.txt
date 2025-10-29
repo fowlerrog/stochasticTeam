@@ -18,6 +18,7 @@ pyYAML==6.0.3
 PyQt5==5.15.11
 PyQt5-Qt5==5.15.2
 PyQt5_sip==12.17.1
+pytest==8.4.2
 python-dateutil==2.8.2
 pytz==2024.1
 scipy==1.12.0

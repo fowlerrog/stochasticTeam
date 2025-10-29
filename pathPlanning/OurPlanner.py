@@ -10,11 +10,11 @@ from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 from dataclasses import dataclass
 
 # project imports
-from NodeUtils import *
-from GtspUtils import *
-from Planner import Planner
-from Constants import gtspInputFilename, gtspOutputFilename, planPathResultsFilename
-from RunnerUtils import writeYaml
+from pathPlanning.NodeUtils import *
+from pathPlanning.GtspUtils import *
+from pathPlanning.Planner import Planner
+from pathPlanning.Constants import gtspInputFilename, gtspOutputFilename, planPathResultsFilename
+from pathPlanning.RunnerUtils import writeYaml
 
 @dataclass
 class Cost:
@@ -27,7 +27,7 @@ class Cost:
 
     def __add__(self, other):
         """Defines + operator"""
-        return Cost(*[sum(x) for x in zip(self.v, other.v)])
+        return Cost(*[sum(x) for x in zip(self.values, other.values)])
 
 class OurPlanner(Planner):
     """Defines a planner class which implements our planning algorithm"""

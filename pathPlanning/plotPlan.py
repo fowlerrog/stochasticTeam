@@ -6,9 +6,9 @@ import traceback
 import matplotlib.pyplot as plt
 
 # project imports
-from PlotUtils import *
-from Constants import planPathResultsFilename
-from RunnerUtils import loadYamlContents
+from pathPlanning.PlotUtils import *
+from pathPlanning.Constants import planPathResultsFilename
+from pathPlanning.RunnerUtils import loadYamlContents
 
 def loadPlanResultsFromFolder(folderPath):
 	"""Loads planning results from a yaml in a result folder"""
