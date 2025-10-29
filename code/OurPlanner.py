@@ -6,8 +6,8 @@ import subprocess
 import numpy as np
 import traceback
 from pprint import pprint
-from scipy.spatial.distance import euclidean
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
+from dataclasses import dataclass
 
 # project imports
 from NodeUtils import *
@@ -15,6 +15,19 @@ from GtspUtils import *
 from Planner import Planner
 from Constants import gtspInputFilename, gtspOutputFilename, planPathResultsFilename
 from RunnerUtils import writeYaml
+
+@dataclass
+class Cost:
+    """Class for a cost with an arbitrary number of values, each of which sum independently"""
+    values: list
+
+    def __init__(self, *values):
+        """Constructor for C(a,b,c,d,...)"""
+        self.values = [*values]
+
+    def __add__(self, other):
+        """Defines + operator"""
+        return Cost(*[sum(x) for x in zip(self.v, other.v)])
 
 class OurPlanner(Planner):
     """Defines a planner class which implements our planning algorithm"""
@@ -108,7 +121,8 @@ class OurPlanner(Planner):
         reorderedPoints = reorderList(points, startIndex, endIndex)
 
         # Step 3: Create the distance matrix for the reordered points
-        costMatrix = self.createCostMatrix(reorderedPoints, 'UAV')
+        self.createCostMatrix(reorderedPoints, 'UAV')
+        costMatrix = self.costMatrix['UAV']
 
         # print("\nCOST MATRIX:")
         # print(costMatrix)
@@ -182,10 +196,9 @@ class OurPlanner(Planner):
                     costMatrix[i][j] = self.env.estimateMean(points[i], points[j], agentType)
 
         self.costMatrix[agentType] = costMatrix
-        return costMatrix
 
     def closeCycle(self, currentCycle, prevIndex, cycleStartIndex, currentCost):
-        """Find a valid collect point for closing a cycle"""
+        """Find a valid collect point for closing a cycle, while maximizing cost"""
         UAV_BATTERY_TIME = self.params["UAV_BATTERY_TIME"]
 
         bestReturnCost = float('inf')
@@ -441,3 +454,31 @@ class OurPlanner(Planner):
             "total_cost": totalCost,
             "ugv_mapping_to_points": mappingToPoints
         }
+
+class OurPlannerDeterministic(OurPlanner):
+    """Only considers mean travel time"""
+
+    def __init__(self, params):
+        super().__init__(params)
+
+class OurPlannerStochastic(OurPlanner):
+    """Considers mean and variance travel time, as calculated from an environmental model"""
+
+    def __init__(self, params):
+        super().__init__(params)
+        self.costVarMatrix = {} # str(agentType) : matrix[startIndex][endIndex]
+
+    def createCostMatrix(self, points, agentType=''):
+        """Create mean AND variance matrices"""
+        super().createCostMatrix(points, agentType)
+
+        numPoints = len(points)
+        costVarMatrix = zeros((numPoints, numPoints))
+        if self.env == None:
+            print('No planning environment, defaulting to 0 for variance')
+        else:
+            for i in range(numPoints):
+                for j in range(numPoints):
+                    costVarMatrix[i][j] = self.env.estimateVar(points[i], points[j], agentType)
+
+        self.costVarMatrix[agentType] = costVarMatrix
