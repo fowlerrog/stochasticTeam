@@ -24,10 +24,10 @@ def runPlannerFromParams(params):
 		seed(params['SEED'])
 
 	# Generate points
-	points = generate_points(params["NUM_POINTS"],
-							x_range=(0,params["SPACE_SIZE"]),
-							y_range=(0,params["SPACE_SIZE"]),
-							fixed_z=params["FIXED_Z"])
+	points = generatePoints(params["NUM_POINTS"],
+							xRange=(0,params["SPACE_SIZE"]),
+							yRange=(0,params["SPACE_SIZE"]),
+							fixedZ=params["FIXED_Z"])
 
 	# Construct and call solver
 	planner = plannerFromParams(params)
@@ -35,9 +35,9 @@ def runPlannerFromParams(params):
 
 	# Save if desired
 	if "SAVE_PATH_FOLDER" in params:
-		planner.print_results_to_yaml()
+		planner.printResultsToYaml()
 
-	return planner.time_info
+	return planner.timeInfo
 
 def runPlannerFromSettings(settingsFile):
 	"""

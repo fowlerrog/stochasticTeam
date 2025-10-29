@@ -28,20 +28,20 @@ def plotPlanFromFolder(folderPath):
 	if plan is None:
 		return
 
-	TSP_figure_name = os.path.join(absFolderPath, 'TSP_path.png')
+	TSPFigureName = os.path.join(absFolderPath, 'TSP_path.png')
 	if 'uav_points' in plan:
-		plot_path(plan['uav_points'], filename=TSP_figure_name, show=False)
+		plotPath(plan['uav_points'], filename=TSPFigureName, show=False)
 	# else:
 	# 	# If no solution, just scatter the reordered points for reference
-	# 	plot_points(points,
-	# 				filename=TSP_figure_name)
+	# 	plotPoints(points,
+	# 				filename=TSPFigureName)
 
-	cycles_figure_name = os.path.join(absFolderPath, 'uav_cycles.png')
-	plot_cycles(plan['uav_cycles'],
+	cyclesFigureName = os.path.join(absFolderPath, 'uav_cycles.png')
+	plotCycles(plan['uav_cycles'],
 			    plan['uav_points'],
 				plan["ugv_mapping_to_points"],
 				plan["ugv_path"],
-				cycles_figure_name,
+				cyclesFigureName,
 				False)
 
 	plt.show()

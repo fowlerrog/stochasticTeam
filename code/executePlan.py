@@ -49,7 +49,7 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 	for _ in range(numRuns):
 		remainingFlightTimesThisRun = []
 		for iCycle in range(len(uavCycles)):
-			print('icycle', iCycle)
+			# print('icycle', iCycle)
 			# calculate ugv travel time
 			releasePoint = ugvPoints[ugvOrder[1 + 2*iCycle]]
 			collectPoint = ugvPoints[ugvOrder[2 + 2*iCycle]]

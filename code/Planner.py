@@ -7,7 +7,7 @@ class Planner(object):
 	"""Defines a Planner class which all other Planners should descend from"""
 	params = {} # input parameters
 	solution = {} # results of solving
-	time_info = {} # solution timing information
+	timeInfo = {} # solution timing information
 	env = None # environment model, if necessary
 
 	def __init__(self, params):

@@ -4,20 +4,20 @@ from random import uniform
 from scipy.spatial.distance import euclidean
 from pprint import pprint
 
-def generate_points(n, x_range=(0, 1), y_range=(0, 1), fixed_z=0, decimals=2):
+def generatePoints(n, xRange=(0, 1), yRange=(0, 1), fixedZ=0, decimals=2):
     """
-    Randomly generates n points in a rectangle x_range by y_range, with a fixed z coordinate
+    Randomly generates n points in a rectangle xRange by yRange, with a fixed z coordinate
     n = int
-    x_range, y_range = tuple
-    fixed_z = float
+    xRange, yRange = tuple
+    fixedZ = float
     decimals = int
     returns a list of tuples
     """
     points = [
         (
-            round(uniform(*x_range), decimals),
-            round(uniform(*y_range), decimals),
-            fixed_z
+            round(uniform(*xRange), decimals),
+            round(uniform(*yRange), decimals),
+            fixedZ
         )
         for _ in range(n)
     ]
@@ -25,24 +25,24 @@ def generate_points(n, x_range=(0, 1), y_range=(0, 1), fixed_z=0, decimals=2):
     pprint({i: p for i, p in enumerate(points)})
     return points
 
-def create_distance_matrix(points):
+def createDistanceMatrix(points):
     """Fills distance matrix for list of tuples"""
-    num_points = len(points)
-    distance_matrix = zeros((num_points, num_points))
+    numPoints = len(points)
+    distanceMatrix = zeros((numPoints, numPoints))
 
-    for i in range(num_points):
-        for j in range(num_points):
-            distance_matrix[i][j] = euclidean(points[i], points[j])
+    for i in range(numPoints):
+        for j in range(numPoints):
+            distanceMatrix[i][j] = euclidean(points[i], points[j])
 
-    return distance_matrix
+    return distanceMatrix
 
-def find_closest_point(points, reference_point):
+def findClosestPoint(points, referencePoint):
     """Find the index of the closest point to a given reference point."""
-    return min(range(len(points)), key=lambda i: euclidean(points[i], reference_point))
+    return min(range(len(points)), key=lambda i: euclidean(points[i], referencePoint))
 
-def reorder_list(l, start_index, end_index):
+def reorderList(l, startIndex, endIndex):
     """Reorder points with the start and end points in the correct positions."""
-    reordered_points = [l[start_index]] + [
-        p for i, p in enumerate(l) if i != start_index and i != end_index
-    ] + [l[end_index]]
-    return reordered_points
+    reorderedPoints = [l[startIndex]] + [
+        p for i, p in enumerate(l) if i != startIndex and i != endIndex
+    ] + [l[endIndex]]
+    return reorderedPoints
