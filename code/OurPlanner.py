@@ -24,6 +24,7 @@ class OurPlanner(Planner):
 
     def __init__(self, params):
         super().__init__(params)
+        self.cost_matrix = {} # str(agentType) : matrix[startIndex][endIndex]
 
     def solve(self, points):
         """Solves a uav/ugv path for a set of points"""
@@ -33,6 +34,10 @@ class OurPlanner(Planner):
             tsp_start_time = time.perf_counter()
             uav_points = self.solve_tsp_with_fixed_start_end(points)
             tsp_end_time = time.perf_counter()
+
+            # Calculate cost matrices for uav_points order
+            self.create_cost_matrix(uav_points, 'UAV')
+            self.create_cost_matrix(uav_points, 'UGV')
 
             # Break into UAV cycles
             cycles = self.create_cycles_CAHIT(uav_points)
@@ -176,13 +181,11 @@ class OurPlanner(Planner):
                 for j in range(num_points):
                     cost_matrix[i][j] = self.env.estimateMean(points[i], points[j], agentType)
 
-        self.cost_matrix = cost_matrix
+        self.cost_matrix[agentType] = cost_matrix
         return cost_matrix
 
-    def close_cycle(self, current_cycle, tsp_tour, prev_index, cycle_start_index, current_cost):
+    def close_cycle(self, current_cycle, prev_index, cycle_start_index, current_cost):
         """Find a valid collect point for closing a cycle"""
-        UAV_SPEED = self.params["UAV_SPEED"]
-        UGV_SPEED = self.params["UGV_SPEED"]
         UAV_BATTERY_TIME = self.params["UAV_BATTERY_TIME"]
 
         best_return_cost = float('inf')
@@ -190,8 +193,8 @@ class OurPlanner(Planner):
         best_index = None
 
         for candidate_index in current_cycle:
-            return_cost = euclidean(tsp_tour[prev_index], tsp_tour[candidate_index]) / UAV_SPEED
-            ugv_cost = euclidean(tsp_tour[cycle_start_index], tsp_tour[candidate_index]) / UGV_SPEED
+            return_cost = self.cost_matrix['UAV'][prev_index][candidate_index]
+            ugv_cost = self.cost_matrix['UGV'][cycle_start_index][candidate_index]
             uav_cost = current_cost + return_cost
 
             if uav_cost > best_uav_cost:
@@ -206,8 +209,6 @@ class OurPlanner(Planner):
 
     def create_cycles_CAHIT(self, tsp_tour):
         TAKEOFF_LANDING_TIME = self.params["TAKEOFF_LANDING_TIME"]
-        UAV_SPEED = self.params["UAV_SPEED"]
-        UGV_SPEED = self.params["UGV_SPEED"]
         UAV_BATTERY_TIME = self.params["UAV_BATTERY_TIME"]
 
         cycles = []
@@ -221,7 +222,7 @@ class OurPlanner(Planner):
         print(f"Start point index: 0, coords: {tsp_tour[prev_index]}")
 
         for curr_index in range(1, len(tsp_tour)):
-            travel_cost = euclidean(tsp_tour[curr_index], tsp_tour[prev_index]) / UAV_SPEED
+            travel_cost = self.cost_matrix['UAV'][curr_index][prev_index]
 
             print(f"\n-- Considering point {curr_index} {tsp_tour[curr_index]}")
             print(f" Current cycle: {current_cycle}")
@@ -230,8 +231,8 @@ class OurPlanner(Planner):
 
             success = False
             for candidate_index in current_cycle + [curr_index]:
-                return_cost = euclidean(tsp_tour[curr_index], tsp_tour[candidate_index]) / UAV_SPEED
-                ugv_cost = euclidean(tsp_tour[cycle_start_index], tsp_tour[candidate_index]) / UGV_SPEED
+                return_cost = self.cost_matrix['UAV'][curr_index][candidate_index]
+                ugv_cost = self.cost_matrix['UGV'][cycle_start_index][candidate_index]
                 uav_cost = current_cost + travel_cost + return_cost
 
                 print(f" Candidate collect {candidate_index}: UAV arrival={uav_cost:.2f}, UGV time={ugv_cost:.2f}")
@@ -250,7 +251,7 @@ class OurPlanner(Planner):
                 print(f" Point {curr_index} would break cycle -> CLOSE current cycle")
 
                 # close cycle
-                best_return_cost = self.close_cycle(current_cycle, tsp_tour, prev_index, cycle_start_index, current_cost)
+                best_return_cost = self.close_cycle(current_cycle, prev_index, cycle_start_index, current_cost)
                 current_cost += best_return_cost
 
                 cycles.append(current_cycle)
@@ -267,7 +268,7 @@ class OurPlanner(Planner):
 
         # Close final cycle
         print(f"\n*** Closing final cycle ***")
-        best_return_cost = self.close_cycle(current_cycle, tsp_tour, prev_index, cycle_start_index, current_cost)
+        best_return_cost = self.close_cycle(current_cycle, prev_index, cycle_start_index, current_cost)
         current_cost += best_return_cost
 
         cycles.append(current_cycle)
@@ -287,8 +288,6 @@ class OurPlanner(Planner):
         Returns one list:
             collect_points: list of dicts mapping only feasible collect_idx to UAV time
         """
-        UAV_SPEED = self.params["UAV_SPEED"]
-        UGV_SPEED = self.params["UGV_SPEED"]
         TAKEOFF_LANDING_TIME = self.params["TAKEOFF_LANDING_TIME"]
         UAV_BATTERY_TIME = self.params["UAV_BATTERY_TIME"]
 
@@ -298,25 +297,23 @@ class OurPlanner(Planner):
         for _, cycle in enumerate(cycles):
             collect_to_cycle_cost = {}
             #TODO first and last should be different
-            travel_dist = sum(np.linalg.norm(points[cycle[k+1]] - points[cycle[k]]) for k in range(len(cycle) - 1))
+            travel_cost = sum( self.cost_matrix['UAV'][cycle[k+1]][cycle[k]] for k in range(len(cycle) - 1) )
 
             for collect_idx in cycle:
                 if collect_idx == cycle[-1]:
-                    total_dist = travel_dist
+                    total_cost = travel_cost
                 else:
                     #TODO project the below collect
-                    extra_dist = np.linalg.norm(points[collect_idx] - points[cycle[-1]])
-                    total_dist = travel_dist + extra_dist
+                    extra_cost = self.cost_matrix['UAV'][collect_idx][cycle[-1]]
+                    total_cost = travel_cost + extra_cost
 
-                uav_cost = total_dist / UAV_SPEED + TAKEOFF_LANDING_TIME
+                uav_cost = total_cost + TAKEOFF_LANDING_TIME
                 if uav_cost > UAV_BATTERY_TIME:
                     continue
 
-                ugv_release = points[cycle[0]]
-                ugv_collect = points[collect_idx]
                 #TODO below should be projected
-                ugv_dist = np.linalg.norm(ugv_collect - ugv_release)
-                ugv_cost = ugv_dist / UGV_SPEED
+                ugv_dist = self.cost_matrix['UGV'][cycle[0]][collect_idx]
+                ugv_cost = ugv_dist
 
                 if ugv_cost > UAV_BATTERY_TIME:
                     continue
@@ -340,13 +337,13 @@ class OurPlanner(Planner):
         start_point = self.params["START_POINT"]
         end_point = self.params["END_POINT"]
 
-        UGV_SPEED = self.params["UGV_SPEED"]
         CHARGE_RATE = self.params["CHARGE_RATE"]
 
         matrix = np.ones((dim, dim)) * self.INF
 
-        matrix[0, mapping_to_release[cycles[0][0]]] = euclidean(start_point, points[cycles[0][0]]) / UGV_SPEED
-        matrix[mapping_to_release[cycles[0][0]], 0] = euclidean(start_point, points[cycles[0][0]]) / UGV_SPEED
+        startCost = self.env.estimateMean(start_point, points[cycles[0][0]], 'UGV')
+        matrix[0, mapping_to_release[cycles[0][0]]] = startCost
+        matrix[mapping_to_release[cycles[0][0]], 0] = startCost
 
         matrix[dim-1, 0] = 0
         matrix[0, dim-1] = 0
@@ -370,13 +367,14 @@ class OurPlanner(Planner):
                 if cycle_index < len(cycles) - 1:
                     next_release_idx = cycles[cycle_index + 1][0]
                     next_release_graph_idx = mapping_to_release[next_release_idx]
-                    matrix[collect_graph_idx, next_release_graph_idx] = max(euclidean(points[collect_idx], points[next_release_idx]) / UGV_SPEED, cycle_cost * CHARGE_RATE)
-                    matrix[next_release_graph_idx, collect_graph_idx] = max(euclidean(points[collect_idx], points[next_release_idx]) / UGV_SPEED, cycle_cost * CHARGE_RATE)
+                    matrix[collect_graph_idx, next_release_graph_idx] = max( self.cost_matrix['UGV'][collect_idx][next_release_idx], cycle_cost * CHARGE_RATE )
+                    matrix[next_release_graph_idx, collect_graph_idx] = max( self.cost_matrix['UGV'][collect_idx][next_release_idx], cycle_cost * CHARGE_RATE )
             clusters.append(collect_cluster)
 
         for collect_idx in collect_to_cycle_costs[-1].keys():
-            matrix[mapping_to_collect[collect_idx], dim-2] = euclidean(points[collect_idx], end_point) / UGV_SPEED
-            matrix[dim-2, mapping_to_collect[collect_idx]] = euclidean(points[collect_idx], end_point) / UGV_SPEED
+            endCost = self.env.estimateMean(points[collect_idx], end_point, 'UGV')
+            matrix[mapping_to_collect[collect_idx], dim-2] = endCost
+            matrix[dim-2, mapping_to_collect[collect_idx]] = endCost
 
         matrix *= self.GTSP_SCALING
         matrix = matrix.astype(int)
