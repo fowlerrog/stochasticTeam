@@ -38,14 +38,14 @@ class OurPlanner(Planner):
             cycles = self.create_cycles_CAHIT(uav_points)
 
             # Solve UGV GTSP
-            collect_to_cycle_times = self.compute_all_cycle_times(
+            collect_to_cycle_times = self.compute_all_cycle_costs(
                 cycles,
                 uav_points
             )
             result = self.solve_gtsp_with_release_collect(
                 points=uav_points,
                 cycles=cycles,
-                collect_to_cycle_times=collect_to_cycle_times,
+                collect_to_cycle_costs=collect_to_cycle_times,
             )
 
             # Add collect points to UAV cycles
@@ -103,29 +103,29 @@ class OurPlanner(Planner):
         reordered_points = reorder_list(points, start_index, end_index)
 
         # Step 3: Create the distance matrix for the reordered points
-        distance_matrix = create_distance_matrix(reordered_points)
+        cost_matrix = self.create_cost_matrix(reordered_points, 'UAV')
 
-        print("\nDISTANCE MATRIX:")
-        print(distance_matrix)
-        # exit()
+        # print("\nCOST MATRIX:")
+        # print(cost_matrix)
+
         # Step 4: Create the routing index manager, setting start and end locations correctly
         manager = pywrapcp.RoutingIndexManager(
-            len(distance_matrix),  # Number of locations
+            len(cost_matrix),  # Number of locations
             1,  # Number of vehicles
             [0],  # Start location index (closest to start)
-            [len(distance_matrix) - 1]  # End location index (closest to end)
+            [len(cost_matrix) - 1]  # End location index (closest to end)
         )
 
         # Step 5: Create the routing model
         routing = pywrapcp.RoutingModel(manager)
 
         # Step 6: Define cost of each arc
-        def distance_callback(from_index, to_index):
+        def cost_callback(from_index, to_index):
             from_node = manager.IndexToNode(from_index)
             to_node = manager.IndexToNode(to_index)
-            return distance_matrix[from_node][to_node]
+            return cost_matrix[from_node][to_node]
 
-        transit_callback_index = routing.RegisterTransitCallback(distance_callback)
+        transit_callback_index = routing.RegisterTransitCallback(cost_callback)
         routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 
         # Step 7: Setting first solution heuristic
@@ -163,31 +163,46 @@ class OurPlanner(Planner):
 
         return tsp_air_points
 
-    def close_cycle(self, current_cycle, tsp_tour, prev_point, cycle_start_point, current_time):
+    def create_cost_matrix(self, points, agentType = ''):
+        """Fills a cost matrix for list of tuples"""
+        if self.env == None:
+            print('No planning environment, defaulting to distance for TSP')
+            cost_matrix = create_distance_matrix(points)
+        else:
+            num_points = len(points)
+            cost_matrix = zeros((num_points, num_points))
+
+            for i in range(num_points):
+                for j in range(num_points):
+                    cost_matrix[i][j] = self.env.estimateMean(points[i], points[j], agentType)
+
+        self.cost_matrix = cost_matrix
+        return cost_matrix
+
+    def close_cycle(self, current_cycle, tsp_tour, prev_index, cycle_start_index, current_cost):
         """Find a valid collect point for closing a cycle"""
         UAV_SPEED = self.params["UAV_SPEED"]
         UGV_SPEED = self.params["UGV_SPEED"]
         UAV_BATTERY_TIME = self.params["UAV_BATTERY_TIME"]
 
-        best_return_time = float('inf')
-        best_uav_time = -float('inf')
-        best_j = None
+        best_return_cost = float('inf')
+        best_uav_cost = -float('inf')
+        best_index = None
 
-        for j in current_cycle:
-            candidate = tsp_tour[j]
-            return_time = euclidean(prev_point, candidate) / UAV_SPEED
-            ugv_time = euclidean(cycle_start_point, candidate) / UGV_SPEED
-            uav_time = current_time + return_time
+        for candidate_index in current_cycle:
+            return_cost = euclidean(tsp_tour[prev_index], tsp_tour[candidate_index]) / UAV_SPEED
+            ugv_cost = euclidean(tsp_tour[cycle_start_index], tsp_tour[candidate_index]) / UGV_SPEED
+            uav_cost = current_cost + return_cost
 
-            # new logic for ugv only checks battery
-            if uav_time <= UAV_BATTERY_TIME and ugv_time <= UAV_BATTERY_TIME:
-                if uav_time > best_uav_time:
-                    best_uav_time = uav_time
-                    best_return_time = return_time
-                    best_j = j
+            if uav_cost > best_uav_cost:
+                # constraints are UAV time and UGV time against battery
+                if uav_cost <= UAV_BATTERY_TIME and ugv_cost <= UAV_BATTERY_TIME:
+                    best_uav_cost = uav_cost
+                    best_return_cost = return_cost
+                    best_index = candidate_index
 
-        print(f"  --> Closing at best collect {best_j}, return_time={best_return_time:.2f}")
-        return best_return_time
+        print(f"  --> Closing at best collect {best_index}, return_time={best_return_cost:.2f}")
+        return best_return_cost
 
     def create_cycles_CAHIT(self, tsp_tour):
         TAKEOFF_LANDING_TIME = self.params["TAKEOFF_LANDING_TIME"]
@@ -196,77 +211,75 @@ class OurPlanner(Planner):
         UAV_BATTERY_TIME = self.params["UAV_BATTERY_TIME"]
 
         cycles = []
-        cycle_times = []
+        cycle_costs = []
         current_cycle = [0]
-        current_time = TAKEOFF_LANDING_TIME
-        cycle_start_point = tsp_tour[0]
-        prev_point = tsp_tour[0]
+        current_cost = TAKEOFF_LANDING_TIME
+        cycle_start_index = 0
+        prev_index = 0
 
         print(f"\n=== START CYCLE 0 ===")
-        print(f"Start point index: 0, coords: {prev_point}")
+        print(f"Start point index: 0, coords: {tsp_tour[prev_index]}")
 
-        for i in range(1, len(tsp_tour)):
-            curr_point = tsp_tour[i]
-            travel_time = euclidean(curr_point, prev_point) / UAV_SPEED
+        for curr_index in range(1, len(tsp_tour)):
+            travel_cost = euclidean(tsp_tour[curr_index], tsp_tour[prev_index]) / UAV_SPEED
 
-            print(f"\n-- Considering point {i} {curr_point}")
+            print(f"\n-- Considering point {curr_index} {tsp_tour[curr_index]}")
             print(f" Current cycle: {current_cycle}")
-            print(f" Travel time prev->curr: {travel_time:.2f}")
-            print(f" Current_time before: {current_time:.2f}")
+            print(f" Travel time prev->curr: {travel_cost:.2f}")
+            print(f" Current_time before: {current_cost:.2f}")
 
             success = False
-            for j in current_cycle + [i]:
-                candidate = tsp_tour[j]
-                return_time = euclidean(curr_point, candidate) / UAV_SPEED
-                ugv_time = euclidean(cycle_start_point, candidate) / UGV_SPEED
-                uav_time = current_time + travel_time + return_time
+            for candidate_index in current_cycle + [curr_index]:
+                return_cost = euclidean(tsp_tour[curr_index], tsp_tour[candidate_index]) / UAV_SPEED
+                ugv_cost = euclidean(tsp_tour[cycle_start_index], tsp_tour[candidate_index]) / UGV_SPEED
+                uav_cost = current_cost + travel_cost + return_cost
 
-                print(f" Candidate collect {j}: UAV arrival={uav_time:.2f}, UGV time={ugv_time:.2f}")
+                print(f" Candidate collect {candidate_index}: UAV arrival={uav_cost:.2f}, UGV time={ugv_cost:.2f}")
 
-                if uav_time <= UAV_BATTERY_TIME and ugv_time <= UAV_BATTERY_TIME:
+                if uav_cost <= UAV_BATTERY_TIME and ugv_cost <= UAV_BATTERY_TIME:
                     success = True
-                    print(f" Feasible collect point {j}")
+                    print(f" Feasible collect point {candidate_index}")
                     break
 
             if success:
-                current_cycle.append(i)
-                current_time += travel_time
-                prev_point = curr_point
-                print(f"  --> Accepted point {i}, new current_time={current_time:.2f}")
+                current_cycle.append(curr_index)
+                current_cost += travel_cost
+                prev_index = curr_index
+                print(f"  --> Accepted point {curr_index}, new current_time={current_cost:.2f}")
             else:
-                print(f" Point {i} would break cycle -> CLOSE current cycle")
+                print(f" Point {curr_index} would break cycle -> CLOSE current cycle")
 
                 # close cycle
-                best_return_time = self.close_cycle(current_cycle, tsp_tour, prev_point, cycle_start_point, current_time)
-                current_time += best_return_time
+                best_return_cost = self.close_cycle(current_cycle, tsp_tour, prev_index, cycle_start_index, current_cost)
+                current_cost += best_return_cost
 
                 cycles.append(current_cycle)
-                cycle_times.append(current_time)
+                cycle_costs.append(current_cost)
 
-                print(f" Cycle closed: {current_cycle}, total time={current_time:.2f}")
+                print(f" Cycle closed: {current_cycle}, total time={current_cost:.2f}")
                 print(f"=== START CYCLE {len(cycles)} ===")
-                print(f" Start point index: {i}, coords: {curr_point}")
+                print(f" Start point index: {curr_index}, coords: {tsp_tour[curr_index]}")
 
-                current_cycle = [i]
-                cycle_start_point = tsp_tour[i]
-                current_time = TAKEOFF_LANDING_TIME
-                prev_point = curr_point
+                current_cycle = [curr_index]
+                cycle_start_index = curr_index
+                current_cost = TAKEOFF_LANDING_TIME
+                prev_index = curr_index
 
         # Close final cycle
         print(f"\n*** Closing final cycle ***")
-        best_return_time = self.close_cycle(current_cycle, tsp_tour, prev_point, cycle_start_point, current_time)
-        current_time += best_return_time
+        best_return_cost = self.close_cycle(current_cycle, tsp_tour, prev_index, cycle_start_index, current_cost)
+        current_cost += best_return_cost
 
         cycles.append(current_cycle)
-        cycle_times.append(current_time)
-        print(f"Final cycle closed: {current_cycle}, total time={current_time:.2f}")
+        cycle_costs.append(current_cost)
+        print(f"Final cycle closed: {current_cycle}, total time={current_cost:.2f}")
 
         print("\nCycles created CAHIT:")
         pprint(cycles)
-        print(f"Cycle times CAHIT = {cycle_times}")
+        print(f"Cycle times CAHIT = {cycle_costs}")
         return cycles
 
-    def compute_all_cycle_times(self, cycles, points):
+    def compute_all_cycle_costs(self, cycles, points):
         """
         Computes UAV times for all cycles and all possible collect points in each cycle.
         Adds fixed takeoff and landing time to each.
@@ -283,46 +296,44 @@ class OurPlanner(Planner):
     
         collect_points = []
         for _, cycle in enumerate(cycles):
-            collect_to_cycle_time = {}
+            collect_to_cycle_cost = {}
             #TODO first and last should be different
             travel_dist = sum(np.linalg.norm(points[cycle[k+1]] - points[cycle[k]]) for k in range(len(cycle) - 1))
 
             for collect_idx in cycle:
-                collect_point = points[collect_idx]
                 if collect_idx == cycle[-1]:
                     total_dist = travel_dist
                 else:
-                    last_point = points[cycle[-1]]
                     #TODO project the below collect
-                    extra_dist = np.linalg.norm(collect_point - last_point)
+                    extra_dist = np.linalg.norm(points[collect_idx] - points[cycle[-1]])
                     total_dist = travel_dist + extra_dist
 
-                time_sec = total_dist / UAV_SPEED + TAKEOFF_LANDING_TIME
-                if time_sec > UAV_BATTERY_TIME:
+                uav_cost = total_dist / UAV_SPEED + TAKEOFF_LANDING_TIME
+                if uav_cost > UAV_BATTERY_TIME:
                     continue
 
                 ugv_release = points[cycle[0]]
                 ugv_collect = points[collect_idx]
                 #TODO below should be projected
                 ugv_dist = np.linalg.norm(ugv_collect - ugv_release)
-                ugv_time = ugv_dist / UGV_SPEED
+                ugv_cost = ugv_dist / UGV_SPEED
 
-                if ugv_time > UAV_BATTERY_TIME:
+                if ugv_cost > UAV_BATTERY_TIME:
                     continue
 
-                collect_to_cycle_time[collect_idx] = time_sec
+                collect_to_cycle_cost[collect_idx] = uav_cost
 
                 #TODO
                 #total_dist = total_dist - return_dist + last_uav_travel_actual_dist
 
-            collect_points.append(collect_to_cycle_time)
+            collect_points.append(collect_to_cycle_cost)
 
         print("Collect points:")
         pprint(collect_points)
 
         return collect_points
 
-    def buildt_GTSP_matrix(self, mapping_to_release, mapping_to_collect, points, cycles, collect_to_cycle_times, dim):
+    def buildt_GTSP_matrix(self, mapping_to_release, mapping_to_collect, points, cycles, collect_to_cycle_costs, dim):
         """
         Builds a distance matrix and cluster grouping list for UGV's GTSP solution
         """
@@ -334,10 +345,8 @@ class OurPlanner(Planner):
 
         matrix = np.ones((dim, dim)) * self.INF
 
-        first_release_point = points[cycles[0][0]]
-
-        matrix [0,mapping_to_release[cycles[0][0]]] = euclidean(first_release_point, start_point) / UGV_SPEED
-        matrix [mapping_to_release[cycles[0][0]], 0] = euclidean(first_release_point, start_point) / UGV_SPEED
+        matrix[0, mapping_to_release[cycles[0][0]]] = euclidean(start_point, points[cycles[0][0]]) / UGV_SPEED
+        matrix[mapping_to_release[cycles[0][0]], 0] = euclidean(start_point, points[cycles[0][0]]) / UGV_SPEED
 
         matrix[dim-1, 0] = 0
         matrix[0, dim-1] = 0
@@ -348,26 +357,24 @@ class OurPlanner(Planner):
 
         for cycle_index in range(0, len(cycles)):
             cycle = cycles[cycle_index]
-            collect_times_dict = collect_to_cycle_times[cycle_index]
+            collect_costs_dict = collect_to_cycle_costs[cycle_index]
             release_idx = cycle[0]
             clusters.append([mapping_to_release[release_idx]])
             collect_cluster = []
-            for collect_idx, cycle_time in collect_times_dict.items():
+            for collect_idx, cycle_cost in collect_costs_dict.items():
                 collect_graph_idx = mapping_to_collect[collect_idx]
-                collect_point = points[collect_idx]
                 collect_cluster.append(collect_graph_idx)
-                matrix[collect_graph_idx, mapping_to_release[release_idx]] = cycle_time
-                matrix[mapping_to_release[release_idx], collect_graph_idx] = cycle_time
+                matrix[collect_graph_idx, mapping_to_release[release_idx]] = cycle_cost
+                matrix[mapping_to_release[release_idx], collect_graph_idx] = cycle_cost
 
                 if cycle_index < len(cycles) - 1:
                     next_release_idx = cycles[cycle_index + 1][0]
                     next_release_graph_idx = mapping_to_release[next_release_idx]
-                    next_release_point = points[next_release_idx]
-                    matrix[collect_graph_idx, next_release_graph_idx] = max(euclidean(collect_point, next_release_point) / UGV_SPEED, cycle_time * CHARGE_RATE)
-                    matrix[next_release_graph_idx, collect_graph_idx] = max(euclidean(collect_point, next_release_point) / UGV_SPEED, cycle_time * CHARGE_RATE)
+                    matrix[collect_graph_idx, next_release_graph_idx] = max(euclidean(points[collect_idx], points[next_release_idx]) / UGV_SPEED, cycle_cost * CHARGE_RATE)
+                    matrix[next_release_graph_idx, collect_graph_idx] = max(euclidean(points[collect_idx], points[next_release_idx]) / UGV_SPEED, cycle_cost * CHARGE_RATE)
             clusters.append(collect_cluster)
 
-        for collect_idx in collect_to_cycle_times[-1].keys():
+        for collect_idx in collect_to_cycle_costs[-1].keys():
             matrix[mapping_to_collect[collect_idx], dim-2] = euclidean(points[collect_idx], end_point) / UGV_SPEED
             matrix[dim-2, mapping_to_collect[collect_idx]] = euclidean(points[collect_idx], end_point) / UGV_SPEED
 
@@ -376,7 +383,7 @@ class OurPlanner(Planner):
         print(f"Clusters: {clusters}")
         return matrix, clusters
 
-    def solve_gtsp_with_release_collect(self, points, cycles, collect_to_cycle_times):
+    def solve_gtsp_with_release_collect(self, points, cycles, collect_to_cycle_costs):
         """
         Solves the UGV's GTSP problem: chooses a release and collect point for each UAV cycle in points
         """
@@ -393,12 +400,12 @@ class OurPlanner(Planner):
         mapping_to_collect = {}
         mapping_to_points = {0: start_point}
         # TODO: Use graphx
-        for cycle, collect_times_dict in zip(cycles, collect_to_cycle_times):
+        for cycle, collect_costs_dict in zip(cycles, collect_to_cycle_costs):
             release_idx = cycle[0]
             mapping_to_release[release_idx] = graph_index
             mapping_to_points[graph_index] = points[release_idx]
             graph_index += 1
-            for collect_idx in collect_times_dict.keys():
+            for collect_idx in collect_costs_dict.keys():
                 mapping_to_collect[collect_idx] = graph_index
                 mapping_to_points[graph_index] = points[collect_idx]
                 graph_index += 1
@@ -413,7 +420,7 @@ class OurPlanner(Planner):
         print(f"Mapping to collect:")
         pprint(mapping_to_collect)
 
-        distance_matrix, clusters = self.buildt_GTSP_matrix(mapping_to_release, mapping_to_collect, points, cycles, collect_to_cycle_times, dim)
+        distance_matrix, clusters = self.buildt_GTSP_matrix(mapping_to_release, mapping_to_collect, points, cycles, collect_to_cycle_costs, dim)
         gtsp_input_path = os.path.join(runFolder, gtspInputFilename)
         gtsp_output_path = os.path.join(runFolder, gtspOutputFilename)
         write_gtsp_file(dim, clusters, distance_matrix, gtsp_input_path)
