@@ -54,7 +54,7 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 			releasePoint = ugvPoints[ugvOrder[1 + 2*iCycle]]
 			collectPoint = ugvPoints[ugvOrder[2 + 2*iCycle]]
 			ugvTime = env.evaluate(releasePoint, collectPoint, 'UGV')
-			print('ugv', releasePoint, '->', collectPoint, '=', ugvTime)
+			# print('ugv', releasePoint, '->', collectPoint, '=', ugvTime)
 
 			# calculate uav travel time
 			thisUavCycle = uavCycles[iCycle]
@@ -65,17 +65,19 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 					for j in range(0, len(thisUavCycle) - 1)
 				]) + \
 				env.evaluate(uavPoints[thisUavCycle[len(thisUavCycle)-1]], collectPoint, 'UAV') # TODO projection?
-			print('uav\n',
-		 		releasePoint, '->', uavPoints[thisUavCycle[0]], '=',
-				env.evaluate(releasePoint, uavPoints[thisUavCycle[0]], 'UAV'), '\n',
-				'\n'.join([
-					str(uavPoints[thisUavCycle[j]]) + ' -> ' +
-					str(uavPoints[thisUavCycle[j+1]]) + ' = ' +
-					str(env.evaluate(uavPoints[thisUavCycle[j]], uavPoints[thisUavCycle[j+1]], 'UAV') ) for j in range(0, len(thisUavCycle) - 1)
-				]), '\n',
-				uavPoints[thisUavCycle[len(thisUavCycle)-1]], '->', collectPoint, '=',
-				env.evaluate(uavPoints[thisUavCycle[len(thisUavCycle)-1]], collectPoint, 'UAV'), '\n=',
-				uavTime)
+			# print('uav\n',
+			# 	releasePoint, '->', uavPoints[thisUavCycle[0]], '=',
+			# 	env.evaluate(releasePoint, uavPoints[thisUavCycle[0]], 'UAV'), '\n',
+			# 	'\n'.join([
+			# 		str(uavPoints[thisUavCycle[j]]) + ' -> ' +
+			# 		str(uavPoints[thisUavCycle[j+1]]) + ' = ' +
+			# 		str(env.evaluate(uavPoints[thisUavCycle[j]], uavPoints[thisUavCycle[j+1]], 'UAV') ) for j in range(0, len(thisUavCycle) - 1)
+			# 	]), '\n',
+			# 	uavPoints[thisUavCycle[len(thisUavCycle)-1]], '->', collectPoint, '=',
+			# 	env.evaluate(uavPoints[thisUavCycle[len(thisUavCycle)-1]], collectPoint, 'UAV'), '\n=',
+			# 	uavTime)
+
+			# TODO hovering - we are just comparing max flight time to UGV time. is that sufficient?
 
 			# evaluate success / failure
 			failure = False

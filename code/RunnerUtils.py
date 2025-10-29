@@ -27,10 +27,9 @@ def loadYamlContents(settingsFile, defaultFilename = ''):
 			params = yaml.safe_load(f)
 		except Exception:
 			print(traceback.format_exc())
+
 	if len(params) == 0:
 		print('Params not found')
-		return {}
-
 	return params
 
 def writeYaml(dataDict, savePath):

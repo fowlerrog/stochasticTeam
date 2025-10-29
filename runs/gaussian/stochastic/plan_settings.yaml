@@ -4,8 +4,8 @@ SAVE_PATHS: true
 SEED: [77]
 NUM_POINTS: [25]
 
-PLANNER_TYPE: [OurPlannerDeterministic]
-ENVIRONMENT: env_settings.yaml
+PLANNER_TYPE: [OurPlannerStochastic]
+ENVIRONMENT: ../env_settings.yaml
 TSP_LOCAL_SEARCH: false
 
 START_POINT: [0, 0]

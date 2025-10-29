@@ -2,7 +2,6 @@
 # python imports
 import sys
 import os
-import yaml
 import traceback
 from itertools import product
 from copy import deepcopy
@@ -59,6 +58,9 @@ def runPlannerFromSettings(settingsFile):
 		'\n\t'.join([independentVars[i] for i in range(len(notPresent)) if notPresent[i]]),
 		'\nStopping run', sep='')
 		return
+
+	#TODO this can only find top-level variables
+	#TODO allow correlated values
 
 	# generate all combinations of independent variables
 	independentDict = {k:params[k] for k in independentVars}

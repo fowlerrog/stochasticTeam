@@ -3,7 +3,6 @@
 import os
 import sys
 import traceback
-import yaml
 import matplotlib.pyplot as plt
 
 # project imports
@@ -16,17 +15,9 @@ def loadPlanResultsFromFolder(folderPath):
 
 	absFile = os.path.abspath(os.path.join(folderPath, planPathResultsFilename))
 	print('Loading planning results from', absFile)
-    
+
 	# load run parameters from yaml
 	params = loadYamlContents(folderPath, planPathResultsFilename)
-	if len(params) == 0:
-		print('Params not found')
-		return
-
-	# standardize:
-	# ugv_mapping_to_points keys should be ints TODO is this necessary with yaml?
-	params['ugv_mapping_to_points'] = {int(k):v for k,v in params['ugv_mapping_to_points'].items()}
-	
 	return params
 
 def plotPlanFromFolder(folderPath):
@@ -52,7 +43,7 @@ def plotPlanFromFolder(folderPath):
 				plan["ugv_path"],
 				cycles_figure_name,
 				False)
-	
+
 	plt.show()
 
 ### main function
@@ -61,7 +52,7 @@ if __name__ == '__main__':
 	if len(sys.argv) < 2 or any([s == '--help' or s == '-h' for s in sys.argv[1:]]):
 		print('Usage: python plotPlan.py /path/to/run/results/folder/ [/path/to/run/results/folder2/ ...]')
 		exit()
-	
+
 	# for each provided settings file, run plotter
 	for s in sys.argv[1:]:
 		try:

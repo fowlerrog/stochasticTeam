@@ -21,7 +21,7 @@ class SingleAgentTypeEnvironment(object):
 		"""Evaluates actual random travel time from p1 to p2"""
 		raise NotImplementedError("SingleAgentTypeEnvironment subclass must implement evaluate(self, p1, p2)")
 
-class SimpleEnvironment(SingleAgentTypeEnvironment):
+class SpeedEnvironment(SingleAgentTypeEnvironment):
 	"""Environment that uses a constant speed"""
 
 	def __init__(self, params):
