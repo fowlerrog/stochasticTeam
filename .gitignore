@@ -14,3 +14,10 @@ runs/**/GTSP_output.txt
 runs/**/*.png
 runs/**/*_results.yaml
 runs/**/results*
+
+# test case artifacts
+testCases/**/GTSP_input.gtsp
+testCases/**/GTSP_output.txt
+testCases/**/*.png
+testCases/**/*_results.yaml
+testCases/**/results*
