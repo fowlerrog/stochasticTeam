@@ -1,7 +1,7 @@
 
 import sys
 
-from pathPlanning.OurPlanner import *
+from .OurPlanner import *
 
 def plannerFromParams(params):
 	plannerClass = getattr(sys.modules[__name__], params['PLANNER_TYPE'])

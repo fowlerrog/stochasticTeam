@@ -1,7 +1,7 @@
 
 import os
 
-from pathPlanning.EnvUtils import envFromParamsOrFile
+from .EnvUtils import envFromParamsOrFile
 
 class Planner(object):
 	"""Defines a Planner class which all other Planners should descend from"""

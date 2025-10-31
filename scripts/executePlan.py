@@ -5,6 +5,7 @@ import traceback
 from random import seed
 
 # project imports
+sys.path.append('../src')
 from pathPlanning.Constants import executeSettingsFilename, planSettingsFilename, planPathResultsFilename, executeResultsFilename
 from pathPlanning.RunnerUtils import writeYaml, loadYamlContents, toDir
 from pathPlanning.EnvUtils import envFromParamsOrFile

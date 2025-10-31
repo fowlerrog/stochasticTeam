@@ -1,7 +1,7 @@
 
 import sys
 
-from pathPlanning.SingleAgentTypeEnvironment import *
+from .SingleAgentTypeEnvironment import *
 
 class MultiAgentTypeEnvironment(object):
 	"""Environmental model responsible for estimating and generating travel times for various agent types"""

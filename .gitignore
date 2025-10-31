@@ -2,6 +2,9 @@
 # python virtual environment
 .venv
 
+# python module venv import artifacts
+src/pathPlanning.egg-info
+
 # python cache
 **/__pycache__
 

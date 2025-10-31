@@ -10,24 +10,30 @@ from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 from dataclasses import dataclass
 
 # project imports
-from pathPlanning.NodeUtils import *
-from pathPlanning.GtspUtils import *
-from pathPlanning.Planner import Planner
-from pathPlanning.Constants import gtspInputFilename, gtspOutputFilename, planPathResultsFilename
-from pathPlanning.RunnerUtils import writeYaml
+from .NodeUtils import *
+from .GtspUtils import *
+from .Planner import Planner
+from .Constants import gtspInputFilename, gtspOutputFilename, planPathResultsFilename
+from .RunnerUtils import writeYaml
 
 @dataclass
 class Cost:
     """Class for a cost with an arbitrary number of values, each of which sum independently"""
-    values: list
+    value: list
 
-    def __init__(self, *values):
+    def __init__(self, *value):
         """Constructor for C(a,b,c,d,...)"""
-        self.values = [*values]
+        self.value = [*value]
 
-    def __add__(self, other):
-        """Defines + operator"""
-        return Cost(*[sum(x) for x in zip(self.values, other.values)])
+    """Operators:"""
+    def __add__(self, other): return Cost(*[sum(x) for x in zip(self.value, other.value)])
+    def __mul__(self, constant): return Cost(*[x * constant for x in self.value])
+    def __lt__(self, other): return self.value < other.value
+    def __le__(self, other): return self.value <= other.value
+    def __eq__(self, other): return self.value == other.value
+    def __ne__(self, other): return self.value != other.value
+    def __ge__(self, other): return self.value >= other.value
+    def __gt__(self, other): return self.value > other.value
 
 class OurPlanner(Planner):
     """Defines a planner class which implements our planning algorithm"""

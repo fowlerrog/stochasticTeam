@@ -3,4 +3,5 @@
 pip install virtualenv && \
 virtualenv -p python3.9 .venv && \
 .venv/Scripts/pip.exe install -r pythonEnv.txt && \
+.venv/Scripts/pip.exe install -e . && \
 echo '########    Successfully created Python venv!    ########'
