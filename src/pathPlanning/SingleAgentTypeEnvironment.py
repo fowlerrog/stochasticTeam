@@ -53,7 +53,7 @@ class GaussianEnvironment(SingleAgentTypeEnvironment):
 		elif 'WEIGHT_STD_DEV' in params:
 			self.weightStdDev = params['WEIGHT_STD_DEV']
 		else:
-			raise(ImportError('GaussianEnvironment requires WEIGHT_VAR or WEIGHT_STD_DEV'))
+			raise ImportError('GaussianEnvironment requires WEIGHT_VAR or WEIGHT_STD_DEV')
 
 	def estimateMean(self, p1, p2):
 		"""Mean = dist / speed"""

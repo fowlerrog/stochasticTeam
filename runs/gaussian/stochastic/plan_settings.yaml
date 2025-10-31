@@ -7,6 +7,7 @@ NUM_POINTS: [25]
 PLANNER_TYPE: [OurPlannerStochastic]
 ENVIRONMENT: ../env_settings.yaml
 TSP_LOCAL_SEARCH: false
+FAILURE_RISK: 0.5
 
 START_POINT: [0, 0]
 END_POINT: [4000, 4000]

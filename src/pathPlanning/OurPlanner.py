@@ -8,6 +8,8 @@ import traceback
 from pprint import pprint
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 from dataclasses import dataclass
+from scipy.stats import norm
+from math import sqrt
 
 # project imports
 from .NodeUtils import *
@@ -40,10 +42,47 @@ class OurPlanner(Planner):
 
     INF = 999999
     GTSP_SCALING = 100 # glns wants integers
+    COST_DIM = 0 # dimension of cost
 
     def __init__(self, params):
         super().__init__(params)
         self.costMatrix = {} # str(agentType) : matrix[startIndex][endIndex]
+
+    def printResultsToYaml(self):
+        """Prints solution results to a yaml file"""
+        # construct save dict
+        result = self.solution
+        result['uav_points'] = [list(v) for v in result['uav_points']] # tuple -> list
+        result['ugv_mapping_to_points'] = {k:[float(n) for n in v] for k,v in result["ugv_mapping_to_points"].items()} # yaml does not like np.array
+        absSavePath = os.path.join(self.params["RUN_FOLDER"], self.params["SAVE_PATH_FOLDER"], planPathResultsFilename)
+        writeYaml(result, absSavePath)
+
+    def createCostMatrix(self, points, agentType = ''):
+        """Fills a cost matrix for list of tuples"""
+        if self.env == None:
+            print('No planning environment, defaulting to distance for TSP')
+            costMatrix = createDistanceMatrix(points)
+        else:
+            numPoints = len(points)
+            costMatrix = zeros((numPoints, numPoints))
+
+            for i in range(numPoints):
+                for j in range(numPoints):
+                    costMatrix[i][j] = self.env.estimateMean(points[i], points[j], agentType)
+
+        self.costMatrix[agentType] = costMatrix
+
+    def baseCost(self, agentType = ''):
+        """Sets a base cost for an agent"""
+        raise NotImplementedError("OurPlanner subclass must implement baseCost(self, agentType))")
+
+    def constructCost(self, p1, p2, agentType = ''):
+        """Constructs a cost for an agent traveling from index p1 to index p2"""
+        raise NotImplementedError("OurPlanner subclass must implement constructCost(self, p1, p2, agentType))")
+
+    def evaluateConstraint(self, cost, agentType = ''):
+        """Returns whether a cost is feasible"""
+        raise NotImplementedError("OurPlanner subclass must implement evaluateConstraint(self, cost, agentType)")
 
     def solve(self, points):
         """Solves a uav/ugv path for a set of points"""
@@ -104,15 +143,6 @@ class OurPlanner(Planner):
         except Exception:
             print("\nFailure during planning")
             print(traceback.format_exc())
-
-    def printResultsToYaml(self):
-        """Prints solution results to a yaml file"""
-        # construct save dict
-        result = self.solution
-        result['uav_points'] = [list(v) for v in result['uav_points']] # tuple -> list
-        result['ugv_mapping_to_points'] = {k:[float(n) for n in v] for k,v in result["ugv_mapping_to_points"].items()} # yaml does not like np.array
-        absSavePath = os.path.join(self.params["RUN_FOLDER"], self.params["SAVE_PATH_FOLDER"], planPathResultsFilename)
-        writeYaml(result, absSavePath)
 
     def solveTspWithFixedStartEnd(self, points):
         """Solves a TSP with a fixed start and end point"""
@@ -188,52 +218,35 @@ class OurPlanner(Planner):
 
         return tspAirPoints
 
-    def createCostMatrix(self, points, agentType = ''):
-        """Fills a cost matrix for list of tuples"""
-        if self.env == None:
-            print('No planning environment, defaulting to distance for TSP')
-            costMatrix = createDistanceMatrix(points)
-        else:
-            numPoints = len(points)
-            costMatrix = zeros((numPoints, numPoints))
-
-            for i in range(numPoints):
-                for j in range(numPoints):
-                    costMatrix[i][j] = self.env.estimateMean(points[i], points[j], agentType)
-
-        self.costMatrix[agentType] = costMatrix
-
     def closeCycle(self, currentCycle, prevIndex, cycleStartIndex, currentCost):
         """Find a valid collect point for closing a cycle, while maximizing cost"""
-        UAV_BATTERY_TIME = self.params["UAV_BATTERY_TIME"]
 
-        bestReturnCost = float('inf')
-        bestUavCost = -float('inf')
+        bestReturnCost = self.baseCost('UAV')
+        bestUavCost = self.baseCost('UAV')
         bestIndex = None
 
         for candidateIndex in currentCycle:
-            returnCost = self.costMatrix['UAV'][prevIndex][candidateIndex]
-            ugvCost = self.costMatrix['UGV'][cycleStartIndex][candidateIndex]
+            returnCost = self.constructCost(prevIndex, candidateIndex, 'UAV')
+            ugvCost = self.constructCost(cycleStartIndex, candidateIndex, 'UGV')
             uavCost = currentCost + returnCost
 
             if uavCost > bestUavCost:
                 # constraints are UAV time and UGV time against battery
-                if uavCost <= UAV_BATTERY_TIME and ugvCost <= UAV_BATTERY_TIME:
+                if self.evaluateConstraint(uavCost, 'UAV') and self.evaluateConstraint(ugvCost, 'UGV'):
                     bestUavCost = uavCost
                     bestReturnCost = returnCost
                     bestIndex = candidateIndex
 
-        print(f"  --> Closing at best collect {bestIndex}, returnTime={bestReturnCost:.2f}")
+        print(f"  --> Closing at best collect {bestIndex}, returnTime={bestReturnCost.value[0]:.2f}")
         return bestReturnCost
 
     def createCyclesCAHIT(self, tspTour):
-        TAKEOFF_LANDING_TIME = self.params["TAKEOFF_LANDING_TIME"]
-        UAV_BATTERY_TIME = self.params["UAV_BATTERY_TIME"]
+        """Finds feasible UAV cycles within full TSP solution"""
 
         cycles = []
         cycleCosts = []
         currentCycle = [0]
-        currentCost = TAKEOFF_LANDING_TIME
+        currentCost = self.baseCost('UAV')
         cycleStartIndex = 0
         prevIndex = 0
 
@@ -241,22 +254,22 @@ class OurPlanner(Planner):
         print(f"Start point index: 0, coords: {tspTour[prevIndex]}")
 
         for currIndex in range(1, len(tspTour)):
-            travelCost = self.costMatrix['UAV'][currIndex][prevIndex]
+            travelCost = self.constructCost(currIndex, prevIndex, 'UAV')
 
             print(f"\n-- Considering point {currIndex} {tspTour[currIndex]}")
             print(f" Current cycle: {currentCycle}")
-            print(f" Travel time prev->curr: {travelCost:.2f}")
-            print(f" CurrentTime before: {currentCost:.2f}")
+            print(f" Travel time prev->curr: {travelCost.value[0]:.2f}")
+            print(f" CurrentTime before: {currentCost.value[0]:.2f}")
 
             success = False
             for candidateIndex in currentCycle + [currIndex]:
-                returnCost = self.costMatrix['UAV'][currIndex][candidateIndex]
-                ugvCost = self.costMatrix['UGV'][cycleStartIndex][candidateIndex]
+                returnCost = self.constructCost(currIndex, candidateIndex, 'UAV')
+                ugvCost = self.constructCost(cycleStartIndex, candidateIndex, 'UGV')
                 uavCost = currentCost + travelCost + returnCost
 
-                print(f" Candidate collect {candidateIndex}: UAV arrival={uavCost:.2f}, UGV time={ugvCost:.2f}")
+                print(f" Candidate collect {candidateIndex}: UAV arrival={uavCost.value[0]:.2f}, UGV time={ugvCost.value[0]:.2f}")
 
-                if uavCost <= UAV_BATTERY_TIME and ugvCost <= UAV_BATTERY_TIME:
+                if self.evaluateConstraint(uavCost, 'UAV') and self.evaluateConstraint(ugvCost, 'UGV'):
                     success = True
                     print(f" Feasible collect point {candidateIndex}")
                     break
@@ -265,7 +278,7 @@ class OurPlanner(Planner):
                 currentCycle.append(currIndex)
                 currentCost += travelCost
                 prevIndex = currIndex
-                print(f"  --> Accepted point {currIndex}, new currentTime={currentCost:.2f}")
+                print(f"  --> Accepted point {currIndex}, new currentTime={currentCost.value[0]:.2f}")
             else:
                 print(f" Point {currIndex} would break cycle -> CLOSE current cycle")
 
@@ -276,13 +289,13 @@ class OurPlanner(Planner):
                 cycles.append(currentCycle)
                 cycleCosts.append(currentCost)
 
-                print(f" Cycle closed: {currentCycle}, total time={currentCost:.2f}")
+                print(f" Cycle closed: {currentCycle}, total time={currentCost.value[0]:.2f}")
                 print(f"=== START CYCLE {len(cycles)} ===")
                 print(f" Start point index: {currIndex}, coords: {tspTour[currIndex]}")
 
                 currentCycle = [currIndex]
                 cycleStartIndex = currIndex
-                currentCost = TAKEOFF_LANDING_TIME
+                currentCost = self.baseCost('UAV')
                 prevIndex = currIndex
 
         # Close final cycle
@@ -292,7 +305,7 @@ class OurPlanner(Planner):
 
         cycles.append(currentCycle)
         cycleCosts.append(currentCost)
-        print(f"Final cycle closed: {currentCycle}, total time={currentCost:.2f}")
+        print(f"Final cycle closed: {currentCycle}, total time={currentCost.value[0]:.2f}")
 
         print("\nCycles created CAHIT:")
         pprint(cycles)
@@ -307,34 +320,31 @@ class OurPlanner(Planner):
         Returns one list:
             collectPoints: list of dicts mapping only feasible collectIdx to UAV time
         """
-        TAKEOFF_LANDING_TIME = self.params["TAKEOFF_LANDING_TIME"]
-        UAV_BATTERY_TIME = self.params["UAV_BATTERY_TIME"]
 
         points = np.array(points)
-    
+
         collectPoints = []
         for _, cycle in enumerate(cycles):
             collectToCycleCost = {}
             #TODO first and last should be different
-            travelCost = sum( self.costMatrix['UAV'][cycle[k+1]][cycle[k]] for k in range(len(cycle) - 1) )
+            travelCost = sum( [self.constructCost(cycle[k+1], cycle[k], 'UAV') for k in range(len(cycle) - 1)], Cost(*[0]*self.COST_DIM) )
 
             for collectIdx in cycle:
                 if collectIdx == cycle[-1]:
                     totalCost = travelCost
                 else:
                     #TODO project the below collect
-                    extraCost = self.costMatrix['UAV'][collectIdx][cycle[-1]]
+                    extraCost = self.constructCost(collectIdx, cycle[-1], 'UAV')
                     totalCost = travelCost + extraCost
 
-                uavCost = totalCost + TAKEOFF_LANDING_TIME
-                if uavCost > UAV_BATTERY_TIME:
+                uavCost = totalCost + self.baseCost('UAV')
+                if not self.evaluateConstraint(uavCost, 'UAV'):
                     continue
 
                 #TODO below should be projected
-                ugvDist = self.costMatrix['UGV'][cycle[0]][collectIdx]
-                ugvCost = ugvDist
+                ugvCost = self.constructCost(cycle[0], collectIdx, 'UGV')
 
-                if ugvCost > UAV_BATTERY_TIME:
+                if not self.evaluateConstraint(ugvCost, 'UGV'):
                     continue
 
                 collectToCycleCost[collectIdx] = uavCost
@@ -380,14 +390,15 @@ class OurPlanner(Planner):
             for collectIdx, cycleCost in collectCostsDict.items():
                 collectGraphIdx = mappingToCollect[collectIdx]
                 collectCluster.append(collectGraphIdx)
-                matrix[collectGraphIdx, mappingToRelease[releaseIdx]] = cycleCost
-                matrix[mappingToRelease[releaseIdx], collectGraphIdx] = cycleCost
+                matrix[collectGraphIdx, mappingToRelease[releaseIdx]] = cycleCost.value[0]
+                matrix[mappingToRelease[releaseIdx], collectGraphIdx] = cycleCost.value[0]
 
                 if cycleIndex < len(cycles) - 1:
                     nextReleaseIdx = cycles[cycleIndex + 1][0]
                     nextReleaseGraphIdx = mappingToRelease[nextReleaseIdx]
-                    matrix[collectGraphIdx, nextReleaseGraphIdx] = max( self.costMatrix['UGV'][collectIdx][nextReleaseIdx], cycleCost * CHARGE_RATE )
-                    matrix[nextReleaseGraphIdx, collectGraphIdx] = max( self.costMatrix['UGV'][collectIdx][nextReleaseIdx], cycleCost * CHARGE_RATE )
+                    collectReleaseCost = max( self.constructCost(collectIdx, nextReleaseIdx, 'UGV').value[0], cycleCost.value[0] * CHARGE_RATE )
+                    matrix[collectGraphIdx, nextReleaseGraphIdx] = collectReleaseCost
+                    matrix[nextReleaseGraphIdx, collectGraphIdx] = collectReleaseCost
             clusters.append(collectCluster)
 
         for collectIdx in collectToCycleCosts[-1].keys():
@@ -466,6 +477,24 @@ class OurPlannerDeterministic(OurPlanner):
 
     def __init__(self, params):
         super().__init__(params)
+        self.COST_DIM = 1
+
+    def baseCost(self, agentType=''):
+        if agentType == 'UAV':
+            return Cost(self.params['TAKEOFF_LANDING_TIME'])
+        elif agentType == 'UGV':
+            return Cost(0)
+        raise IndexError('agentType %s not recognized'%agentType)
+
+    def constructCost(self, p1, p2, agentType=''):
+        return Cost(self.costMatrix[agentType][p1][p2])
+
+    def evaluateConstraint(self, cost, agentType = ''):
+        if agentType == 'UAV':
+            return cost.value[0] < self.params['UAV_BATTERY_TIME'] - self.params['UAV_DELTA_TIME']
+        elif agentType == 'UGV':
+            return cost.value[0] < self.params['UAV_BATTERY_TIME'] - self.params['UGV_DELTA_TIME']
+        raise IndexError('agentType %s not recognized'%agentType)
 
 class OurPlannerStochastic(OurPlanner):
     """Considers mean and variance travel time, as calculated from an environmental model"""
@@ -473,6 +502,7 @@ class OurPlannerStochastic(OurPlanner):
     def __init__(self, params):
         super().__init__(params)
         self.costVarMatrix = {} # str(agentType) : matrix[startIndex][endIndex]
+        self.COST_DIM = 2
 
     def createCostMatrix(self, points, agentType=''):
         """Create mean AND variance matrices"""
@@ -485,6 +515,24 @@ class OurPlannerStochastic(OurPlanner):
         else:
             for i in range(numPoints):
                 for j in range(numPoints):
-                    costVarMatrix[i][j] = self.env.estimateVar(points[i], points[j], agentType)
+                    costVarMatrix[i][j] = self.env.estimateVariance(points[i], points[j], agentType)
 
         self.costVarMatrix[agentType] = costVarMatrix
+
+    def constructCost(self, p1, p2, agentType=''):
+        return Cost(self.costMatrix[agentType][p1][p2], self.costVarMatrix[agentType][p1][p2])
+
+    def baseCost(self, agentType=''):
+        if agentType == 'UAV':
+            return Cost(self.params['TAKEOFF_LANDING_TIME'], 0)
+        elif agentType == 'UGV':
+            return Cost(0, 0)
+        raise IndexError('agentType %s not recognized'%agentType)
+
+    def evaluateConstraint(self, cost, agentType = ''):
+        limit = self.params['UAV_BATTERY_TIME']
+        risk = self.params['FAILURE_RISK']
+        mean = cost.value[0]
+        var = cost.value[1]
+
+        return norm.cdf( (-limit + mean) / sqrt(var) ) < risk if var > 0 else mean < limit
