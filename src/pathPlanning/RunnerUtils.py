@@ -1,7 +1,10 @@
-
+# python imports
 import os
 import yaml
 import traceback
+
+# project imports
+from .Constants import planPathResultsFilename
 
 def appendDict(d1, d2):
 	"""Appends the values in d2 to the values of d1, for matching keys"""
@@ -42,6 +45,16 @@ def writeYaml(dataDict, savePath):
 	with open(savePath, 'w') as f:
 		print('Writing to %s'%savePath)
 		yaml.dump(dataDict, f, default_flow_style=None)
+
+def loadPlanResultsFromFolder(folderPath):
+	"""Loads planning results from a yaml in a result folder"""
+
+	absFile = os.path.abspath(os.path.join(folderPath, planPathResultsFilename))
+	print('Loading planning results from', absFile)
+
+	# load run parameters from yaml
+	params = loadYamlContents(folderPath, planPathResultsFilename)
+	return params
 
 def toDir(path):
 	"""Converts a folder or file path to a folder path"""

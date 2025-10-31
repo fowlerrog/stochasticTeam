@@ -1,5 +1,10 @@
+# python imports
+import os
 import matplotlib.pyplot as plt
 import numpy as np
+
+# project imports
+from .RunnerUtils import loadPlanResultsFromFolder
 
 def plotPoints(points, filename=None, show=True):
 	"""Plot points with no path"""
@@ -128,3 +133,29 @@ def plotOriginalCycles(originalPoints, originalCycles, startPoint=None, endPoint
 		plt.savefig(filename)
 	if show:
 		plt.show()
+
+def plotPlanFromFolder(folderPath):
+	"""Generates plots for a TSP path from a results folder"""
+	absFolderPath = os.path.abspath(folderPath)
+
+	plan = loadPlanResultsFromFolder(absFolderPath)
+	if plan is None:
+		return
+
+	TSPFigureName = os.path.join(absFolderPath, 'TSP_path.png')
+	if 'uav_points' in plan:
+		plotPath(plan['uav_points'], filename=TSPFigureName, show=False)
+	# else:
+	# 	# If no solution, just scatter the reordered points for reference
+	# 	plotPoints(points,
+	# 				filename=TSPFigureName)
+
+	cyclesFigureName = os.path.join(absFolderPath, 'uav_cycles.png')
+	plotCycles(plan['uav_cycles'],
+			    plan['uav_points'],
+				plan["ugv_mapping_to_points"],
+				plan["ugv_path"],
+				cyclesFigureName,
+				False)
+
+	plt.show()
