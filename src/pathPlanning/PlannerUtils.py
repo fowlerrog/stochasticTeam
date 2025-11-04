@@ -93,4 +93,4 @@ def runPlannerFromSettings(settingsFile):
 
 	# write overall results
 	independentResultsDict.update(dependentResultsDict) # combine
-	writeYaml(independentResultsDict, os.path.join(absFolder, planTimeResultsFilename))
+	writeYaml(independentResultsDict, os.path.join(absFolder, planTimeResultsFilename), maxDecimals=3)

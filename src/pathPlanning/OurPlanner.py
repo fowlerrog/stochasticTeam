@@ -55,7 +55,7 @@ class OurPlanner(Planner):
         result['uav_points'] = [list(v) for v in result['uav_points']] # tuple -> list
         result['ugv_mapping_to_points'] = {k:[float(n) for n in v] for k,v in result["ugv_mapping_to_points"].items()} # yaml does not like np.array
         absSavePath = os.path.join(self.params["RUN_FOLDER"], self.params["SAVE_PATH_FOLDER"], planPathResultsFilename)
-        writeYaml(result, absSavePath)
+        writeYaml(result, absSavePath, maxDecimals=2)
 
     def createCostMatrix(self, points, agentType = ''):
         """Fills a cost matrix for list of tuples"""
@@ -127,7 +127,7 @@ class OurPlanner(Planner):
             gtspTime = result["gtsp_solver_time"] or -1  # fallback in case it's None
             cycleTspTotalTime = -1  # or fill if you compute it elsewhere
 
-            self.time_info = {
+            self.timeInfo = {
                 "MISSION_TIME": missionTime,
                 "TSP_TIME": tspTime,
                 "GTSP_TIME": gtspTime,

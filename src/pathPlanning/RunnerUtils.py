@@ -15,6 +15,20 @@ def appendDict(d1, d2):
 			d1[k] = [d2[k]]
 	return d1
 
+def roundIterable(d, maxDecimals=1):
+	"""Rounds all floats in sets, lists, tuples, or dict values"""
+	if isinstance(d, float):
+		return round(d, maxDecimals)
+	elif isinstance(d, dict):
+		return {k:roundIterable(v, maxDecimals) for k,v in d.items()}
+	elif isinstance(d, list):
+		return [roundIterable(e, maxDecimals) for e in d]
+	elif isinstance(d, set):
+		return {roundIterable(e, maxDecimals) for e in d}
+	elif isinstance(d, tuple):
+		return (roundIterable(e, maxDecimals) for e in d)
+	return d
+
 def loadYamlContents(settingsFile, defaultFilename = ''):
 	"""Returns the contents of a yaml file, if it exists"""
 	# check if we were given the folder instead
@@ -35,7 +49,7 @@ def loadYamlContents(settingsFile, defaultFilename = ''):
 		print('Params not found')
 	return params
 
-def writeYaml(dataDict, savePath):
+def writeYaml(dataDict, savePath, maxDecimals=1):
 	"""Writes a data dictionary to a path"""
 	# create folder if it doesn't exist
 	absPath = os.path.abspath(savePath)
@@ -44,7 +58,7 @@ def writeYaml(dataDict, savePath):
 		os.makedirs(absFolder)
 	with open(savePath, 'w') as f:
 		print('Writing to %s'%savePath)
-		yaml.dump(dataDict, f, default_flow_style=None)
+		yaml.dump(roundIterable(dataDict, maxDecimals), f, default_flow_style=None)
 
 def loadPlanResultsFromFolder(folderPath):
 	"""Loads planning results from a yaml in a result folder"""
@@ -59,3 +73,11 @@ def loadPlanResultsFromFolder(folderPath):
 def toDir(path):
 	"""Converts a folder or file path to a folder path"""
 	return path if os.path.isdir(path) else os.path.dirname(path)
+
+def getChildFolders(parentFolder):
+	results = []
+	for resultsFolder in os.listdir(parentFolder):
+		absResultsFolder = os.path.join(parentFolder, resultsFolder)
+		if os.path.isdir(absResultsFolder):
+			results.append(absResultsFolder)
+	return results

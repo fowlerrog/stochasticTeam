@@ -39,8 +39,9 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 		seed(executeParams['SEED'])
 
 	# execute runs
-	uavTimeoutFailures = 0
-	ugvTimeoutFailures = 0
+	cycleAttempts = [0] * len(uavCycles)
+	uavTimeoutFailures = [0] * len(uavCycles)
+	ugvTimeoutFailures = [0] * len(uavCycles)
 	remainingFlightTimes = []
 	numRuns = executeParams['NUM_RUNS']
 	print('Running %d runs'%numRuns)
@@ -48,6 +49,7 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 		remainingFlightTimesThisRun = []
 		for iCycle in range(len(uavCycles)):
 			# print('icycle', iCycle)
+			cycleAttempts[iCycle] += 1
 			# calculate ugv travel time
 			releasePoint = ugvPoints[ugvOrder[1 + 2*iCycle]]
 			collectPoint = ugvPoints[ugvOrder[2 + 2*iCycle]]
@@ -81,10 +83,10 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 			failure = False
 			remainingFlightTimesThisRun.append(uavMaxTime - max(uavTime, ugvTime))
 			if ugvTime > uavMaxTime:
-				ugvTimeoutFailures += 1
+				ugvTimeoutFailures[iCycle] += 1
 				failure = True
 			if uavTime > uavMaxTime:
-				uavTimeoutFailures += 1
+				uavTimeoutFailures[iCycle] += 1
 				failure = True
 
 			if failure:
@@ -94,9 +96,10 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 	# write results
 	results = {
 		'NUM_RUNS': numRuns,
+		'CYCLE_ATTEMPTS': cycleAttempts,
 		'UAV_TIMEOUT_FAILURES':	uavTimeoutFailures,
 		'UGV_TIMEOUT_FAILURES': ugvTimeoutFailures,
 		'REMAINING_FLIGHT_TIMES': remainingFlightTimes
 	}
 	planFolder = toDir(absResultsPath)
-	writeYaml(results, os.path.join(planFolder, executeResultsFilename))
+	writeYaml(results, os.path.join(planFolder, executeResultsFilename), maxDecimals=1)
