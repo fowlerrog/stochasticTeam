@@ -2,6 +2,8 @@
 import os
 
 from .EnvUtils import envFromParamsOrFile
+from .Constants import planPathResultsFilename
+from .RunnerUtils import writeYaml
 
 class Planner(object):
 	"""Defines a Planner class which all other Planners should descend from"""
@@ -27,3 +29,12 @@ class Planner(object):
 	def solve(self, points):
 		"""Solves the routing problem for a set of visited points"""
 		pass
+
+	def standardizeSolution(self):
+		"""Cleans up solution dict for yaml printing, if necessary"""
+		return self.solution
+
+	def printResultsToYaml(self, maxDecimals=2):
+		"""Prints solution results to a yaml file"""
+		absSavePath = os.path.join(self.params["RUN_FOLDER"], self.params["SAVE_PATH_FOLDER"], planPathResultsFilename)
+		writeYaml(self.standardizeSolution(), absSavePath, maxDecimals=maxDecimals)

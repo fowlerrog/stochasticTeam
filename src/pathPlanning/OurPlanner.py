@@ -15,8 +15,7 @@ from math import sqrt
 from .NodeUtils import *
 from .GtspUtils import *
 from .Planner import Planner
-from .Constants import gtspInputFilename, gtspOutputFilename, planPathResultsFilename
-from .RunnerUtils import writeYaml
+from .Constants import gtspInputFilename, gtspOutputFilename
 
 @dataclass
 class Cost:
@@ -52,14 +51,11 @@ class OurPlanner(Planner):
         super().__init__(params)
         self.costMatrix = {} # str(agentType) : matrix[startIndex][endIndex]
 
-    def printResultsToYaml(self):
-        """Prints solution results to a yaml file"""
-        # construct save dict
+    def standardizeSolution(self):
         result = self.solution
         result['uav_points'] = [list(v) for v in result['uav_points']] # tuple -> list
         result['ugv_mapping_to_points'] = {k:[float(n) for n in v] for k,v in result["ugv_mapping_to_points"].items()} # yaml does not like np.array
-        absSavePath = os.path.join(self.params["RUN_FOLDER"], self.params["SAVE_PATH_FOLDER"], planPathResultsFilename)
-        writeYaml(result, absSavePath, maxDecimals=2)
+        return result
 
     def createCostMatrix(self, points, agentType = ''):
         """Fills a cost matrix for list of tuples"""
