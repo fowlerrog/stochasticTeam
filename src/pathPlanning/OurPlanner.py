@@ -27,6 +27,10 @@ class Cost:
         """Constructor for C(a,b,c,d,...)"""
         self.value = [*value]
 
+    def __str__(self):
+        """To string method"""
+        return 'Cost' + str(self.value)
+
     """Operators:"""
     def __add__(self, other): return Cost(*[sum(x) for x in zip(self.value, other.value)])
     def __mul__(self, constant): return Cost(*[x * constant for x in self.value])
@@ -237,7 +241,7 @@ class OurPlanner(Planner):
                     bestReturnCost = returnCost
                     bestIndex = candidateIndex
 
-        print(f"  --> Closing at best collect {bestIndex}, returnTime={bestReturnCost.value[0]:.2f}")
+        print(f"  --> Closing at best collect {bestIndex}, returnTime={bestReturnCost}")
         return bestReturnCost
 
     def createCyclesCAHIT(self, tspTour):
@@ -258,8 +262,8 @@ class OurPlanner(Planner):
 
             print(f"\n-- Considering point {currIndex} {tspTour[currIndex]}")
             print(f" Current cycle: {currentCycle}")
-            print(f" Travel time prev->curr: {travelCost.value[0]:.2f}")
-            print(f" CurrentTime before: {currentCost.value[0]:.2f}")
+            print(f" Travel time prev->curr: {travelCost}")
+            print(f" CurrentTime before: {currentCost}")
 
             success = False
             for candidateIndex in currentCycle + [currIndex]:
@@ -267,7 +271,7 @@ class OurPlanner(Planner):
                 ugvCost = self.constructCost(cycleStartIndex, candidateIndex, 'UGV')
                 uavCost = currentCost + travelCost + returnCost
 
-                print(f" Candidate collect {candidateIndex}: UAV arrival={uavCost.value[0]:.2f}, UGV time={ugvCost.value[0]:.2f}")
+                print(f" Candidate collect {candidateIndex}: UAV arrival={uavCost}, UGV time={ugvCost}")
 
                 if self.evaluateConstraint(uavCost, 'UAV') and self.evaluateConstraint(ugvCost, 'UGV'):
                     success = True
@@ -278,7 +282,7 @@ class OurPlanner(Planner):
                 currentCycle.append(currIndex)
                 currentCost += travelCost
                 prevIndex = currIndex
-                print(f"  --> Accepted point {currIndex}, new currentTime={currentCost.value[0]:.2f}")
+                print(f"  --> Accepted point {currIndex}, new currentTime={currentCost}")
             else:
                 print(f" Point {currIndex} would break cycle -> CLOSE current cycle")
 
@@ -289,7 +293,7 @@ class OurPlanner(Planner):
                 cycles.append(currentCycle)
                 cycleCosts.append(currentCost)
 
-                print(f" Cycle closed: {currentCycle}, total time={currentCost.value[0]:.2f}")
+                print(f" Cycle closed: {currentCycle}, total time={currentCost}")
                 print(f"=== START CYCLE {len(cycles)} ===")
                 print(f" Start point index: {currIndex}, coords: {tspTour[currIndex]}")
 
@@ -305,7 +309,7 @@ class OurPlanner(Planner):
 
         cycles.append(currentCycle)
         cycleCosts.append(currentCost)
-        print(f"Final cycle closed: {currentCycle}, total time={currentCost.value[0]:.2f}")
+        print(f"Final cycle closed: {currentCycle}, total time={currentCost}")
 
         print("\nCycles created CAHIT:")
         pprint(cycles)
