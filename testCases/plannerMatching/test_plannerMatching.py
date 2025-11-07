@@ -4,6 +4,7 @@ import os
 # project imports
 from pathPlanning.PlannerUtils import runPlannerFromSettings
 from pathPlanning.RunnerUtils import loadPlanResultsFromFolder
+from pathPlanning.Constants import planSettingsFilename
 
 class TestPlannerMatching:
 
@@ -11,7 +12,6 @@ class TestPlannerMatching:
 		thisScriptFolder = os.path.dirname(os.path.abspath(__file__))
 
 		# Run the deterministic and stochastic versions of the same case
-		planSettingsFilename = 'plan_settings.yaml'
 		runPlannerFromSettings(os.path.join(thisScriptFolder, planSettingsFilename))
 
 		# Load results

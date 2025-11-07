@@ -1,0 +1,10 @@
+TYPE: SplitEnvironment
+AGENT_ENVIRONMENTS:
+  A:
+    TYPE: GaussianEnvironment
+    WEIGHT: 8
+    WEIGHT_STD_DEV: 0.5
+  B:
+    TYPE: GaussianEnvironment
+    WEIGHT: 7
+    WEIGHT_STD_DEV: 4
