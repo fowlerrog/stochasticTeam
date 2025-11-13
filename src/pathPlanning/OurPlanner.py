@@ -32,6 +32,7 @@ class Cost:
 
     """Operators:"""
     def __add__(self, other): return Cost(*[sum(x) for x in zip(self.value, other.value)])
+    def __sub__(self, other): return Cost(*[x[0] - x[1] for x in zip(self.value, other.value)])
     def __mul__(self, constant): return Cost(*[x * constant for x in self.value])
     def __lt__(self, other): return self.value < other.value
     def __le__(self, other): return self.value <= other.value

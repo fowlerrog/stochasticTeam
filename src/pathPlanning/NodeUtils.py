@@ -42,6 +42,7 @@ def findClosestPoint(points, referencePoint):
 
 def reorderList(l, startIndex, endIndex):
     """Reorder points with the start and end points in the correct positions."""
+    # TODO this will duplicate start and end, but would have to return some indices to avoid causing problems if it doesn't
     reorderedPoints = [l[startIndex]] + [
         p for i, p in enumerate(l) if i != startIndex and i != endIndex
     ] + [l[endIndex]]

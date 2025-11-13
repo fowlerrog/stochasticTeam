@@ -5,10 +5,10 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Run Test Case settings.yaml",
+			"name": "Run scripts/planPath.py runs/test/settings.yaml",
 			"type": "debugpy",
 			"request": "launch",
-			"program": "${file}",
+			"program": "${workspaceFolder}/scripts/planPath.py",
 			"console": "integratedTerminal",
 			"args": "runs/test/plan_settings.yaml"
 		}

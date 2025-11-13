@@ -23,7 +23,7 @@ class TestPlannerMatching:
 		#	Deterministic delta time = 0
 		#	Stochastic risk = 0.5
 		# both planners should produce the same plan
-		assert(detPlanResults['uav_points'] == stochPlanResults['uav_points'])
-		assert(detPlanResults['uav_cycles'] == stochPlanResults['uav_cycles'])
-		assert(detPlanResults['ugv_mapping_to_points'] == stochPlanResults['ugv_mapping_to_points'])
-		assert(detPlanResults['ugv_path'] == stochPlanResults['ugv_path'])
+		assert detPlanResults['uav_points'] == stochPlanResults['uav_points']
+		assert detPlanResults['uav_cycles'] == stochPlanResults['uav_cycles']
+		assert detPlanResults['ugv_mapping_to_points'] == stochPlanResults['ugv_mapping_to_points']
+		assert detPlanResults['ugv_path'] == stochPlanResults['ugv_path']
