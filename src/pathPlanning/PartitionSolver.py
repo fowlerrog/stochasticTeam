@@ -1,6 +1,6 @@
 
-# project imports
-from .OurPlanner import Cost
+# python imports
+import math
 
 def solvePartitionProblem(costs, numSegments, f):
 	"""
@@ -17,7 +17,7 @@ def solvePartitionProblem(costs, numSegments, f):
 	assert 1 <= numSegments <= numElements, "Cannot cut %d elements into %d segments"%(numElements, numSegments)
 
 	# precompute running sums
-	runningTotalCosts = [Cost(0,0)] * (numElements+1)
+	runningTotalCosts = [costs[0] * 0] * (numElements+1)
 	for i in range(1, numElements+1):
 		runningTotalCosts[i] = runningTotalCosts[i-1] + costs[i-1]
 
@@ -48,13 +48,22 @@ def solvePartitionProblem(costs, numSegments, f):
 
 	# backtrack to get each cut location
 	cuts = []
-	thisCut = parents[thisCut][thisSegment]
+	thisCut = parents[numElements][numSegments]
+	segmentValues = [f(segmentCost(thisCut, numElements))]
 	thisSegment = numSegments - 1
 	while thisSegment > 0:
 		parent = parents[thisCut][thisSegment]
 		cuts.append(thisCut)
+		segmentValues = [f(segmentCost(parent, thisCut))] + segmentValues
 		thisCut = parent
 		thisSegment -= 1
 	cuts.reverse() # decreasing -> increasing
 
-	return DP[numElements][numSegments], cuts
+	return cuts, DP[numElements][numSegments], segmentValues
+
+def safeExp(f):
+	"""Returns a safe exponential that will not overflow / underflow"""
+	try:
+		return math.exp(f)
+	except OverflowError:
+		return float('inf') if f > 0 else 0.0

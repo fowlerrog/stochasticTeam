@@ -6,7 +6,7 @@ from pathPlanning.PlannerUtils import runPlannerFromSettings
 from pathPlanning.RunnerUtils import loadPlanResultsFromFolder
 from pathPlanning.Constants import planSettingsFilename
 
-class TestPlannerMatching:
+class TestPlannerMatching: # 	TODO this no longer makes sense
 
 	def test_plannerMatching(self):
 		thisScriptFolder = os.path.dirname(os.path.abspath(__file__))

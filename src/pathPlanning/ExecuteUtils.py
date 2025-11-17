@@ -10,6 +10,8 @@ from .EnvUtils import envFromParamsOrFile
 def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPath):
 	"""Executes a number of runs for a given plan"""
 
+	# TODO INDEPENDENT VARIABLES?
+
 	# load parameters from yamls
 	absExecutePath = os.path.abspath(executeSettingsPath)
 	executeParams = loadYamlContents(absExecutePath, executeSettingsFilename)

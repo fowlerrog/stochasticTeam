@@ -7,7 +7,7 @@ from functools import lru_cache
 
 # project imports
 from pathPlanning.OurPlanner import Cost
-from pathPlanning.PartitionSolver import solvePartitionProblem
+from pathPlanning.PartitionSolver import solvePartitionProblem, safeExp
 
 class TestPartition:
 
@@ -27,15 +27,15 @@ class TestPartition:
 			mean = cost.value[0]
 			var = cost.value[1]
 			limit = costLimit
-			return norm.logcdf( (limit - mean) / math.sqrt(var) ) if var > 0 \
-				else INF if mean < limit \
+			return norm.logsf( (-limit + mean) / math.sqrt(var) ) if var > 0 \
+				else 0 if mean < limit \
 				else -INF
 
 		random.seed(randomSeed)
 		costs = [Cost(*[random.randint(50, 150) for _ in range(2)]) for _ in range(listLength)]
 
 		# solve with dp
-		dpLogSuccess, dpBestCuts = solvePartitionProblem(costs, numSegments, logSuccessChance)
+		dpBestCuts, dpLogSuccess, dpSegmentValues = solvePartitionProblem(costs, numSegments, logSuccessChance)
 
 		# solve exhaustively
 		exCuts = [[]]
@@ -50,27 +50,21 @@ class TestPartition:
 		def segmentLogSuccess(a, b):
 			return logSuccessChance(sum(costs[a:b], start=Cost(0,0)))
 
-		segmentLogSuccesses = [
-			segmentLogSuccess(0,c[0]) +
-			sum(segmentLogSuccess(c[i],c[i+1]) for i in range(len(c)-1)) +
+		cutLogSuccess = lambda c : [
+			segmentLogSuccess(0,c[0]),
+			*[segmentLogSuccess(c[i],c[i+1]) for i in range(len(c)-1)],
 			segmentLogSuccess(c[-1],len(costs))
-			for c in exCuts
-			]
-		labeledCosts = zip(segmentLogSuccesses, exCuts)
+		]
+		cutLogSuccesses = [sum(cutLogSuccess(c)) for c in exCuts]
+		labeledCosts = zip(cutLogSuccesses, exCuts)
 		e = max(labeledCosts)
 		exLogSuccess = e[0]
 		exBestCuts = e[1]
-
-		def safeExp(f):
-			# exponential may overflow / underflow
-			try:
-				return math.exp(f)
-			except OverflowError:
-				return float('inf') if f > 0 else 0.0
+		exSegmentLogSuccesses = cutLogSuccess(exBestCuts)
 
 		dpSuccess = safeExp(dpLogSuccess)
 		exSuccess = safeExp(exLogSuccess)
 
-		print('dplogsuccess', dpLogSuccess, 'dpsuccess', dpSuccess, 'dpcuts', dpBestCuts)
-		print('exlogsuccess', exLogSuccess, 'exsuccess', exSuccess, 'excuts', exBestCuts)
 		assert dpBestCuts == exBestCuts
+		assert abs(dpSuccess - exSuccess) < 1e-1
+		assert all(abs(dpSegmentValues[i] - exSegmentLogSuccesses[i]) < 1e-1 for i in range(numSegments))

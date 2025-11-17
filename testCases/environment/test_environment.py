@@ -25,7 +25,7 @@ class TestEnvironment:
 
 	@pytest.mark.parametrize("randomSeed", range(5))
 	def test_gaussian(self, randomSeed):
-		"""Tests whether gaussian evaluations are actually gaussian"""
+		"""Tests whether gaussian evaluations are actually gaussian""" # TODO should be scipy.stats.norm.fit ?
 		thisScriptFolder = os.path.dirname(os.path.abspath(__file__))
 		env = envFromParamsOrFile(os.path.join(thisScriptFolder, environmentSettingsFilename))
 		numSamples = 10000
