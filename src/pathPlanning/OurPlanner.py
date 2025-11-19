@@ -16,8 +16,7 @@ from .NodeUtils import *
 from .GtspUtils import *
 from .Planner import Planner
 from .Constants import gtspInputFilename, gtspOutputFilename
-from .PartitionSolver import solvePartitionProblem
-from .PartitionSolver import safeExp
+from .PartitionSolver import PartitionSolver, safeExp
 
 @dataclass
 class Cost:
@@ -128,17 +127,12 @@ class OurPlanner(Planner):
                 cycles,
                 uavPoints
             )
-            # maxCycleCollectCosts = [ { # collapse cycle costs to highest risk per agent type
-            #     cycleCollectPoint : max(
-            #         [agentTypeCostTuple for agentTypeCostTuple in cycleCosts.items()],
-            #         key = lambda c : self.evaluateConstraintFloat(c[1], c[0]) # c = (agentType, agentCost)
-            #         )
-            #     for cycleCollectPoint, cycleCosts in cycleCollectCosts[iCycle].items()
-            # } for iCycle in range(len(cycleCollectCosts)) ]
+
             maxCycleCollectCosts = [ { # collapse cycle costs to worst mean cost per agent type
                 cycleCollectPoint : max(agentCost for agentCost in cycleCosts.values())
                 for cycleCollectPoint, cycleCosts in cycleCollectCosts[iCycle].items()
             } for iCycle in range(len(cycleCollectCosts)) ]
+
             result = self.solveGtspWithReleaseCollect(
                 points=uavPoints,
                 cycles=cycles,
@@ -219,15 +213,12 @@ class OurPlanner(Planner):
         self.createCostMatrix(reorderedPoints, 'UAV')
         costMatrix = self.costMatrix['UAV']
 
-        # print("\nCOST MATRIX:")
-        # print(costMatrix)
-
         # Step 4: Create the routing index manager, setting start and end locations correctly
         manager = pywrapcp.RoutingIndexManager(
-            len(costMatrix),  # Number of locations
+            len(reorderedPoints),  # Number of locations
             1,  # Number of vehicles
             [0],  # Start location index (closest to start)
-            [len(costMatrix) - 1]  # End location index (closest to end)
+            [len(reorderedPoints) - 1]  # End location index (closest to end)
         )
 
         # Step 5: Create the routing model
@@ -275,7 +266,7 @@ class OurPlanner(Planner):
             tspTour.append(nodeIndex)
             tspAirPoints.append(reorderedPoints[nodeIndex])
 
-        return tspAirPoints
+        return tspAirPoints # TODO also reorder costMatrix so it doesn't have to be reevaluated in solve()
 
     def createUavCycles(self, tspTour):
         raise NotImplementedError("OurPlanner subclass must implement createUavCycles(self, tspTour)")
@@ -644,8 +635,9 @@ class OurPlannerStochastic(OurPlanner):
             self.costMatrix['UGV'][i][i+1], self.costVarMatrix['UGV'][i][i+1]
             ) for i in range(len(tspTour) - 1)]
 
-        for numSegments in range(1, len(tspTour) + 1): # TODO this is naive
-            cuts, totalLogSuccess, segmentLogSuccesses = solvePartitionProblem(tourCosts, numSegments, logSuccessChanceUavUgv)
+        partitionSolver = PartitionSolver(tourCosts, logSuccessChanceUavUgv, False)
+        for numSegments in range(1, len(tspTour) + 1):
+            cuts, totalLogSuccess, segmentLogSuccesses = partitionSolver.solvePartitionProblem(tourCosts, numSegments, logSuccessChanceUavUgv)
             if safeExp(totalLogSuccess) > 1 - self.params['FAILURE_RISK']:
                 break
 
