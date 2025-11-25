@@ -1,6 +1,5 @@
 
 # python imports
-import math
 from collections.abc import Callable
 from functools import lru_cache
 
@@ -17,17 +16,17 @@ class PartitionSolver():
 	DP: list		# dynamic programming matrix: DP[j-1][i-1] = max sum for first i items in j segments
 	parents: list	# for backtracking: parents[j-1][i-1] = argmax in p of DP[j-2][p-1] + f(costs[p:i])
 	currentNumSegments: int # number of segments for which DP[numSegments-1][n-1] has been evaluated
-	monotonic: bool	# whether parents[j][i] is nondecreasing with i, which allows us to solve for a given j in O(n) instead of O(n^2)
+	concave: bool	# whether parents[j][i] is nondecreasing with i, which allows us to solve for a given j in O(n) instead of O(n^2)
 
 	runningTotalCosts: list	# running sums of costs
 
-	def __init__(self, costs, f, monotonic = False):
+	def __init__(self, costs, f, concave = False):
 		self.costs = costs
 		self.f = f
 		self.currentNumSegments = 0
 		self.DP = []
 		self.parents = []
-		self.monotonic = monotonic
+		self.concave = concave
 
 		# precompute running sums
 		self.runningTotalCosts = [costs[0] * 0] * (len(costs) + 1)
@@ -63,13 +62,18 @@ class PartitionSolver():
 		self.DP.append([0] * numElements)
 		self.parents.append([None] * numElements)
 
-		# evaluate the [0:n] elements of the previous layer
-		for thisElements in range(numElements - 1, numSegments - 1, -1): # length of list in consideration
-			if numSegments > 2: # evaluate normally
-				self.solveDPvalue(numSegments - 2, thisElements - 1)
-			elif numSegments == 2: # layer 1 is just f(segment)
+		# evaluate the [0:n) elements of the previous layer
+		if numSegments == 1: # there is no previous layer
+			pass
+		elif numSegments == 2: # layer 1 is just f(segment)
+			for thisElements in range(numSegments - 1, numElements): # length of list in consideration
 				self.DP[numSegments - 2][thisElements - 1] = self.f(self.runningTotalCosts[thisElements])
 				self.parents[numSegments - 2][thisElements - 1] = -1
+		elif self.concave: # solve binary
+			self.solveRowConcave(numSegments - 2)
+		else: # evaluate normally
+			for thisElements in range(numSegments - 1, numElements): # length of list in consideration
+				self.solveDPvalue(numSegments - 2, thisElements - 1)
 
 		# evaluate the last element of this layer
 		if numSegments == 1: # layer 1 is just f(segment)
@@ -78,31 +82,41 @@ class PartitionSolver():
 		else:
 			self.solveDPvalue(numSegments - 1, numElements - 1)
 
-	def solveDPvalue(self, j, i):
+	def solveRowConcave(self, j, iMin=None, iMax=None):
+		"""
+		Solves for a given j and range of i
+		with a binary search for k, assuming k is nondecreasing with i
+		where i varies on [iMin:iMax]
+		"""
+		if iMin is None: iMin = j
+		if iMax is None: iMax = len(self.costs) - 1
+		if iMin >= iMax: # base case
+			return
+
+		# solve middle value of this row
+		iMiddle = (iMax + iMin) // 2
+		kMin = self.parents[j][iMin] if iMin >= j else j
+		kMax = self.parents[j][iMax] if iMax < len(self.costs) else len(self.costs) - 1
+		self.solveDPvalue(j, iMiddle, kMin, kMax + 1)
+
+		# recurse
+		self.solveRowConcave(j, iMin, iMiddle)
+		self.solveRowConcave(j, iMiddle + 1, iMax)
+
+	def solveDPvalue(self, j, i, kMin=None, kMax=None):
 		"""
 		Solves for 1 value in DP matrix
 		note that i and j are 0-indexed (DP[1][2] = first 3 elements in 2 segments)
+		k (the j-1th cut) is allowed to vary on [kMin:kMax] which defaults to [j-1:i]
 		"""
-		if self.monotonic: # search p descending from parents[i+1][j] if it exists
-			p = self.parents[j][i] \
-				if i < len(self.costs) and self.parents[j][i] is not None \
-				else len(self.costs) - 1
-			bestVal = -float('inf')
-			while p > j:
-				dpVal = self.DP[j-1][p] + self.f(self.segmentCost(p+1, i+1))
-				if dpVal < bestVal: # monotonic, so we break
-					break
-				else:
-					bestVal = dpVal
-					p -= 1
-			self.DP[j][i] = bestVal
-			self.parents[j][i] = p
-		else: # exhaustive search over p
-			val = max(
-				( self.DP[j-1][p] + self.f(self.segmentCost(p+1, i+1)), p )
-				for p in range(j, i))
-			self.DP[j][i] = val[0]
-			self.parents[j][i] = val[1]
+		if kMin is None: kMin = j-1
+		if kMax is None: kMax = i
+		val = max(
+			( self.DP[j-1][k] + self.f(self.segmentCost(k+1, i+1)), k )
+			for k in range(kMin, kMax)
+			)
+		self.DP[j][i] = val[0]
+		self.parents[j][i] = val[1]
 
 	def getCuts(self, numElements, numSegments):
 		"""Backtrack to get each cut location"""
@@ -121,13 +135,6 @@ class PartitionSolver():
 
 		return cuts, segmentValues
 
-def safeExp(f):
-	"""Returns a safe exponential that will not overflow / underflow"""
-	try:
-		return math.exp(f)
-	except OverflowError:
-		return float('inf') if f > 0 else 0.0
-
 def solvePartitionExhaustively(costs, numSegments, f):
 	"""Solves the maximization problem for a list of costs split into a number of segments with function f"""
 	listLength = len(costs)
@@ -145,16 +152,16 @@ def solvePartitionExhaustively(costs, numSegments, f):
 	def segmentValue(a, b):
 		return f(sum(costs[a:b], start=costs[0]*0))
 
-	segmentLogEvaluation = lambda c : [
+	segmentEvaluation = lambda c : [
 		segmentValue(0,c[0]),
 		*[segmentValue(c[i],c[i+1]) for i in range(len(c)-1)],
 		segmentValue(c[-1],len(costs))
 	]
-	cutLogValues = [sum(segmentLogEvaluation(c)) for c in exCuts]
-	labeledCosts = zip(cutLogValues, exCuts)
+	cutValues = [sum(segmentEvaluation(c)) for c in exCuts]
+	labeledCosts = zip(cutValues, exCuts)
 	e = max(labeledCosts)
-	totalLogValue = e[0]
+	totalValue = e[0]
 	bestCuts = e[1]
-	segmentLogValues = segmentLogEvaluation(bestCuts)
+	segmentValues = segmentEvaluation(bestCuts)
 
-	return bestCuts, totalLogValue, segmentLogValues
+	return bestCuts, totalValue, segmentValues

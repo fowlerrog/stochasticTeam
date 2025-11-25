@@ -2,6 +2,7 @@
 # python imports
 import os
 import time
+import math
 import subprocess
 import numpy as np
 import traceback
@@ -16,7 +17,7 @@ from .NodeUtils import *
 from .GtspUtils import *
 from .Planner import Planner
 from .Constants import gtspInputFilename, gtspOutputFilename
-from .PartitionSolver import PartitionSolver, safeExp
+from .PartitionSolver import PartitionSolver
 
 @dataclass
 class Cost:
@@ -42,6 +43,13 @@ class Cost:
     def __ge__(self, other): return self.value >= other.value
     def __gt__(self, other): return self.value > other.value
 
+def safeExp(f):
+	"""Returns a safe exponential that will not overflow / underflow"""
+	try:
+		return math.exp(f)
+	except OverflowError:
+		return float('inf') if f > 0 else 0.0
+
 class OurPlanner(Planner):
     """Defines a planner class which implements our planning algorithm"""
 
@@ -54,7 +62,7 @@ class OurPlanner(Planner):
         self.costMatrix = {} # str(agentType) : matrix[startIndex][endIndex]
 
     def standardizeSolution(self):
-        result = self.solution
+        result = {k:v for k,v in self.solution.items()}
         result['uav_points'] = [list(v) for v in result['uav_points']] # tuple -> list
         result['ugv_mapping_to_points'] = {k:[float(n) for n in v] for k,v in result["ugv_mapping_to_points"].items()} # yaml does not like np.array
         result['cycle_costs'] = {k:[[float(c) for c in e.value] for e in v] for k,v in result['cycle_costs'].items()} # Cost -> list
@@ -224,6 +232,7 @@ class OurPlanner(Planner):
         # Step 5: Create the routing model
         routing = pywrapcp.RoutingModel(manager)
 
+        # TODO this solver may not be able to handle asymmetric TSP
         # Step 6: Define cost of each arc
         def costCallback(fromIndex, toIndex):
             fromNode = manager.IndexToNode(fromIndex)
@@ -307,7 +316,7 @@ class OurPlanner(Planner):
 
         print("Collect points:")
         pprint(cycleCollectCosts)
-
+        # TODO constructing individual (independent) cycle costs is not possible in the stochastic case
         return cycleCollectCosts
 
     def buildtGTSPMatrix(self, mappingToRelease, mappingToCollect, points, cycles, collectToCycleCosts, dim):
@@ -624,6 +633,7 @@ class OurPlannerStochastic(OurPlanner):
                 else 0 if mean < limit \
                 else -INF
 
+        # TODO the assumption here is that collect is the last point; or that our heuristic maximizes UAV flight time
         def logSuccessChanceUavUgv(cost):
             # note that for this one, cost = Cost(uav_mean, uav_var, ugv_mean, ugv_var)
             return logSuccessChance(Cost(*cost.value[0:2]) + self.baseCost('UAV')) + \
@@ -637,7 +647,7 @@ class OurPlannerStochastic(OurPlanner):
 
         partitionSolver = PartitionSolver(tourCosts, logSuccessChanceUavUgv, False)
         for numSegments in range(1, len(tspTour) + 1):
-            cuts, totalLogSuccess, segmentLogSuccesses = partitionSolver.solvePartitionProblem(tourCosts, numSegments, logSuccessChanceUavUgv)
+            cuts, totalLogSuccess, segmentLogSuccesses = partitionSolver.solvePartitionProblem(numSegments)
             if safeExp(totalLogSuccess) > 1 - self.params['FAILURE_RISK']:
                 break
 

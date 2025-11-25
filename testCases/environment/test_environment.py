@@ -1,9 +1,9 @@
 
 # python imports
 import os
-from statistics import mean, variance
 import random
 import pytest
+import scipy.stats
 
 # project imports
 from pathPlanning.EnvUtils import envFromParamsOrFile
@@ -25,13 +25,17 @@ class TestEnvironment:
 
 	@pytest.mark.parametrize("randomSeed", range(5))
 	def test_gaussian(self, randomSeed):
-		"""Tests whether gaussian evaluations are actually gaussian""" # TODO should be scipy.stats.norm.fit ?
+		"""Tests whether gaussian evaluations are actually gaussian"""
+		# load env_settings.yaml
 		thisScriptFolder = os.path.dirname(os.path.abspath(__file__))
 		env = envFromParamsOrFile(os.path.join(thisScriptFolder, environmentSettingsFilename))
+		# sample
 		numSamples = 10000
 		random.seed(randomSeed)
 		samples = [env.evaluate([0,5], [0,0], 'A') for _ in range(numSamples)]
-		assert abs(mean(samples) - 40) < 2e-1 # mean 8 * length 5
-		assert abs(variance(samples) - 6.25) < 2e-1 # (stddev 0.5 * length 5) ^ 2
-
-	# todo test case with wind
+		# calculate statistics
+		mean, stddev = scipy.stats.norm.fit(samples)
+		# assert standard values
+		#	note that these are relaxed, because the environment limits to +- 3 sigma
+		assert abs(mean - 40) < 2e-1 # mean 8 * length 5
+		assert abs(stddev - 2.5) < 2e-1 # (stddev 0.5 * length 5) ^ 2

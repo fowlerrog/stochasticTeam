@@ -2,6 +2,9 @@
 # python virtual environment
 .venv
 
+# pytest-cov results folder
+.coverage
+
 # python module venv import artifacts
 src/pathPlanning.egg-info
 
