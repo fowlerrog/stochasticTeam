@@ -34,7 +34,7 @@ class TestOurPlanner:
 		assert solution['uav_cycles'] == [list(range(numPoints))]
 
 		# ugv path is: start, cycle[0], cycle[-1], end, dummy
-		ugvPath = [solution['ugv_mapping_to_points'][i] for i in solution['ugv_path']]
+		ugvPath = [solution['ugv_point_map'][i] for i in solution['ugv_path']]
 		ugvIdealPath = [
 			params['START_POINT'],
 			list(points[0][:2]),
@@ -44,7 +44,7 @@ class TestOurPlanner:
 		]
 		assert ugvPath == ugvIdealPath
 
-	@pytest.mark.parametrize("plannerType", ["OurPlannerDeterministic", "OurPlannerStochastic"])
+	@pytest.mark.parametrize("plannerType", ["OurPlannerDeterministic", "OurPlannerStochastic"]) # TODO this may not be the fairest assessment, because the stochastic planner is more conservative
 	def test_twoCycles(self, plannerType):
 		"""Two distant clusters of points should become unique cycles"""
 
@@ -73,7 +73,7 @@ class TestOurPlanner:
 		assert solution['uav_cycles'] == [list(range(iCycle * numPointsPerCycle, (iCycle + 1) * numPointsPerCycle)) for iCycle in range(numCycles)]
 
 		# ugv path is: start, cycles[0][0], cycles[0][-1], cycles[1][0], cycles[1][-1], end, dummy
-		ugvPath = [solution['ugv_mapping_to_points'][i] for i in solution['ugv_path']]
+		ugvPath = [solution['ugv_point_map'][i] for i in solution['ugv_path']]
 		ugvIdealPath = [
 			params['START_POINT'],
 			list(points[0][:2]),
@@ -86,3 +86,4 @@ class TestOurPlanner:
 		assert ugvPath == ugvIdealPath
 
 	# TODO test case with wind
+	# TODO test case against actual costs and probabilities

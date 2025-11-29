@@ -153,7 +153,7 @@ def plotPlanFromFolder(folderPath):
 	cyclesFigureName = os.path.join(absFolderPath, 'uav_cycles.png')
 	plotCycles(plan['uav_cycles'],
 			    plan['uav_points'],
-				plan["ugv_mapping_to_points"],
+				plan["ugv_point_map"],
 				plan["ugv_path"],
 				cyclesFigureName,
 				False)

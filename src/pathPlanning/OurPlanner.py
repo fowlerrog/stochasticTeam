@@ -17,7 +17,7 @@ from .NodeUtils import *
 from .GtspUtils import *
 from .Planner import Planner
 from .Constants import gtspInputFilename, gtspOutputFilename
-from .PartitionSolver import PartitionSolver
+from .PartitionSolver import ExtendedPartitionSolver
 
 @dataclass
 class Cost:
@@ -64,7 +64,7 @@ class OurPlanner(Planner):
     def standardizeSolution(self):
         result = {k:v for k,v in self.solution.items()}
         result['uav_points'] = [list(v) for v in result['uav_points']] # tuple -> list
-        result['ugv_mapping_to_points'] = {k:[float(n) for n in v] for k,v in result["ugv_mapping_to_points"].items()} # yaml does not like np.array
+        result['ugv_point_map'] = {k:[float(n) for n in v] for k,v in result["ugv_point_map"].items()} # yaml does not like np.array
         result['cycle_costs'] = {k:[[float(c) for c in e.value] for e in v] for k,v in result['cycle_costs'].items()} # Cost -> list
         result['cycle_constraint_values'] = {k:[float(c) for c in l] for k,l in result['cycle_constraint_values'].items()} # numpy scalar -> float
         return result
@@ -120,6 +120,7 @@ class OurPlanner(Planner):
             tspEndTime = time.perf_counter()
 
             # Calculate cost matrices for uavPoints order
+            # TODO memoize these matrices
             costStartTime = time.perf_counter()
             self.createCostMatrix(uavPoints, 'UAV')
             self.createCostMatrix(uavPoints, 'UGV')
@@ -131,25 +132,20 @@ class OurPlanner(Planner):
             cycleEndTime = time.perf_counter()
 
             # Solve UGV GTSP
-            cycleCollectCosts = self.computeAllCycleCosts(
-                cycles,
-                uavPoints
-            )
+            ugvStartTime = time.perf_counter()
+            ugvResults, cycleCollectCosts = self.createUgvCycles(cycles, uavPoints)
+            ugvEndTime = time.perf_counter()
 
-            maxCycleCollectCosts = [ { # collapse cycle costs to worst mean cost per agent type
-                cycleCollectPoint : max(agentCost for agentCost in cycleCosts.values())
-                for cycleCollectPoint, cycleCosts in cycleCollectCosts[iCycle].items()
-            } for iCycle in range(len(cycleCollectCosts)) ]
-
-            result = self.solveGtspWithReleaseCollect(
-                points=uavPoints,
-                cycles=cycles,
-                cycleCollectCosts=maxCycleCollectCosts,
-            )
-
-            # Add collect points to UAV cycles
+            # Add collect and release points to UAV cycles
             for iCycle in range(len(cycles)):
-                collectPoint = result['ugv_mapping_to_points'][result['ugv_path'][2 + 2*iCycle]]
+                # release
+                releasePoint = ugvResults['ugv_point_map'][ugvResults['ugv_path'][1 + 2*iCycle]]
+                releasePointProjection = (*releasePoint[:2], self.params['FIXED_Z'])
+                closestUavPointIndex = findClosestPoint(uavPoints, releasePointProjection)
+                if cycles[iCycle][0] != closestUavPointIndex:
+                    cycles[iCycle] = [closestUavPointIndex] + cycles[iCycle]
+                # collect
+                collectPoint = ugvResults['ugv_point_map'][ugvResults['ugv_path'][2 + 2*iCycle]]
                 collectPointProjection = (*collectPoint[:2], self.params['FIXED_Z'])
                 closestUavPointIndex = findClosestPoint(uavPoints, collectPointProjection)
                 if cycles[iCycle][-1] != closestUavPointIndex:
@@ -166,8 +162,9 @@ class OurPlanner(Planner):
                 k : [0]*len(cycles)         # agentType : [cycle1value, ...]
                 for k in cycleCosts.keys()   # for each agent type
             }
+            # TODO this should really be parameterized on release/collect, but the way i'm constructing cycleCollectCosts for the stochastic case avoids that complication by fixing release to what was chosen
             for iCycle in range(len(cycles)):
-                collectPoint = result['ugv_mapping_to_points'][result['ugv_path'][2 + 2*iCycle]]
+                collectPoint = ugvResults['ugv_point_map'][ugvResults['ugv_path'][2 + 2*iCycle]]
                 collectPointProjection = (*collectPoint[:2], self.params['FIXED_Z'])
                 closestUavPointIndex = findClosestPoint(uavPoints, collectPointProjection)
                 for agentType, agentCost in cycleCollectCosts[iCycle][closestUavPointIndex].items():
@@ -175,24 +172,23 @@ class OurPlanner(Planner):
                     cycleConstraintValues[agentType][iCycle] = self.evaluateConstraintFloat(agentCost, agentType)
 
             # Save runtimes
-            missionTime = result["total_cost"] / self.GTSP_SCALING
-            print("Total mission time (s):", missionTime)
-
             tspTime = tspEndTime - tspStartTime
-            gtspTime = result["gtsp_solver_time"] or -1  # fallback in case it's None
+            ugvTime = ugvEndTime - ugvStartTime # for stoch
+            if 'gtsp_solver_time' in ugvResults and ugvResults['gtsp_solver_time'] is not None:
+                ugvTime = ugvResults['gtsp_solver_time'] # for det
             cycleTime = cycleEndTime - cycleStartTime
             costTime = costEndTime - costStartTime
             totalTime = totalEndTime - totalStartTime # this will be the sum of the other times + julia startup time (in gtsp step)
 
             self.timeInfo = {
                 "TSP_TIME": tspTime,
-                "GTSP_TIME": gtspTime,
+                "UGV_TIME": ugvTime,
                 "CYCLE_TIME": cycleTime,
                 "COST_TIME": costTime,
                 "TOTAL_TIME": totalTime
             }
 
-            self.solution = result
+            self.solution = ugvResults
             self.solution.pop('gtsp_solver_time', None)
             self.solution.update({
 				'uav_points': uavPoints,
@@ -207,10 +203,12 @@ class OurPlanner(Planner):
 
     def solveTspWithFixedStartEnd(self, points):
         """Solves a TSP with a fixed start and end point"""
+        # TODO allow for asymmetric TSP (tree doubling)
         startPoint = self.params["START_POINT"]
         endPoint = self.params["END_POINT"]
 
         # Step 1: Find the closest points to START_POINT and END_POINT
+        # TODO these should be cost matrix calls
         startIndex = findClosestPoint(points, (*startPoint, 0))
         endIndex = findClosestPoint(points, (*endPoint, 0))
 
@@ -232,7 +230,6 @@ class OurPlanner(Planner):
         # Step 5: Create the routing model
         routing = pywrapcp.RoutingModel(manager)
 
-        # TODO this solver may not be able to handle asymmetric TSP
         # Step 6: Define cost of each arc
         def costCallback(fromIndex, toIndex):
             fromNode = manager.IndexToNode(fromIndex)
@@ -280,157 +277,8 @@ class OurPlanner(Planner):
     def createUavCycles(self, tspTour):
         raise NotImplementedError("OurPlanner subclass must implement createUavCycles(self, tspTour)")
 
-    def computeAllCycleCosts(self, cycles, points):
-        """
-        Computes UAV times for all cycles and all possible collect points in each cycle.
-        Adds fixed takeoff and landing time to each.
-        Checks feasibility against UAV battery and UGV travel limits.
-        Returns one list:
-            collectPoints: list of dicts mapping only feasible collectIdx to UAV time
-        """
-
-        points = np.array(points)
-
-        cycleCollectCosts = []
-        for _, cycle in enumerate(cycles):
-            thisCycleCollectCosts = {}
-            travelCost = sum( [self.constructCost(cycle[k+1], cycle[k], 'UAV') for k in range(len(cycle) - 1)], Cost(*[0]*self.COST_DIM) )
-
-            for collectIdx in cycle:
-                if collectIdx == cycle[-1]:
-                    totalCost = travelCost
-                else:
-                    extraCost = self.constructCost(collectIdx, cycle[-1], 'UAV')
-                    totalCost = travelCost + extraCost
-
-                uavCost = totalCost + self.baseCost('UAV')
-                ugvCost = self.constructCost(cycle[0], collectIdx, 'UGV')
-                costDict = {'UAV' : uavCost, 'UGV' : ugvCost}
-
-                if not self.evaluateConstraintsBoolean(costDict):
-                    continue
-
-                thisCycleCollectCosts[collectIdx] = costDict
-
-            cycleCollectCosts.append(thisCycleCollectCosts)
-
-        print("Collect points:")
-        pprint(cycleCollectCosts)
-        # TODO constructing individual (independent) cycle costs is not possible in the stochastic case
-        return cycleCollectCosts
-
-    def buildtGTSPMatrix(self, mappingToRelease, mappingToCollect, points, cycles, collectToCycleCosts, dim):
-        """
-        Builds a distance matrix and cluster grouping list for UGV's GTSP solution
-        """
-        startPoint = self.params["START_POINT"]
-        endPoint = self.params["END_POINT"]
-
-        CHARGE_RATE = self.params["CHARGE_RATE"]
-
-        matrix = np.ones((dim, dim)) * self.INF
-
-        startCost = self.env.estimateMean(startPoint, points[cycles[0][0]], 'UGV')
-        matrix[0, mappingToRelease[cycles[0][0]]] = startCost
-        matrix[mappingToRelease[cycles[0][0]], 0] = startCost
-
-        matrix[dim-1, 0] = 0
-        matrix[0, dim-1] = 0
-        matrix[dim-2, dim-1] = 0
-        matrix[dim-1, dim-2] = 0
-
-        clusters = [[0],[dim-1],[dim-2]]
-
-        for cycleIndex in range(0, len(cycles)):
-            cycle = cycles[cycleIndex]
-            collectCostsDict = collectToCycleCosts[cycleIndex]
-            releaseIdx = cycle[0]
-            clusters.append([mappingToRelease[releaseIdx]])
-            collectCluster = []
-            for collectIdx, cycleCost in collectCostsDict.items():
-                collectGraphIdx = mappingToCollect[collectIdx]
-                collectCluster.append(collectGraphIdx)
-                matrix[collectGraphIdx, mappingToRelease[releaseIdx]] = cycleCost.value[0]
-                matrix[mappingToRelease[releaseIdx], collectGraphIdx] = cycleCost.value[0]
-
-                if cycleIndex < len(cycles) - 1:
-                    nextReleaseIdx = cycles[cycleIndex + 1][0]
-                    nextReleaseGraphIdx = mappingToRelease[nextReleaseIdx]
-                    collectReleaseCost = max( self.constructCost(collectIdx, nextReleaseIdx, 'UGV').value[0], cycleCost.value[0] * CHARGE_RATE )
-                    matrix[collectGraphIdx, nextReleaseGraphIdx] = collectReleaseCost
-                    matrix[nextReleaseGraphIdx, collectGraphIdx] = collectReleaseCost
-            clusters.append(collectCluster)
-
-        for collectIdx in collectToCycleCosts[-1].keys():
-            endCost = self.env.estimateMean(points[collectIdx], endPoint, 'UGV')
-            matrix[mappingToCollect[collectIdx], dim-2] = endCost
-            matrix[dim-2, mappingToCollect[collectIdx]] = endCost
-
-        matrix *= self.GTSP_SCALING
-        matrix = matrix.astype(int)
-        print(f"Clusters: {clusters}")
-        return matrix, clusters
-
-    def solveGtspWithReleaseCollect(self, points, cycles, cycleCollectCosts):
-        """
-        Solves the UGV's GTSP problem: chooses a release and collect point for each UAV cycle in points
-        """
-
-        startPoint = self.params["START_POINT"]
-        endPoint = self.params["END_POINT"]
-
-        KSI = self.params["KSI"]
-        runFolder = self.params["RUN_FOLDER"]
-
-        points = np.array(points)[:, :2]
-        graphIndex = 1
-        mappingToRelease = {}
-        mappingToCollect = {}
-        mappingToPoints = {0: startPoint}
-        # TODO: Use graphx
-        for cycle, collectCostsDict in zip(cycles, cycleCollectCosts):
-            releaseIdx = cycle[0]
-            mappingToRelease[releaseIdx] = graphIndex
-            mappingToPoints[graphIndex] = points[releaseIdx]
-            graphIndex += 1
-            for collectIdx in collectCostsDict.keys():
-                mappingToCollect[collectIdx] = graphIndex
-                mappingToPoints[graphIndex] = points[collectIdx]
-                graphIndex += 1
-
-        mappingToPoints[graphIndex] = endPoint
-        mappingToPoints[graphIndex+1] = self.params["DUMMY_POINT"]  # Dummy point
-        graphIndex += 2
-        dim = graphIndex
-
-        print(f"Mapping to release:")
-        pprint(mappingToRelease)
-        print(f"Mapping to collect:")
-        pprint(mappingToCollect)
-
-        distanceMatrix, clusters = self.buildtGTSPMatrix(mappingToRelease, mappingToCollect, points, cycles, cycleCollectCosts, dim)
-        gtspInputPath = os.path.join(runFolder, gtspInputFilename)
-        gtspOutputPath = os.path.join(runFolder, gtspOutputFilename)
-        writeGtspFile(dim, clusters, distanceMatrix, gtspInputPath)
-
-        maxRunTime = KSI * len(points) ** 3
-        subprocess.run([
-            "julia", "-e",
-            f'using GLNS; solver("{escapePath(gtspInputPath)}", output="{escapePath(gtspOutputPath)}", max_time={maxRunTime}); solver("{escapePath(gtspInputPath)}", output="{escapePath(gtspOutputPath)}", max_time={maxRunTime})'
-        ])
-
-        tour, solverTime, totalCost = readGlnsOutput(gtspOutputPath)
-        print(f"Tour: {tour}")
-
-        path = tourToPath(tour, startIdx=0, dummyIdx=dim-1)
-        print(f"Path: {path}")
-
-        return {
-            "ugv_path": path,
-            "gtsp_solver_time": solverTime,
-            "total_cost": totalCost,
-            "ugv_mapping_to_points": mappingToPoints
-        }
+    def createUgvCycles(self, cycles, uavPoints):
+        raise NotImplementedError("OurPlanner subclass must implement createUgvCycles(self, cycles, uavPoints)")
 
 class OurPlannerDeterministic(OurPlanner):
     """Only considers mean travel time"""
@@ -563,6 +411,187 @@ class OurPlannerDeterministic(OurPlanner):
         print(f"Cycle times CAHIT = {cycleCosts}")
         return cycles
 
+    def createUgvCycles(self, cycles, uavPoints):
+        """
+        Chooses a UGV path by solving a GTSP
+        where the release point of each cycle is the first point
+        and the collect point is any feasible point in that cycle
+        """
+        # Compute collection costs
+        cycleCollectCosts = self.computeAllCycleCosts(
+            cycles,
+            uavPoints
+        )
+
+        # Collapse cycle costs to worst mean cost per agent type
+        maxCycleCollectCosts = [ {
+            cycleCollectPoint : max(agentCost for agentCost in cycleCosts.values())
+            for cycleCollectPoint, cycleCosts in cycleCollectCosts[iCycle].items()
+        } for iCycle in range(len(cycleCollectCosts)) ]
+
+        # Choose UGV tour
+        gtspResult = self.solveGtspWithReleaseCollect(
+            points=uavPoints,
+            cycles=cycles,
+            cycleCollectCosts=maxCycleCollectCosts,
+        )
+
+        missionTime = gtspResult["total_cost"] / self.GTSP_SCALING
+        print("Total mission time (s):", missionTime)
+
+        return gtspResult, cycleCollectCosts
+
+    def computeAllCycleCosts(self, cycles, points):
+        """
+        Computes UAV times for all cycles and all possible collect points in each cycle.
+        Adds fixed takeoff and landing time to each.
+        Checks feasibility against UAV battery and UGV travel limits.
+        Returns one list:
+            collectPoints: list of dicts mapping only feasible collectIdx to UAV time
+        """
+
+        points = np.array(points)
+
+        cycleCollectCosts = []
+        for _, cycle in enumerate(cycles):
+            thisCycleCollectCosts = {}
+            travelCost = sum( [self.constructCost(cycle[k+1], cycle[k], 'UAV') for k in range(len(cycle) - 1)], Cost(*[0]*self.COST_DIM) )
+
+            for collectIdx in cycle:
+                if collectIdx == cycle[-1]:
+                    totalCost = travelCost
+                else:
+                    extraCost = self.constructCost(collectIdx, cycle[-1], 'UAV')
+                    totalCost = travelCost + extraCost
+
+                uavCost = totalCost + self.baseCost('UAV')
+                ugvCost = self.constructCost(cycle[0], collectIdx, 'UGV')
+                costDict = {'UAV' : uavCost, 'UGV' : ugvCost}
+
+                if not self.evaluateConstraintsBoolean(costDict):
+                    continue
+
+                thisCycleCollectCosts[collectIdx] = costDict
+
+            cycleCollectCosts.append(thisCycleCollectCosts)
+
+        print("Collect points:")
+        pprint(cycleCollectCosts)
+        return cycleCollectCosts
+
+    def buildtGTSPMatrix(self, mappingToRelease, mappingToCollect, points, cycles, collectToCycleCosts, dim):
+        """
+        Builds a distance matrix and cluster grouping list for UGV's GTSP solution
+        """
+        startPoint = self.params["START_POINT"]
+        endPoint = self.params["END_POINT"]
+
+        CHARGE_RATE = self.params["CHARGE_RATE"]
+
+        matrix = np.ones((dim, dim)) * self.INF
+
+        startCost = self.env.estimateMean(startPoint, points[cycles[0][0]], 'UGV')
+        matrix[0, mappingToRelease[cycles[0][0]]] = startCost
+        matrix[mappingToRelease[cycles[0][0]], 0] = startCost
+
+        matrix[dim-1, 0] = 0
+        matrix[0, dim-1] = 0
+        matrix[dim-2, dim-1] = 0
+        matrix[dim-1, dim-2] = 0
+
+        clusters = [[0],[dim-1],[dim-2]]
+
+        for cycleIndex in range(0, len(cycles)):
+            cycle = cycles[cycleIndex]
+            collectCostsDict = collectToCycleCosts[cycleIndex]
+            releaseIdx = cycle[0]
+            clusters.append([mappingToRelease[releaseIdx]])
+            collectCluster = []
+            for collectIdx, cycleCost in collectCostsDict.items():
+                collectGraphIdx = mappingToCollect[collectIdx]
+                collectCluster.append(collectGraphIdx)
+                matrix[collectGraphIdx, mappingToRelease[releaseIdx]] = cycleCost.value[0]
+                matrix[mappingToRelease[releaseIdx], collectGraphIdx] = cycleCost.value[0]
+
+                if cycleIndex < len(cycles) - 1:
+                    nextReleaseIdx = cycles[cycleIndex + 1][0]
+                    nextReleaseGraphIdx = mappingToRelease[nextReleaseIdx]
+                    collectReleaseCost = max( self.constructCost(collectIdx, nextReleaseIdx, 'UGV').value[0], cycleCost.value[0] * CHARGE_RATE )
+                    matrix[collectGraphIdx, nextReleaseGraphIdx] = collectReleaseCost
+                    matrix[nextReleaseGraphIdx, collectGraphIdx] = collectReleaseCost
+            clusters.append(collectCluster)
+
+        for collectIdx in collectToCycleCosts[-1].keys():
+            endCost = self.env.estimateMean(points[collectIdx], endPoint, 'UGV')
+            matrix[mappingToCollect[collectIdx], dim-2] = endCost
+            matrix[dim-2, mappingToCollect[collectIdx]] = endCost
+
+        matrix *= self.GTSP_SCALING
+        matrix = matrix.astype(int)
+        print(f"Clusters: {clusters}")
+        return matrix, clusters
+
+    def solveGtspWithReleaseCollect(self, points, cycles, cycleCollectCosts):
+        """
+        Solves the UGV's GTSP problem: chooses a release and collect point for each UAV cycle in points
+        """
+
+        startPoint = self.params["START_POINT"]
+        endPoint = self.params["END_POINT"]
+
+        KSI = self.params["KSI"]
+        runFolder = self.params["RUN_FOLDER"]
+
+        points = np.array(points)[:, :2]
+        graphIndex = 1
+        mappingToRelease = {}
+        mappingToCollect = {}
+        mappingToPoints = {0: startPoint}
+        # TODO: Use graphx
+        for cycle, collectCostsDict in zip(cycles, cycleCollectCosts):
+            releaseIdx = cycle[0]
+            mappingToRelease[releaseIdx] = graphIndex
+            mappingToPoints[graphIndex] = points[releaseIdx]
+            graphIndex += 1
+            for collectIdx in collectCostsDict.keys():
+                mappingToCollect[collectIdx] = graphIndex
+                mappingToPoints[graphIndex] = points[collectIdx]
+                graphIndex += 1
+
+        mappingToPoints[graphIndex] = endPoint
+        mappingToPoints[graphIndex+1] = self.params["DUMMY_POINT"]  # Dummy point
+        graphIndex += 2
+        dim = graphIndex
+
+        print(f"Mapping to release:")
+        pprint(mappingToRelease)
+        print(f"Mapping to collect:")
+        pprint(mappingToCollect)
+
+        distanceMatrix, clusters = self.buildtGTSPMatrix(mappingToRelease, mappingToCollect, points, cycles, cycleCollectCosts, dim)
+        gtspInputPath = os.path.join(runFolder, gtspInputFilename)
+        gtspOutputPath = os.path.join(runFolder, gtspOutputFilename)
+        writeGtspFile(dim, clusters, distanceMatrix, gtspInputPath)
+
+        maxRunTime = KSI * len(points) ** 3
+        subprocess.run([
+            "julia", "-e",
+            f'using GLNS; solver("{escapePath(gtspInputPath)}", output="{escapePath(gtspOutputPath)}", max_time={maxRunTime}); solver("{escapePath(gtspInputPath)}", output="{escapePath(gtspOutputPath)}", max_time={maxRunTime})'
+        ])
+
+        tour, solverTime, totalCost = readGlnsOutput(gtspOutputPath)
+        print(f"Tour: {tour}")
+
+        path = tourToPath(tour, startIdx=0, dummyIdx=dim-1)
+        print(f"Path: {path}")
+
+        return {
+            "ugv_path": path,
+            "gtsp_solver_time": solverTime,
+            "total_cost": totalCost,
+            "ugv_point_map": mappingToPoints # TODO this is now a holdover and may be replacable with a more uav-like representation of points
+        }
+
 class OurPlannerStochastic(OurPlanner):
     """Considers mean and variance travel time, as calculated from an environmental model"""
 
@@ -592,7 +621,7 @@ class OurPlannerStochastic(OurPlanner):
     def baseCost(self, agentType=''):
         """Construct a cost tuple representing 0"""
         if agentType == 'UAV':
-            return Cost(self.params['TAKEOFF_LANDING_TIME'], 0) # TODO this should have variance
+            return Cost(self.params['TAKEOFF_LANDING_TIME'], 0) # TODO this should have variance; should add to plan_settings or just consult the environmental model
         elif agentType == 'UGV':
             return Cost(0, 0)
         raise IndexError('agentType %s not recognized'%agentType)
@@ -621,33 +650,52 @@ class OurPlannerStochastic(OurPlanner):
         """Returns risk of independent failures for all agentTypes"""
         return 1 - prod(1 - self.evaluateConstraintsFloat(agentCost, agentType) for agentType, agentCost in costDict.items())
 
+    def logSuccessChance(self, cost):
+        """Returns the log chance of a (mean, var) time not exceeding the limit"""
+        mean = cost.value[0]
+        var = cost.value[1]
+        limit = self.params['UAV_BATTERY_TIME']
+        return norm.logsf( (-limit + mean) / sqrt(var) ) if var > 0 \
+            else 0 if mean < limit \
+            else -float('inf')
+
+    def logSuccessChanceUavUgv(self, uavCost, cycleStartIndex, cycleEndIndex):
+        """
+        Returns log chance of both uav and ugv cost not exceeding the limit
+        by sweeping release and collect points
+        Note that because this is written for use with the PartitionSolver, which has n+1 costs, cycleStartIndex is inclusive and cycleEndIndex is exclusive
+        """
+        basicUavCost = self.baseCost('UAV') + uavCost
+        basicUgvCost = self.baseCost('UGV')
+        bestOption = max(
+            (
+                self.logSuccessChance(basicUavCost +
+                                      self.constructCost(release, cycleStartIndex, 'UAV') +
+                                      self.constructCost(cycleEndIndex - 1, collect, 'UAV')
+                ) +
+                self.logSuccessChance(basicUgvCost +
+                                      self.constructCost(release, collect, 'UGV')
+                ),
+                release, collect
+            )
+            for release in range(cycleStartIndex, cycleEndIndex)
+            for collect in range(cycleStartIndex, cycleEndIndex)
+        )
+
+        # chance, (release, collect)
+        return bestOption[0], (bestOption[1], bestOption[2])
+
     def createUavCycles(self, tspTour):
         """Break TSP solution into feasible uav cycles"""
 
-        INF = float('inf')
-        def logSuccessChance(cost):
-            mean = cost.value[0]
-            var = cost.value[1]
-            limit = self.params['UAV_BATTERY_TIME']
-            return norm.logsf( (-limit + mean) / sqrt(var) ) if var > 0 \
-                else 0 if mean < limit \
-                else -INF
+        # Construct tour cost per leg
+        #   we only have to keep a running total of UAV because UGV just goes from release to collect
+        tourCosts = [Cost(0,0)] + [ # this represents point 0 -> point 0
+            self.constructCost(i, i+1, 'UAV') for i in range(len(tspTour) - 1)]
 
-        # TODO the assumption here is that collect is the last point; or that our heuristic maximizes UAV flight time
-        def logSuccessChanceUavUgv(cost):
-            # note that for this one, cost = Cost(uav_mean, uav_var, ugv_mean, ugv_var)
-            return logSuccessChance(Cost(*cost.value[0:2]) + self.baseCost('UAV')) + \
-                logSuccessChance(Cost(*cost.value[2:4]) + self.baseCost('UGV'))
-
-        tourCosts = [Cost(0,0,0,0)] + [ # this represents point 0 -> point 0
-            Cost( # point i -> point i + 1
-            self.costMatrix['UAV'][i][i+1], self.costVarMatrix['UAV'][i][i+1],
-            self.costMatrix['UGV'][i][i+1], self.costVarMatrix['UGV'][i][i+1]
-            ) for i in range(len(tspTour) - 1)]
-
-        partitionSolver = PartitionSolver(tourCosts, logSuccessChanceUavUgv, False)
+        self.partitionSolver = ExtendedPartitionSolver(tourCosts, self.logSuccessChanceUavUgv, False)
         for numSegments in range(1, len(tspTour) + 1):
-            cuts, totalLogSuccess, segmentLogSuccesses = partitionSolver.solvePartitionProblem(numSegments)
+            cuts, totalLogSuccess, segmentLogSuccesses = self.partitionSolver.solvePartitionProblem(numSegments)
             if safeExp(totalLogSuccess) > 1 - self.params['FAILURE_RISK']:
                 break
 
@@ -656,3 +704,41 @@ class OurPlannerStochastic(OurPlanner):
         # construct cycles
         cuts = [0] + cuts + [len(tspTour)]
         return [ list(range(cuts[i], cuts[i+1])) for i in range(len(cuts)-1) ]
+
+    def createUgvCycles(self, cycles, uavPoints):
+        """
+        Since we are solving for release and collect in createUavCycles,
+        we just need to pull the data out of the solver
+        """
+        ugvResults = {
+            'ugv_path': list(range(3 + 2*len(cycles))), # [ point indices ]
+            'ugv_point_map': {}, # { index : [x,y], ... }
+        }
+        cycleCollectCosts = [] # [ {collect point: {'agentType': collect cost, ...}, ...} for each cycle ]
+
+        # starting point, ending point, dummy point
+        ugvResults['ugv_point_map'].update({
+            0 : self.params['START_POINT'],
+            1 + 2 * len(cycles) : self.params['END_POINT'],
+            2 + 2 * len(cycles) : self.params['DUMMY_POINT']
+        })
+
+        # each cycle
+        for i in range(len(cycles)):
+            cycle = cycles[i]
+            release = cycle[0]
+            collect = cycle[-1]
+            ugvResults['ugv_point_map'].update({
+                2 * i + 1 : uavPoints[release][:2],
+                2 * i + 2 : uavPoints[collect][:2]
+            })
+            cycleCollectCosts.append({collect :
+            {
+                'UAV': sum([
+                    self.constructCost(cycle[i], cycle[i+1], 'UAV') for i in range(len(cycle)-1)
+                    ], start = self.baseCost('UAV')),
+                'UGV': self.constructCost(release, collect, 'UGV') + self.baseCost('UGV')
+            }
+            })
+
+        return ugvResults, cycleCollectCosts

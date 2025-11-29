@@ -30,7 +30,7 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 	uavPoints = resultsDict['uav_points']
 	uavCycles = resultsDict['uav_cycles']
 	ugvOrder = resultsDict['ugv_path']
-	ugvPoints = resultsDict['ugv_mapping_to_points']
+	ugvPoints = resultsDict['ugv_point_map']
 	ugvPoints = {int(k):[*v, 0] for k,v in ugvPoints.items()} # str -> int : 2d -> 3d
 
 	# TODO perhaps this should be in its own agent definition file, or the environment?

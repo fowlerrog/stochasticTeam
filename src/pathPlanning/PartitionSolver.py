@@ -36,6 +36,11 @@ class PartitionSolver():
 	def segmentCost(self, a, b):
 		return self.runningTotalCosts[b] - self.runningTotalCosts[a]
 
+	@lru_cache(maxsize=None)
+	def evalFunction(self, a, b, *args, **kwargs):
+		"""Helper function to speed up function evaluation"""
+		return self.f(self.segmentCost(a, b), *args, **kwargs)
+
 	def solvePartitionProblem(self, numSegments):
 		"""
 		Returns:
@@ -67,7 +72,7 @@ class PartitionSolver():
 			pass
 		elif numSegments == 2: # layer 1 is just f(segment)
 			for thisElements in range(numSegments - 1, numElements): # length of list in consideration
-				self.DP[numSegments - 2][thisElements - 1] = self.f(self.runningTotalCosts[thisElements])
+				self.DP[numSegments - 2][thisElements - 1] = self.evalFunction(0, thisElements)
 				self.parents[numSegments - 2][thisElements - 1] = -1
 		elif self.concave: # solve binary
 			self.solveRowConcave(numSegments - 2)
@@ -77,7 +82,7 @@ class PartitionSolver():
 
 		# evaluate the last element of this layer
 		if numSegments == 1: # layer 1 is just f(segment)
-			self.DP[numSegments - 1][-1] = self.f(self.runningTotalCosts[numElements])
+			self.DP[numSegments - 1][-1] = self.evalFunction(0, numElements)
 			self.parents[numSegments - 1][-1] = -1
 		else:
 			self.solveDPvalue(numSegments - 1, numElements - 1)
@@ -112,7 +117,7 @@ class PartitionSolver():
 		if kMin is None: kMin = j-1
 		if kMax is None: kMax = i
 		val = max(
-			( self.DP[j-1][k] + self.f(self.segmentCost(k+1, i+1)), k )
+			( self.DP[j-1][k] + self.evalFunction(k+1, i+1), k )
 			for k in range(kMin, kMax)
 			)
 		self.DP[j][i] = val[0]
@@ -124,16 +129,41 @@ class PartitionSolver():
 		cuts = []
 		thisSegment = numSegments - 1
 		thisCut = self.parents[thisSegment][numElements - 1]
-		segmentValues = [self.f(self.segmentCost(thisCut + 1, numElements))]
+		segmentValues = [self.evalFunction(thisCut + 1, numElements)]
 		while thisSegment > 0:
 			cuts.append(thisCut)
 			thisSegment -= 1
 			parent = self.parents[thisSegment][thisCut]
-			segmentValues = [self.f(self.segmentCost(parent + 1, thisCut + 1))] + segmentValues
+			segmentValues = [self.evalFunction(parent + 1, thisCut + 1)] + segmentValues
 			thisCut = parent
 		cuts.reverse() # decreasing -> increasing
 
 		return cuts, segmentValues
+
+class ExtendedPartitionSolver(PartitionSolver):
+	"""
+	Solves the partition problem,
+	but allows f() evaluations to store data in self.fData
+	which requires f to be of the form:
+		value, data = f(sum(costs[a:b]), a, b)
+	"""
+
+	fData: dict
+
+	def __init__(self, costs, f, concave=False):
+		super().__init__(costs, f, concave)
+		self.fData = {}
+
+	@lru_cache(maxsize=None)
+	def evalFunction(self, a, b):
+		"""
+		Returns the FIRST output of f normally
+		and stores the SECOND in self.fData[(a,b)]
+		"""
+
+		value, data = super().evalFunction(a, b, a, b)
+		self.fData[(a,b)] = data
+		return value
 
 def solvePartitionExhaustively(costs, numSegments, f):
 	"""Solves the maximization problem for a list of costs split into a number of segments with function f"""
