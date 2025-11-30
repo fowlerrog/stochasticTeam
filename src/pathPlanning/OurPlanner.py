@@ -101,7 +101,7 @@ class OurPlanner(Planner):
         return all(self.evaluateConstraintBoolean(agentCost, agentType) for agentType, agentCost in costDict.items())
 
     def evaluateConstraintFloat(self, cost, agentType = ''):
-        """Returns a float to represent the constraint state for a given cost, s.t. worse is more positive"""
+        """Returns a float to represent the constraint state for a given cost, s.t. worse is more negative"""
         raise NotImplementedError("OurPlanner subclass must implement evaluateConstraintFloat(self, cost, agentType)")
 
     def evaluateConstraintsFloat(self, costDict):
@@ -302,18 +302,18 @@ class OurPlannerDeterministic(OurPlanner):
     def evaluateConstraintBoolean(self, cost, agentType = ''):
         """Returns whether the cycle constraint is satisfied"""
         if agentType == 'UAV':
-            return 0 > self.params['UAV_DELTA_TIME'] + self.evaluateConstraintFloat(cost, agentType)
+            return 0 > self.params['UAV_DELTA_TIME'] - self.evaluateConstraintFloat(cost, agentType)
         elif agentType == 'UGV':
-            return 0 > self.params['UGV_DELTA_TIME'] + self.evaluateConstraintFloat(cost, agentType)
+            return 0 > self.params['UGV_DELTA_TIME'] - self.evaluateConstraintFloat(cost, agentType)
         raise IndexError('agentType %s not recognized'%agentType)
 
     def evaluateConstraintFloat(self, cost, agentType = ''):
-        """Returns (mean - limit) in time"""
-        return cost.value[0] - self.params['UAV_BATTERY_TIME']
+        """Returns (limit - mean) in time"""
+        return self.params['UAV_BATTERY_TIME'] - cost.value[0]
 
     def evaluateConstraintsFloat(self, costDict):
-        """Returns worst (mean - limit) in time for all agent types"""
-        return max(self.evaluateConstraintsFloat(agentCost, agentType) for agentType, agentCost in costDict.items())
+        """Returns worst (limit - mean) in time for all agent types"""
+        return min(self.evaluateConstraintsFloat(agentCost, agentType) for agentType, agentCost in costDict.items())
 
     def closeCycle(self, currentCycle, prevIndex, cycleStartIndex, currentCost):
         """Find a valid collect point for closing a cycle, while maximizing cost"""
@@ -424,8 +424,8 @@ class OurPlannerDeterministic(OurPlanner):
         )
 
         # Collapse cycle costs to worst mean cost per agent type
-        maxCycleCollectCosts = [ {
-            cycleCollectPoint : max(agentCost for agentCost in cycleCosts.values())
+        minCycleCollectCosts = [ {
+            cycleCollectPoint : min(agentCost for agentCost in cycleCosts.values())
             for cycleCollectPoint, cycleCosts in cycleCollectCosts[iCycle].items()
         } for iCycle in range(len(cycleCollectCosts)) ]
 
@@ -433,7 +433,7 @@ class OurPlannerDeterministic(OurPlanner):
         gtspResult = self.solveGtspWithReleaseCollect(
             points=uavPoints,
             cycles=cycles,
-            cycleCollectCosts=maxCycleCollectCosts,
+            cycleCollectCosts=minCycleCollectCosts,
         )
 
         missionTime = gtspResult["total_cost"] / self.GTSP_SCALING
@@ -599,6 +599,7 @@ class OurPlannerStochastic(OurPlanner):
         super().__init__(params)
         self.costVarMatrix = {} # str(agentType) : matrix[startIndex][endIndex]
         self.COST_DIM = 2
+        self.logSuccessLimit = math.log(1 - self.params['FAILURE_RISK'])
 
     def printResultsToYaml(self, maxDecimals=4):
         return super().printResultsToYaml(maxDecimals)
@@ -632,32 +633,20 @@ class OurPlannerStochastic(OurPlanner):
 
     def evaluateConstraintBoolean(self, cost, agentType = ''):
         """Returns whether the cycle constraint is satisfied"""
-        risk = self.params['FAILURE_RISK']
-
-        return self.evaluateConstraintFloat(cost, agentType) < risk
+        return self.evaluateConstraintFloat(cost, agentType) > self.logSuccessLimit
 
     def evaluateConstraintFloat(self, cost, agentType=''):
-        """Returns risk of failure"""
+        """Returns the log chance of a (mean, var) time not exceeding the limit"""
         limit = self.params['UAV_BATTERY_TIME']
         mean = cost.value[0]
         var = cost.value[1]
-
-        return norm.cdf( (-limit + mean) / sqrt(var) ) if var > 0 \
+        return norm.logsf( (-limit + mean) / sqrt(var) ) if var > 0 \
             else 0 if mean < limit \
-            else 1
+            else -float('inf')
 
     def evaluateConstraintsFloat(self, costDict):
         """Returns risk of independent failures for all agentTypes"""
         return 1 - prod(1 - self.evaluateConstraintsFloat(agentCost, agentType) for agentType, agentCost in costDict.items())
-
-    def logSuccessChance(self, cost):
-        """Returns the log chance of a (mean, var) time not exceeding the limit"""
-        mean = cost.value[0]
-        var = cost.value[1]
-        limit = self.params['UAV_BATTERY_TIME']
-        return norm.logsf( (-limit + mean) / sqrt(var) ) if var > 0 \
-            else 0 if mean < limit \
-            else -float('inf')
 
     def logSuccessChanceUavUgv(self, uavCost, cycleStartIndex, cycleEndIndex):
         """
@@ -669,12 +658,16 @@ class OurPlannerStochastic(OurPlanner):
         basicUgvCost = self.baseCost('UGV')
         bestOption = max(
             (
-                self.logSuccessChance(basicUavCost +
-                                      self.constructCost(release, cycleStartIndex, 'UAV') +
-                                      self.constructCost(cycleEndIndex - 1, collect, 'UAV')
+                self.evaluateConstraintFloat(
+                    basicUavCost +
+                    self.constructCost(release, cycleStartIndex, 'UAV') +
+                    self.constructCost(cycleEndIndex - 1, collect, 'UAV'),
+                    'UAV'
                 ) +
-                self.logSuccessChance(basicUgvCost +
-                                      self.constructCost(release, collect, 'UGV')
+                self.evaluateConstraintFloat(
+                    basicUgvCost +
+                    self.constructCost(release, collect, 'UGV'),
+                    'UGV'
                 ),
                 release, collect
             )
@@ -695,8 +688,11 @@ class OurPlannerStochastic(OurPlanner):
 
         self.partitionSolver = ExtendedPartitionSolver(tourCosts, self.logSuccessChanceUavUgv, False)
         for numSegments in range(1, len(tspTour) + 1):
+            print(f'Partitioning for {numSegments} cycles')
             cuts, totalLogSuccess, segmentLogSuccesses = self.partitionSolver.solvePartitionProblem(numSegments)
+            print(f'\tFound log(Pr(success)) = {totalLogSuccess:.2e} -> Pr(success) = {safeExp(totalLogSuccess):.4f}')
             if safeExp(totalLogSuccess) > 1 - self.params['FAILURE_RISK']:
+                print('\tAccepting')
                 break
 
         assert safeExp(totalLogSuccess) > 1 - self.params['FAILURE_RISK'], 'No feasible UAV cycles found'
@@ -726,8 +722,9 @@ class OurPlannerStochastic(OurPlanner):
         # each cycle
         for i in range(len(cycles)):
             cycle = cycles[i]
-            release = cycle[0]
-            collect = cycle[-1]
+            # Ask partitionSolver cache for release and collect
+            startEndTuple = (cycle[0], cycle[-1] + 1) # inclusive, exclusive
+            release, collect = self.partitionSolver.fData[startEndTuple]
             ugvResults['ugv_point_map'].update({
                 2 * i + 1 : uavPoints[release][:2],
                 2 * i + 2 : uavPoints[collect][:2]
@@ -740,5 +737,9 @@ class OurPlannerStochastic(OurPlanner):
                 'UGV': self.constructCost(release, collect, 'UGV') + self.baseCost('UGV')
             }
             })
+
+        print('Consulting partition solver for UGV tour:')
+        for i in ugvResults['ugv_path']:
+            print(f'\t{i} : {ugvResults["ugv_point_map"][i]}')
 
         return ugvResults, cycleCollectCosts

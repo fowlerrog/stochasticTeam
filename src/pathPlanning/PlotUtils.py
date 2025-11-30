@@ -44,41 +44,54 @@ def plotPath(points, filename=None, show=True):
 	if show:
 		plt.show()
 
-def plotCycles(cycles, points, mappingToPoints, path, filename=None, show=True):
+def plotCycles(uavCycles, uavPoints, ugvPointMap, ugvPath, filename=None, show=True):
 	"""Plot points, clustered into cycles"""
-	cycleColorGroups = [0] * len(points)
-	for cix, cycle in enumerate(cycles):
+	cycleColorGroups = [0] * len(uavPoints)
+	for cix, cycle in enumerate(uavCycles):
 		for p in cycle:
 			cycleColorGroups[p] = cix
 
-	cycleColors = plt.cm.get_cmap('tab20', len(cycles))
+	cycleColors = plt.cm.get_cmap('tab20', len(uavCycles))
 	fig, ax = plt.subplots(figsize=(8, 6))
 	# print(f"Mapping to points: {mapping_to_points}")
-	points = np.array(points)[:, :2]
+	uavPoints = np.array(uavPoints)[:, :2]
 
-	# plot colored circles
-	for i, point in enumerate(points):
+	# plot colored circles for uav points
+	for i, point in enumerate(uavPoints):
 		x,y = point
 		# print(x, y, cycleColorGroups[i], cycleColors(cycleColorGroups[i]))
 		color = cycleColors(cycleColorGroups[i])
 		ax.plot(x, y, 'o', color=color, markersize=16)
-		ax.text(x + 15, y + 15, f"{i}", fontsize=16, color=color)
+		ax.text(x, y, f"{i}a", fontsize=16, color=color, verticalalignment='top')
+
+	# plot colored circles for ugv path (including start, end)
+	i = 0
+	while i < len(ugvPath) - 1:
+		x,y = ugvPointMap[ugvPath[i]]
+		color = 'g' if i == 0 else 'r' if i == len(ugvPath) - 2 else 'k'
+		ax.plot(x, y, 'x', color=color, markersize=16)
+		labelNum = str(i)
+		while ugvPointMap[ugvPath[i]] == ugvPointMap[ugvPath[i+1]]:
+			i += 1
+			labelNum += ',' + str(i)
+		ax.text(x, y, labelNum + 'g', fontsize=16, color=color, verticalalignment='bottom')
+		i += 1
 
 	# plot uav path
-	for cycle in cycles:
+	for cycle in uavCycles:
 		for i in range(len(cycle) - 1):
-			x1, y1 = points[cycle[i]]
-			x2, y2 = points[cycle[i + 1]]
+			x1, y1 = uavPoints[cycle[i]]
+			x2, y2 = uavPoints[cycle[i + 1]]
 			ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
 						arrowprops=dict(arrowstyle="-", color='black', lw=2))
 
 	# plot ugv path
-	for i in range(len(path)):
-		x1, y1 = mappingToPoints[path[i]]
-		x2, y2 = mappingToPoints[path[(i + 1) % len(path)]]
+	for i in range(len(ugvPath)):
+		x1, y1 = ugvPointMap[ugvPath[i]]
+		x2, y2 = ugvPointMap[ugvPath[(i + 1) % len(ugvPath)]]
 		if x1 == x2 and y1 == y2:
 			continue
-		print(f"Drawing edge from {path[i]} to {path[(i + 1) % len(path)]}: ({x1}, {y1}) to ({x2}, {y2})")
+		print(f"Drawing edge from {ugvPath[i]} to {ugvPath[(i + 1) % len(ugvPath)]}: ({x1}, {y1}) to ({x2}, {y2})")
 		ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
 					arrowprops=dict(arrowstyle="->", color='red', lw=2))
 

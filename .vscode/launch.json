@@ -11,6 +11,14 @@
 			"program": "${workspaceFolder}/scripts/planPath.py",
 			"console": "integratedTerminal",
 			"args": "runs/test/plan_settings.yaml"
+		},
+		{
+			"name": "Run scripts/plotPlan.py /user/chosen/folder/",
+			"type": "debugpy",
+			"request": "launch",
+			"program": "${workspaceFolder}/scripts/plotPlan.py",
+			"console": "integratedTerminal",
+			"args": "${command:pickArgs}"
 		}
 	]
 }
