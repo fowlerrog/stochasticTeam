@@ -2,6 +2,7 @@
 import os
 import matplotlib.pyplot as plt
 import numpy as np
+from math import log
 
 # project imports
 from .RunnerUtils import loadPlanResultsFromFolder
@@ -172,3 +173,111 @@ def plotPlanFromFolder(folderPath):
 				False)
 
 	plt.show()
+
+def plotSelfComparison(plannedValues, empiricalValues, labelString='', varName=''):
+	"""Plots planned values against empirical values"""
+	propLineMin = max(min(plannedValues), min(empiricalValues))
+	propLineMax = min(max(plannedValues), max(empiricalValues))
+	plt.figure()
+	plt.plot(plannedValues, empiricalValues, '.k', label=labelString)
+	plt.plot([propLineMin, propLineMax], [propLineMin, propLineMax], ':k')
+	plt.legend()
+	plt.grid(True)
+	plt.xlabel('Planned ' + varName)
+	plt.ylabel('Empirical ' + varName)
+
+def plotSolveTimes(yamlContents, xKey, yKey, fig=None, ax=None, labelString='', referenceExp=None):
+	"""
+	Plots some results from a plan_time_results.yaml file
+		xKey = single key, or list of keys to have values summed
+	"""
+
+	# create figure if none given
+	if fig is None or ax is None:
+		fig, ax = plt.subplots()
+
+	# read results from dict
+	if isinstance(xKey, list):
+		xData = [sum(x) for x in zip(*[yamlContents[key] for key in xKey])]
+	else:
+		xData = yamlContents[xKey]
+	if isinstance(yKey, list):
+		yData = [sum(y) for y in zip(*[yamlContents[key] for key in yKey])]
+	else:
+		yData = yamlContents[yKey]
+
+	# combine unique x values
+	dataDict = {}
+	while len(xData) > 0:
+		thisX = xData[-1]
+		thisY = []
+		for i in range(len(xData) - 1, -1, -1):
+			if xData[i] == thisX:
+				xData.pop(i)
+				thisY.append(yData.pop(i))
+		dataDict[thisX] = {
+			'values' : thisY,
+			'min' : min(thisY),
+			'mean' : np.mean(thisY),
+			'max' : max(thisY)
+		}
+
+	# plot line for each group
+	xSorted = sorted(dataDict.keys())
+	for x in xSorted:
+		plt.loglog(
+			[x, x, x], [
+				dataDict[x]['min'],
+				dataDict[x]['mean'],
+				dataDict[x]['max']
+			], '-+b')
+
+	# plot mean line
+	plt.loglog(
+		xSorted,
+		[dataDict[x]['mean'] for x in xSorted],
+		'-b',
+		label=labelString
+	)
+
+	# plot fitted line
+	logX = []
+	logY = []
+	for x in xSorted:
+		logX.extend([log(x)] * len(dataDict[x]['values']))
+		logY.extend([log(y) for y in dataDict[x]['values']])
+	exp, mult = np.polyfit(logX, logY, 1)
+
+	polyFit = lambda x : mult * x ** exp
+	xLimits = [min(xSorted), max(xSorted)]
+	yXMin = dataDict[xLimits[0]]['mean']
+	plt.loglog(
+		xLimits,
+		evalNormalizedFunction(polyFit, xLimits, yXMin),
+		'--r',
+		label=f'O(n^{exp:.2f})'
+	)
+
+	# plot reference exponent
+	if referenceExp is not None:
+		plt.loglog(
+			xLimits,
+			evalNormalizedFunction(lambda x : x ** referenceExp, xLimits, yXMin),
+			'--k',
+			label=f'O(n^{referenceExp})'
+		)
+
+		# # plot the O(n^(p-1) log(n)) case
+		# xRange = np.logspace(*[log(x) for x in xLimits], base=np.e)
+		# plt.loglog(
+		# 	xRange,
+		# 	evalNormalizedFunction(lambda x : x ** (referenceExp - 1) * log(x), xRange, yXMin),
+		# 	'--g',
+		# 	label=f'O(n^{referenceExp-1} log(n))'
+		# )
+
+	return fig, ax
+
+def evalNormalizedFunction(f, xRange, fOfXMin):
+	"""Evaluates f(xRange) normalized to f(min(xRange)) = fOfXMin"""
+	return [fOfXMin * f(x) / f(min(xRange)) for x in xRange]

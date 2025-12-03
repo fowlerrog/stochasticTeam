@@ -19,6 +19,14 @@
 			"program": "${workspaceFolder}/scripts/plotPlan.py",
 			"console": "integratedTerminal",
 			"args": "${command:pickArgs}"
+		},
+		{
+			"name": "Run scripts/plotSolveTimes.py /user/chosen/folder/",
+			"type": "debugpy",
+			"request": "launch",
+			"program": "${workspaceFolder}/scripts/plotSolveTimes.py",
+			"console": "integratedTerminal",
+			"args": "${command:pickArgs}"
 		}
 	]
 }

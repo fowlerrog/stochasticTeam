@@ -7,4 +7,4 @@ AGENT_ENVIRONMENTS:
   UGV:
     TYPE: GaussianEnvironment
     WEIGHT: 0.4
-    WEIGHT_STD_DEV: 0.04
+    WEIGHT_STD_DEV: 0.05
