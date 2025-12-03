@@ -72,7 +72,7 @@ def loadPlanResultsFromFolder(folderPath):
 
 def toDir(path):
 	"""Converts a folder or file path to a folder path"""
-	return path if os.path.isdir(path) else os.path.dirname(path)
+	return os.path.abspath(path) if os.path.isdir(path) else os.path.dirname(path)
 
 def getChildFolders(parentFolder):
 	results = []
