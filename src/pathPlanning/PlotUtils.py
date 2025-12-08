@@ -174,13 +174,17 @@ def plotPlanFromFolder(folderPath):
 
 	plt.show()
 
-def plotSelfComparison(plannedValues, empiricalValues, labelString='', varName=''):
+def plotSelfComparison(plannedValues, empiricalValues, labelString='', varName='', log=False):
 	"""Plots planned values against empirical values"""
 	propLineMin = max(min(plannedValues), min(empiricalValues))
 	propLineMax = min(max(plannedValues), max(empiricalValues))
 	plt.figure()
-	plt.plot(plannedValues, empiricalValues, '.k', label=labelString)
-	plt.plot([propLineMin, propLineMax], [propLineMin, propLineMax], ':k')
+	if log:
+		plotFunction = plt.loglog
+	else:
+		plotFunction = plt.plot
+	plotFunction(plannedValues, empiricalValues, '.k', label=labelString)
+	plotFunction([propLineMin, propLineMax], [propLineMin, propLineMax], ':k')
 	plt.legend()
 	plt.grid(True)
 	plt.xlabel('Planned ' + varName)

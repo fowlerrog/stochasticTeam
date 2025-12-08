@@ -27,6 +27,14 @@
 			"program": "${workspaceFolder}/scripts/plotSolveTimes.py",
 			"console": "integratedTerminal",
 			"args": "${command:pickArgs}"
+		},
+		{
+			"name": "Run scripts/plotFailureCurves.py /user/chosen/folder/",
+			"type": "debugpy",
+			"request": "launch",
+			"program": "${workspaceFolder}/scripts/plotFailureCurves.py",
+			"console": "integratedTerminal",
+			"args": "${command:pickArgs}"
 		}
 	]
 }

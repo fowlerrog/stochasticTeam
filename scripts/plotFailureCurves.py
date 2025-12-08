@@ -4,6 +4,7 @@ import re
 import sys
 from matplotlib import pyplot as plt
 import numpy as np
+from math import prod
 
 # project imports
 from pathPlanning.PlotUtils import plotSelfComparison
@@ -70,37 +71,63 @@ if __name__ == "__main__":
 	stochResults = getRunsInfo(stochFolder, 'FAILURE_RISK')
 
 	# Process results dicts into lists
-	plannedFailureRatesStoch = []
-	empiricalFailureRatesStoch = []
-	empiricalDeltasStoch = []
+	plannedCycleFailureRatesStoch = []
+	empiricalCycleFailureRatesStoch = []
+	empiricalCycleDeltasStoch = []
+	plannedTourFailureRatesStoch = []
+	empiricalTourFailureRatesStoch = []
+	empiricalTourDeltasStoch = []
 	for run in stochResults:
-		plannedFailureRatesStoch.extend(
+		plannedCycleFailureRatesStoch.extend(
 			[1 - safeExp(logPsUav + logPsUgv) for logPsUav, logPsUgv in zip(run['uav_cycle_values'], run['ugv_cycle_values'])]
 		)
-		empiricalFailureRatesStoch.extend(run['total_failure'])
-		empiricalDeltasStoch.extend(run['delta_time'])
+		empiricalCycleFailureRatesStoch.extend(run['total_failure'])
+		empiricalCycleDeltasStoch.extend(run['delta_time'])
+		plannedTourFailureRatesStoch.append(run['FAILURE_RISK'])
+		empiricalTourFailureRatesStoch.append(1 - prod([1 - p for p in run['total_failure']]))
+		empiricalTourDeltasStoch.append(np.mean(run['delta_time']))
 
-	plannedDeltasDet = []
-	empiricalFailureRatesDet = []
-	empiricalDeltasDet = []
+	plannedCycleDeltasDet = []
+	empiricalCycleFailureRatesDet = []
+	empiricalCycleDeltasDet = []
+	plannedTourDeltasDet = []
+	empiricalTourFailureRatesDet = []
+	empiricalTourDeltasDet = []
 	for run in detResults:
-		plannedDeltasDet.extend(
+		plannedCycleDeltasDet.extend(
 			[min(dtUav, dtUgv) for dtUav, dtUgv in zip(run['uav_cycle_values'], run['ugv_cycle_values'])]
 		)
-		empiricalFailureRatesDet.extend(run['total_failure'])
-		empiricalDeltasDet.extend(run['delta_time'])
+		empiricalCycleFailureRatesDet.extend(run['total_failure'])
+		empiricalCycleDeltasDet.extend(run['delta_time'])
+		plannedTourDeltasDet.append(run['UAV_DELTA_TIME'])
+		empiricalTourFailureRatesDet.append(1 - prod([1 - p for p in run['total_failure']]))
+		empiricalTourDeltasDet.append(np.mean(run['delta_time']))
 
 	# Plot self-comparisons
-	plotSelfComparison(plannedFailureRatesStoch, empiricalFailureRatesStoch, 'Stoch', 'Cycle Failure Rate')
-	plotSelfComparison(plannedDeltasDet, empiricalDeltasDet, 'Det', 'Cycle Delta Time')
+	plotSelfComparison(plannedCycleFailureRatesStoch, empiricalCycleFailureRatesStoch, 'Stoch', 'Cycle Failure Rate')
+	plotSelfComparison(plannedTourFailureRatesStoch, empiricalTourFailureRatesStoch, 'Stoch', 'Tour Failure Rate')
+	plotSelfComparison(plannedCycleDeltasDet, empiricalCycleDeltasDet, 'Det', 'Cycle Delta Time')
+	plotSelfComparison(plannedTourDeltasDet, empiricalTourDeltasDet, 'Det', 'Tour Mean Delta Time')
 
-	# Plot delta-prob curves
+	# Plot delta-prob curves (by cycle)
 	plt.figure()
-	plt.plot(empiricalDeltasDet, empiricalFailureRatesDet, '.', label='Det')
-	plt.plot(empiricalDeltasStoch, empiricalFailureRatesStoch, 'x', label='Stoch')
+	plt.plot(empiricalCycleDeltasDet, empiricalCycleFailureRatesDet, '.', label='Det')
+	plt.plot(empiricalCycleDeltasStoch, empiricalCycleFailureRatesStoch, 'x', label='Stoch')
 	plt.legend()
 	plt.grid(True)
 	plt.xlabel('Empirical Cycle Delta [seconds]')
 	plt.ylabel('Empirical Cycle Failure Rate')
+
+	# Plot delta-prob curves (by tour)
+	plt.figure()
+	plt.plot(empiricalTourDeltasDet, empiricalTourFailureRatesDet, '.', label='Det')
+	plt.plot(empiricalTourDeltasStoch, empiricalTourFailureRatesStoch, 'x', label='Stoch')
+	plt.legend()
+	plt.grid(True)
+	plt.xlabel('Empirical Tour Mean Delta [seconds]')
+	plt.ylabel('Empirical Tour Failure Rate')
+
+	# TODO compare with actual found-plan values, not just user-specified vs. empirical
+	# TODO collect and plot execution times
 
 	plt.show()
