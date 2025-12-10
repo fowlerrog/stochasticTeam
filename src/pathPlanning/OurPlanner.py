@@ -136,20 +136,20 @@ class OurPlanner(Planner):
             ugvResults, cycleCollectCosts = self.createUgvCycles(cycles, uavPoints)
             ugvEndTime = time.perf_counter()
 
-            # Add collect and release points to UAV cycles
+            # Move collect and release points to start/end of UAV cycles
             for iCycle in range(len(cycles)):
                 # release
                 releasePoint = ugvResults['ugv_point_map'][ugvResults['ugv_path'][1 + 2*iCycle]]
                 releasePointProjection = (*releasePoint[:2], self.params['FIXED_Z'])
-                closestUavPointIndex = findClosestPoint(uavPoints, releasePointProjection)
-                if cycles[iCycle][0] != closestUavPointIndex:
-                    cycles[iCycle] = [closestUavPointIndex] + cycles[iCycle]
+                closestUavReleaseIndex = findClosestPoint(uavPoints, releasePointProjection)
+                cycleReleaseIndex = cycles[iCycle].index(closestUavReleaseIndex)
                 # collect
                 collectPoint = ugvResults['ugv_point_map'][ugvResults['ugv_path'][2 + 2*iCycle]]
                 collectPointProjection = (*collectPoint[:2], self.params['FIXED_Z'])
-                closestUavPointIndex = findClosestPoint(uavPoints, collectPointProjection)
-                if cycles[iCycle][-1] != closestUavPointIndex:
-                    cycles[iCycle].append(closestUavPointIndex)
+                closestUavCollectIndex = findClosestPoint(uavPoints, collectPointProjection)
+                cycleCollectIndex = cycles[iCycle].index(closestUavCollectIndex)
+                # reorder
+                cycles[iCycle] = reorderList(cycles[iCycle], cycleReleaseIndex, cycleCollectIndex)
 
             totalEndTime = time.perf_counter()
 
@@ -627,7 +627,7 @@ class OurPlannerStochastic(OurPlanner):
             return Cost(0, 0)
         raise IndexError('agentType %s not recognized'%agentType)
 
-    def constructCost(self, p1, p2, agentType=''):
+    def constructCost(self, p1 : int, p2 : int, agentType=''):
         """Construct a cost tuple from p1 to p2"""
         return Cost(self.costMatrix[agentType][p1][p2], self.costVarMatrix[agentType][p1][p2])
 
@@ -654,29 +654,30 @@ class OurPlannerStochastic(OurPlanner):
         by sweeping release and collect points
         Note that because this is written for use with the PartitionSolver, which has n+1 costs, cycleStartIndex is inclusive and cycleEndIndex is exclusive
         """
-        basicUavCost = self.baseCost('UAV') + uavCost
-        basicUgvCost = self.baseCost('UGV')
-        bestOption = max(
-            (
-                self.evaluateConstraintFloat(
-                    basicUavCost +
-                    self.constructCost(release, cycleStartIndex, 'UAV') +
-                    self.constructCost(cycleEndIndex - 1, collect, 'UAV'),
-                    'UAV'
-                ) +
-                self.evaluateConstraintFloat(
-                    basicUgvCost +
-                    self.constructCost(release, collect, 'UGV'),
+        choices = []
+        cycleLength = cycleEndIndex - cycleStartIndex
+        for release in range(cycleLength):
+            for collect in range(cycleLength):
+                cycleOrder = reorderList(range(cycleStartIndex, cycleEndIndex), release, collect)
+                uavLogChance = self.evaluateConstraintFloat(
+                    sum(
+                        [self.constructCost(cycleOrder[i], cycleOrder[i+1], 'UAV') for i in range(len(cycleOrder) - 1)],
+                        start=self.baseCost('UAV')
+                    ), 'UAV'
+                )
+                ugvLogChance = self.evaluateConstraintFloat(
+                    self.constructCost(cycleStartIndex + release, cycleStartIndex + collect, 'UGV') +
+                    self.baseCost('UGV'),
                     'UGV'
-                ),
-                release, collect
-            )
-            for release in range(cycleStartIndex, cycleEndIndex)
-            for collect in range(cycleStartIndex, cycleEndIndex)
-        )
+                )
+                choices.append((
+                    uavLogChance + ugvLogChance,
+                    release, collect
+                ))
+        bestOption = max(choices)
 
-        # chance, (release, collect)
-        return bestOption[0], (bestOption[1], bestOption[2])
+        # chance, (release global index, collect global index)
+        return bestOption[0], (cycleStartIndex + bestOption[1], cycleStartIndex + bestOption[2])
 
     def createUavCycles(self, tspTour):
         """Break TSP solution into feasible uav cycles"""

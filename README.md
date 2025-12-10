@@ -13,6 +13,8 @@ various python packages as outlined in pythonEnv.txt
 
 /scripts contains runnable python scripts
 
+- get run instructions by running: $ python scripts/scriptName.py -h
+
 /runs contains various runs
 
 - *_settings.yaml files are lists of inputs.
