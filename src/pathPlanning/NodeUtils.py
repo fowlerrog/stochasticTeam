@@ -1,5 +1,5 @@
-
-from numpy import zeros
+# python imports
+import numpy as np
 from random import uniform
 from scipy.spatial.distance import euclidean
 from pprint import pprint
@@ -27,14 +27,25 @@ def generatePoints(n, xRange=(0, 1), yRange=(0, 1), fixedZ=0, decimals=2):
 
 def createDistanceMatrix(points):
     """Fills distance matrix for list of tuples"""
-    numPoints = len(points)
-    distanceMatrix = zeros((numPoints, numPoints))
+    return createFunctionMatrix(points, euclidean)
 
-    for i in range(numPoints):
-        for j in range(numPoints):
-            distanceMatrix[i][j] = euclidean(points[i], points[j])
+def createFunctionMatrix(l, f):
+	"""
+	Returns a matrix such that
+	m[i][j] = f(l[i], l[j])
+	"""
+	m = np.zeros((len(l),len(l)))
+	for i in range(len(l)):
+		for j in range(len(l)):
+			m[i][j] = f(l[i],l[j])
+	return m
 
-    return distanceMatrix
+def createSubmatrix(m, indices):
+    """
+    Returns submatrix S s.t.
+    S[i][j] = m[indices[i]][indices[j]]
+    """
+    return createFunctionMatrix(indices, lambda o, p : m[o][p])
 
 def findClosestPoint(points, referencePoint):
     """Find the index of the closest point to a given reference point."""

@@ -1,11 +1,15 @@
 # python imports
 import os
 import pytest
+import random
+from scipy.spatial.distance import euclidean
+import numpy as np
 
 # project imports
-from pathPlanning.PlannerUtils import plannerFromParams, findClosestPoint
+from pathPlanning.PlannerUtils import plannerFromParams
 from pathPlanning.Constants import planSettingsFilename
 from pathPlanning.RunnerUtils import loadYamlContents
+from pathPlanning.NodeUtils import generatePoints
 
 class TestOurPlanner:
 
@@ -84,6 +88,161 @@ class TestOurPlanner:
 			params['DUMMY_POINT']
 		]
 		assert ugvPath == ugvIdealPath
+
+	@pytest.mark.parametrize("randomSeed", range(5))
+	@pytest.mark.parametrize("numPoints", [10, 20])
+	def test_cycleRefinement(self, randomSeed, numPoints):
+		"""
+		Stochastic planner cycle refinement should:
+		not change number of cycles
+		keep release, collect points unchanged
+		not remove any uav points
+		not increase risk
+		not increase time
+		"""
+
+		thisScriptFolder = os.path.dirname(os.path.abspath(__file__))
+		distTol = 1e-3 # two points match within this distance
+
+		# Load plan settings
+		params = loadYamlContents(os.path.join(thisScriptFolder, planSettingsFilename))
+		params['PLANNER_TYPE'] = 'OurPlannerStochastic'
+
+		# Generate points
+		random.seed(randomSeed)
+		points = generatePoints(numPoints,
+						  xRange=(0,params['SPACE_SIZE']),
+						  yRange=(0,params['SPACE_SIZE']),
+						  fixedZ=params['FIXED_Z'])
+	
+		# Run planner with and without refinement
+		planner1 = plannerFromParams(params | {'REFINE_CYCLES' : True})
+		planner1.solve(points)
+		planner2 = plannerFromParams(params | {'REFINE_CYCLES' : False})
+		planner2.solve(points)
+
+		# Test results
+		solution1 = planner1.standardizeSolution()
+		solution2 = planner2.standardizeSolution()
+
+		# same number of cycles
+		assert len(solution1['uav_cycles']) == len(solution2['uav_cycles'])
+
+		# release and collect points are unchanged (uav side)
+		assert all(
+			euclidean(solution1['uav_points'][cycle1[0]], solution2['uav_points'][cycle2[0]]) < distTol and
+			euclidean(solution1['uav_points'][cycle1[-1]], solution2['uav_points'][cycle2[-1]]) < distTol
+			for cycle1, cycle2 in zip(solution1['uav_cycles'], solution1['uav_cycles'])
+		)
+
+		# release and collect points are unchanged (ugv side)
+		assert all(
+			euclidean(solution1['ugv_point_map'][ugvPoint1], solution2['ugv_point_map'][ugvPoint2]) < distTol
+			for ugvPoint1, ugvPoint2 in zip(solution1['ugv_path'], solution1['ugv_path'])
+		)
+
+		# same uav points
+		assert len(solution1['uav_points']) == len(solution2['uav_points'])
+		assert all(
+			any(euclidean(uavPoint1, uavPoint2) < distTol for uavPoint2 in solution2['uav_points'])
+			for uavPoint1 in solution1['uav_points']
+		)
+
+		# total log prob success does not decrease
+		assert sum(sum(cycleLogProbs) for cycleLogProbs in solution1['cycle_constraint_values'].values()) >= sum(sum(cycleLogProbs) for cycleLogProbs in solution2['cycle_constraint_values'].values())
+
+		# uav mean time for each cycle does not increase
+		assert all( cost1[0] <= cost2[0] for cost1, cost2 in zip(solution1['cycle_costs']['UAV'], solution2['cycle_costs']['UAV']) )
+
+	@pytest.mark.parametrize("randomSeed", range(5))
+	@pytest.mark.parametrize("plannerType", ["OurPlannerDeterministic", "OurPlannerStochastic"])
+	@pytest.mark.parametrize("environment", [None, "cost_matrix_env_settings.yaml"])
+	def test_costMatrix(self, randomSeed, plannerType, environment):
+		"""
+		Tests whether OurPlanner can correctly produce and reorder a cost matrix from an environment
+		"""
+
+		thisScriptFolder = os.path.dirname(os.path.abspath(__file__))
+		costTol = 1e-3 # two costs match within this tolerance
+		numPoints = 10 # number of points in matrix
+		agentTypes = ['UAV', 'UGV'] # agent types in environment
+
+		# Load plan settings
+		params = loadYamlContents(os.path.join(thisScriptFolder, 'cost_matrix_plan_settings.yaml'))
+		params['PLANNER_TYPE'] = plannerType
+		if not environment is None:
+			params['ENVIRONMENT'] = environment
+		params['RUN_FOLDER'] = thisScriptFolder
+
+		# Generate points
+		random.seed(randomSeed)
+		points = generatePoints(numPoints,
+						  xRange=(0,params['SPACE_SIZE']),
+						  yRange=(0,params['SPACE_SIZE']),
+						  fixedZ=params['FIXED_Z'])
+
+		planner = plannerFromParams(params)
+		for agentType in agentTypes:
+			# Generate planner cost matrices
+			planner.createCostMatrix(points, agentType)
+
+			# Test mean cost matrices
+			costMatrix = np.zeros((numPoints, numPoints))
+			if environment is None:
+				for i in range(numPoints):
+					for j in range(numPoints):
+						costMatrix[i][j] = euclidean(points[i], points[j])
+			else:
+				for i in range(numPoints):
+					for j in range(numPoints):
+						costMatrix[i][j] = planner.env.estimateMean(points[i], points[j], agentType)
+
+			assert np.all(np.abs(planner.costMatrix[agentType] - costMatrix) < costTol)
+
+			# Test var cost matrices
+			if plannerType == 'OurPlannerStochastic':
+				costVarMatrix = np.zeros((numPoints, numPoints))
+				if environment is None:
+					pass # should be zeros
+				else:
+					for i in range(numPoints):
+						for j in range(numPoints):
+							costVarMatrix[i][j] = planner.env.estimateVariance(points[i], points[j], agentType)
+
+				assert np.all(np.abs(planner.costVarMatrix[agentType] - costVarMatrix) < costTol)
+
+			# Test reordering
+			newOrder = list(range(numPoints))
+			random.shuffle(newOrder)
+			newPoints = [points[i] for i in newOrder]
+
+			# Generate planner cost matrices
+			planner.reorderCostMatrix(newOrder, agentType)
+
+			# Test mean cost matrices
+			costMatrix = np.zeros((numPoints, numPoints))
+			if environment is None:
+				for i in range(numPoints):
+					for j in range(numPoints):
+						costMatrix[i][j] = euclidean(newPoints[i], newPoints[j])
+			else:
+				for i in range(numPoints):
+					for j in range(numPoints):
+						costMatrix[i][j] = planner.env.estimateMean(newPoints[i], newPoints[j], agentType)
+
+			assert np.all(np.abs(planner.costMatrix[agentType] - costMatrix) < costTol)
+
+			# Test var cost matrices
+			if plannerType == 'OurPlannerStochastic':
+				costVarMatrix = np.zeros((numPoints, numPoints))
+				if environment is None:
+					pass # should be zeros
+				else:
+					for i in range(numPoints):
+						for j in range(numPoints):
+							costVarMatrix[i][j] = planner.env.estimateVariance(newPoints[i], newPoints[j], agentType)
+
+				assert np.all(np.abs(planner.costVarMatrix[agentType] - costVarMatrix) < costTol)
 
 	# TODO test case with wind
 	# TODO test case against actual costs and probabilities

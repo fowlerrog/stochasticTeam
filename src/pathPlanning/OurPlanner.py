@@ -7,17 +7,17 @@ import subprocess
 import numpy as np
 import traceback
 from pprint import pprint
-from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 from dataclasses import dataclass
 from scipy.stats import norm
 from math import sqrt, prod
 
 # project imports
 from .NodeUtils import *
-from .GtspUtils import *
+from .GlnsUtils import *
 from .Planner import Planner
 from .Constants import gtspInputFilename, gtspOutputFilename
 from .PartitionSolver import ExtendedPartitionSolver
+from .TspUtils import solveTspWithFixedStartEnd
 
 @dataclass
 class Cost:
@@ -75,14 +75,15 @@ class OurPlanner(Planner):
             print('No planning environment, defaulting to distance for TSP')
             costMatrix = createDistanceMatrix(points)
         else:
-            numPoints = len(points)
-            costMatrix = zeros((numPoints, numPoints))
-
-            for i in range(numPoints):
-                for j in range(numPoints):
-                    costMatrix[i][j] = self.env.estimateMean(points[i], points[j], agentType)
+            costMatrix = createFunctionMatrix(points,
+                lambda point1, point2 : self.env.estimateMean(point1, point2, agentType)
+            )
 
         self.costMatrix[agentType] = costMatrix
+
+    def reorderCostMatrix(self, newOrder, agentType):
+        """Reorders the cost matrix"""
+        self.costMatrix[agentType] = createSubmatrix(self.costMatrix[agentType], newOrder)
 
     def baseCost(self, agentType = ''):
         """Sets a base cost for an agent"""
@@ -116,13 +117,14 @@ class OurPlanner(Planner):
 
             # Solve TSP
             tspStartTime = time.perf_counter()
-            uavPoints = self.solveTspWithFixedStartEnd(points)
+            self.createCostMatrix(points, 'UAV')
+            uavPoints, newOrdering = self.solveUavGlobalTsp(points)
             tspEndTime = time.perf_counter()
 
             # Calculate cost matrices for uavPoints order
             # TODO memoize these matrices
             costStartTime = time.perf_counter()
-            self.createCostMatrix(uavPoints, 'UAV')
+            self.reorderCostMatrix(newOrdering, 'UAV')
             self.createCostMatrix(uavPoints, 'UGV')
             costEndTime = time.perf_counter()
 
@@ -131,25 +133,16 @@ class OurPlanner(Planner):
             cycles = self.createUavCycles(uavPoints)
             cycleEndTime = time.perf_counter()
 
-            # Solve UGV GTSP
+            # Solve for UGV cycles (release and collect)
+            # and optionally refine in stoch case
             ugvStartTime = time.perf_counter()
             ugvResults, cycleCollectCosts = self.createUgvCycles(cycles, uavPoints)
             ugvEndTime = time.perf_counter()
 
             # Move collect and release points to start/end of UAV cycles
-            for iCycle in range(len(cycles)):
-                # release
-                releasePoint = ugvResults['ugv_point_map'][ugvResults['ugv_path'][1 + 2*iCycle]]
-                releasePointProjection = (*releasePoint[:2], self.params['FIXED_Z'])
-                closestUavReleaseIndex = findClosestPoint(uavPoints, releasePointProjection)
-                cycleReleaseIndex = cycles[iCycle].index(closestUavReleaseIndex)
-                # collect
-                collectPoint = ugvResults['ugv_point_map'][ugvResults['ugv_path'][2 + 2*iCycle]]
-                collectPointProjection = (*collectPoint[:2], self.params['FIXED_Z'])
-                closestUavCollectIndex = findClosestPoint(uavPoints, collectPointProjection)
-                cycleCollectIndex = cycles[iCycle].index(closestUavCollectIndex)
-                # reorder
-                cycles[iCycle] = reorderList(cycles[iCycle], cycleReleaseIndex, cycleCollectIndex)
+            cycleRefineStartTime = time.perf_counter()
+            cycles, cycleCollectCosts = self.refineCycles(cycles, uavPoints, ugvResults, cycleCollectCosts)
+            cycleRefineEndTime = time.perf_counter()
 
             totalEndTime = time.perf_counter()
 
@@ -173,18 +166,20 @@ class OurPlanner(Planner):
 
             # Save runtimes
             tspTime = tspEndTime - tspStartTime
+            costTime = costEndTime - costStartTime
+            cycleTime = cycleEndTime - cycleStartTime
             ugvTime = ugvEndTime - ugvStartTime # for stoch
             if 'gtsp_solver_time' in ugvResults and ugvResults['gtsp_solver_time'] is not None:
                 ugvTime = ugvResults['gtsp_solver_time'] # for det
-            cycleTime = cycleEndTime - cycleStartTime
-            costTime = costEndTime - costStartTime
+            refineTime = cycleRefineEndTime - cycleRefineStartTime
             totalTime = totalEndTime - totalStartTime # this will be the sum of the other times + julia startup time (in gtsp step)
 
             self.timeInfo = {
                 "TSP_TIME": tspTime,
-                "UGV_TIME": ugvTime,
-                "CYCLE_TIME": cycleTime,
                 "COST_TIME": costTime,
+                "CYCLE_TIME": cycleTime,
+                "UGV_TIME": ugvTime,
+                "REFINE_TIME": refineTime,
                 "TOTAL_TIME": totalTime
             }
 
@@ -201,84 +196,59 @@ class OurPlanner(Planner):
             print("\nFailure during planning")
             print(traceback.format_exc())
 
-    def solveTspWithFixedStartEnd(self, points):
-        """Solves a TSP with a fixed start and end point"""
-        # TODO allow for asymmetric TSP (tree doubling)
+    def solveUavGlobalTsp(self, uavPoints):
+        """
+        Solves a TSP across uavPoints in mean cost
+        without regard to limits
+        """
         startPoint = self.params["START_POINT"]
         endPoint = self.params["END_POINT"]
 
-        # Step 1: Find the closest points to START_POINT and END_POINT
+        # Find the closest points to START_POINT and END_POINT
         # TODO these should be cost matrix calls
-        startIndex = findClosestPoint(points, (*startPoint, 0))
-        endIndex = findClosestPoint(points, (*endPoint, 0))
+        startIndex = findClosestPoint(uavPoints, (*startPoint, 0))
+        endIndex = findClosestPoint(uavPoints, (*endPoint, 0))
 
-        # Step 2: Reorder the points with the closest points to start and end at the beginning and end
-        reorderedPoints = reorderList(points, startIndex, endIndex)
+        # Reorder so the closest points to start and end are at the beginning and end
+        reorderedPointOrder = reorderList(list(range(len(uavPoints))), startIndex, endIndex)
 
-        # Step 3: Create the distance matrix for the reordered points
-        self.createCostMatrix(reorderedPoints, 'UAV')
-        costMatrix = self.costMatrix['UAV']
+        # Create the distance matrix for the reordered points
+        costMatrix = createSubmatrix(self.costMatrix['UAV'], reorderedPointOrder)
 
-        # Step 4: Create the routing index manager, setting start and end locations correctly
-        manager = pywrapcp.RoutingIndexManager(
-            len(reorderedPoints),  # Number of locations
-            1,  # Number of vehicles
-            [0],  # Start location index (closest to start)
-            [len(reorderedPoints) - 1]  # End location index (closest to end)
+        # Solve TSP
+        localSearch = 'TSP_LOCAL_SEARCH' in self.params and self.params['TSP_LOCAL_SEARCH']
+        newReorderedPointOrder = solveTspWithFixedStartEnd(
+            costMatrix, 0, len(uavPoints) - 1, localSearch=localSearch
         )
 
-        # Step 5: Create the routing model
-        routing = pywrapcp.RoutingModel(manager)
+        # Feed TSP solution through existing reordering
+        newPointOrder = [reorderedPointOrder[i] for i in newReorderedPointOrder]
+        newUavPoints = [uavPoints[i] for i in newPointOrder]
 
-        # Step 6: Define cost of each arc
-        def costCallback(fromIndex, toIndex):
-            fromNode = manager.IndexToNode(fromIndex)
-            toNode = manager.IndexToNode(toIndex)
-            return costMatrix[fromNode][toNode]
-
-        transitCallbackIndex = routing.RegisterTransitCallback(costCallback)
-        routing.SetArcCostEvaluatorOfAllVehicles(transitCallbackIndex)
-
-        # Step 7: Setting first solution heuristic
-        searchParameters = pywrapcp.DefaultRoutingSearchParameters()
-        searchParameters.first_solution_strategy = (
-            routing_enums_pb2.FirstSolutionStrategy.CHRISTOFIDES)
-            # routing_enums_pb2.FirstSolutionStrategy.PARALLEL_CHEAPEST_INSERTION)
-
-        # Set local search metaheuristic to GUIDED_LOCAL_SEARCH
-        if 'TSP_LOCAL_SEARCH' in self.params and self.params['TSP_LOCAL_SEARCH']:
-            searchParameters.local_search_metaheuristic = (
-                routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
-            searchParameters.time_limit.seconds = 5
-
-        # Step 8: Solve the problem
-        solution = routing.SolveWithParameters(searchParameters)
-
-        tspTour = []
-        tspAirPoints = []  # To store air points (excluding start and end)
-
-        # Extracting solution
-        if solution:
-            index = routing.Start(0)
-            while not routing.IsEnd(index):
-                nodeIndex = manager.IndexToNode(index)
-                tspTour.append(nodeIndex)
-                tspAirPoints.append(reorderedPoints[nodeIndex])  # Adjusted for reordered points
-
-                index = solution.Value(routing.NextVar(index))
-
-            # Add the last point to the TSP tour and air points
-            nodeIndex = manager.IndexToNode(index)
-            tspTour.append(nodeIndex)
-            tspAirPoints.append(reorderedPoints[nodeIndex])
-
-        return tspAirPoints # TODO also reorder costMatrix so it doesn't have to be reevaluated in solve()
+        return newUavPoints, newPointOrder
 
     def createUavCycles(self, tspTour):
         raise NotImplementedError("OurPlanner subclass must implement createUavCycles(self, tspTour)")
 
     def createUgvCycles(self, cycles, uavPoints):
         raise NotImplementedError("OurPlanner subclass must implement createUgvCycles(self, cycles, uavPoints)")
+
+    def refineCycles(self, cycles, uavPoints, ugvResults, cycleCollectCosts):
+        """Refines UAV cycles by moving release and collect points to start and end"""
+        for iCycle in range(len(cycles)):
+            # release
+            releasePoint = ugvResults['ugv_point_map'][ugvResults['ugv_path'][1 + 2*iCycle]]
+            releasePointProjection = (*releasePoint[:2], self.params['FIXED_Z'])
+            closestUavReleaseIndex = findClosestPoint(uavPoints, releasePointProjection)
+            cycleReleaseIndex = cycles[iCycle].index(closestUavReleaseIndex)
+            # collect
+            collectPoint = ugvResults['ugv_point_map'][ugvResults['ugv_path'][2 + 2*iCycle]]
+            collectPointProjection = (*collectPoint[:2], self.params['FIXED_Z'])
+            closestUavCollectIndex = findClosestPoint(uavPoints, collectPointProjection)
+            cycleCollectIndex = cycles[iCycle].index(closestUavCollectIndex)
+            # reorder
+            cycles[iCycle] = reorderList(cycles[iCycle], cycleReleaseIndex, cycleCollectIndex)
+        return cycles, cycleCollectCosts
 
 class OurPlannerDeterministic(OurPlanner):
     """Only considers mean travel time"""
@@ -608,16 +578,21 @@ class OurPlannerStochastic(OurPlanner):
         """Create mean AND variance matrices"""
         super().createCostMatrix(points, agentType)
 
-        numPoints = len(points)
-        costVarMatrix = zeros((numPoints, numPoints))
         if self.env == None:
             print('No planning environment, defaulting to 0 for variance')
+            numPoints = len(points)
+            costVarMatrix = np.zeros((numPoints, numPoints))
         else:
-            for i in range(numPoints):
-                for j in range(numPoints):
-                    costVarMatrix[i][j] = self.env.estimateVariance(points[i], points[j], agentType)
+            costVarMatrix = createFunctionMatrix(points,
+                lambda point1, point2 : self.env.estimateVariance(point1, point2, agentType)
+            )
 
         self.costVarMatrix[agentType] = costVarMatrix
+
+    def reorderCostMatrix(self, newOrder, agentType):
+        """Reorder mean AND variance matrices"""
+        super().reorderCostMatrix(newOrder, agentType)
+        self.costVarMatrix[agentType] = createSubmatrix(self.costVarMatrix[agentType], newOrder)
 
     def baseCost(self, agentType=''):
         """Construct a cost tuple representing 0"""
@@ -680,8 +655,10 @@ class OurPlannerStochastic(OurPlanner):
         return bestOption[0], (cycleStartIndex + bestOption[1], cycleStartIndex + bestOption[2])
 
     def createUavCycles(self, tspTour):
-        """Break TSP solution into feasible uav cycles"""
-
+        """
+        Break TSP solution into feasible uav cycles
+        and optionally refine by computing a TSP on each
+        """
         # Construct tour cost per leg
         #   we only have to keep a running total of UAV because UGV just goes from release to collect
         tourCosts = [Cost(0,0)] + [ # this represents point 0 -> point 0
@@ -700,7 +677,9 @@ class OurPlannerStochastic(OurPlanner):
 
         # construct cycles
         cuts = [0] + cuts + [len(tspTour)]
-        return [ list(range(cuts[i], cuts[i+1])) for i in range(len(cuts)-1) ]
+        cycles = [ list(range(cuts[i], cuts[i+1])) for i in range(len(cuts)-1) ]
+
+        return cycles
 
     def createUgvCycles(self, cycles, uavPoints):
         """
@@ -730,10 +709,11 @@ class OurPlannerStochastic(OurPlanner):
                 2 * i + 1 : uavPoints[release][:2],
                 2 * i + 2 : uavPoints[collect][:2]
             })
+            reorderedCycle = reorderList(cycle, cycle.index(release), cycle.index(collect))
             cycleCollectCosts.append({collect :
             {
                 'UAV': sum([
-                    self.constructCost(cycle[i], cycle[i+1], 'UAV') for i in range(len(cycle)-1)
+                    self.constructCost(reorderedCycle[i], reorderedCycle[i+1], 'UAV') for i in range(len(reorderedCycle)-1)
                     ], start = self.baseCost('UAV')),
                 'UGV': self.constructCost(release, collect, 'UGV') + self.baseCost('UGV')
             }
@@ -744,3 +724,42 @@ class OurPlannerStochastic(OurPlanner):
             print(f'\t{i} : {ugvResults["ugv_point_map"][i]}')
 
         return ugvResults, cycleCollectCosts
+
+    def refineCycles(self, cycles, uavPoints, ugvResults, cycleCollectCosts):
+        """Moves release and collect in cycles and optionally solves a TSP on each"""
+        # move release and collect to front and back
+        cycles, cycleCollectCosts = super().refineCycles(cycles, uavPoints, ugvResults, cycleCollectCosts)
+
+        # then solve a TSP
+        if 'REFINE_CYCLES' in self.params and self.params['REFINE_CYCLES']:
+            print('Refining tours for time')
+            for i in range(len(cycles)):
+                if len(cycles[i]) > 3:
+                    thisCycleCostMatrix = createSubmatrix(self.costMatrix['UAV'], cycles[i])
+                    newCycleIndices = solveTspWithFixedStartEnd(
+                        thisCycleCostMatrix, 0, len(cycles[i]) - 1,
+                    )
+                    newCycle = [cycles[i][j] for j in newCycleIndices]
+                    # calculate costs and probabilities
+                    existingUavCost = cycleCollectCosts[i][cycles[i][-1]]['UAV']
+                    existingLogSuccess = self.evaluateConstraintFloat(existingUavCost)
+                    newUavCost = sum([
+                        self.constructCost(newCycle[j], newCycle[j+1], 'UAV') for j in range(len(newCycle)-1)
+                    ], start = self.baseCost('UAV'))
+                    newLogSuccess = self.evaluateConstraintFloat(newUavCost)
+                    # check if UAV Pr(success) has not decreased and mean time has not increased
+                    if newLogSuccess >= existingLogSuccess and newUavCost.value[0] <= existingUavCost.value[0]:
+                        print(f'Improved cycle {i}')
+                        cycles[i] = newCycle
+                        cycleCollectCosts[i][cycles[i][-1]]['UAV'] = newUavCost
+                    else:
+                        print(f'Did not improve cycle {i}')
+                    print(
+                        f'\tCost : {existingUavCost} -> {newUavCost}\n' +
+                        f'\tlog(Pr(success)) : {existingLogSuccess:.2e} -> {newLogSuccess:.2e}\n' +
+                        f'\tPr(success) : {safeExp(existingLogSuccess):.4f} -> {safeExp(newLogSuccess):.4f}'
+                    )
+                else:
+                    print(f'Skipping cycle {i} with length {len(cycles[i])}')
+
+        return cycles, cycleCollectCosts

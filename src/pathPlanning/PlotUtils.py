@@ -1,6 +1,7 @@
 # python imports
 import os
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import numpy as np
 from math import log
 
@@ -280,8 +281,16 @@ def plotSolveTimes(yamlContents, xKey, yKey, fig=None, ax=None, labelString='', 
 		# 	label=f'O(n^{referenceExp-1} log(n))'
 		# )
 
+	# set x labels to integers
+	ax.xaxis.set_major_locator(ticker.LogLocator(base=10, subs='all'))
+	ax.xaxis.set_major_formatter(lambda x, pos : '%d'%int(x))
+	ax.xaxis.set_minor_locator(ticker.NullLocator())
+
 	return fig, ax
 
 def evalNormalizedFunction(f, xRange, fOfXMin):
 	"""Evaluates f(xRange) normalized to f(min(xRange)) = fOfXMin"""
 	return [fOfXMin * f(x) / f(min(xRange)) for x in xRange]
+
+def plotMissionTimes():
+	pass
