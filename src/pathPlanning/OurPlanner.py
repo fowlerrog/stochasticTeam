@@ -748,7 +748,7 @@ class OurPlannerStochastic(OurPlanner):
                     ], start = self.baseCost('UAV'))
                     newLogSuccess = self.evaluateConstraintFloat(newUavCost)
                     # check if UAV Pr(success) has not decreased and mean time has not increased
-                    if newLogSuccess >= existingLogSuccess and newUavCost.value[0] <= existingUavCost.value[0]:
+                    if newLogSuccess >= existingLogSuccess and newUavCost.value[0] < existingUavCost.value[0]:
                         print(f'Improved cycle {i}')
                         cycles[i] = newCycle
                         cycleCollectCosts[i][cycles[i][-1]]['UAV'] = newUavCost

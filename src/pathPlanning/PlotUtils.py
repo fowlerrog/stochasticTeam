@@ -7,6 +7,7 @@ from math import log
 
 # project imports
 from .RunnerUtils import loadPlanResultsFromFolder
+from .EnvUtils import envFromParamsOrFile
 
 def plotPoints(points, filename=None, show=True):
 	"""Plot points with no path"""
@@ -175,21 +176,31 @@ def plotPlanFromFolder(folderPath):
 
 	plt.show()
 
-def plotSelfComparison(plannedValues, empiricalValues, labelString='', varName='', log=False):
+def plotSelfComparison(plannedValues, empiricalValues, labelString='', varName='', log=False, fig=None, ax=None):
 	"""Plots planned values against empirical values"""
+	# create figure if none given
+	if fig is None or ax is None:
+		fig, ax = plt.subplots()
+
+	# get data limits
 	propLineMin = max(min(plannedValues), min(empiricalValues))
 	propLineMax = min(max(plannedValues), max(empiricalValues))
-	plt.figure()
+
+	# decide if log
 	if log:
-		plotFunction = plt.loglog
+		plotFunction = ax.loglog
 	else:
-		plotFunction = plt.plot
+		plotFunction = ax.plot
+
+	# plot
 	plotFunction(plannedValues, empiricalValues, '.k', label=labelString)
 	plotFunction([propLineMin, propLineMax], [propLineMin, propLineMax], ':k')
-	plt.legend()
-	plt.grid(True)
+	ax.legend()
+	ax.grid(True)
 	plt.xlabel('Planned ' + varName)
 	plt.ylabel('Empirical ' + varName)
+
+	return fig, ax
 
 def plotSolveTimes(yamlContents, xKey, yKey, fig=None, ax=None, labelString='', referenceExp=None):
 	"""

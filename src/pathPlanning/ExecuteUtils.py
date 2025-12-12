@@ -35,6 +35,7 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 
 	# TODO perhaps this should be in its own agent definition file, or the environment?
 	uavMaxTime = planParams['UAV_BATTERY_TIME']
+	uavChargeRate = planParams['CHARGE_RATE']
 
 	# set up RNG
 	if 'SEED' in executeParams and executeParams['SEED'] is not None:
@@ -45,18 +46,24 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 	uavTimeoutFailures = [0] * len(uavCycles)
 	ugvTimeoutFailures = [0] * len(uavCycles)
 	remainingFlightTimes = []
+	ugvTransitTimes = []
 	numRuns = executeParams['NUM_RUNS']
 	print('Running %d runs'%numRuns)
 	for _ in range(numRuns):
 		remainingFlightTimesThisRun = []
+		ugvTransitTimesThisRun = [
+			env.evaluate(
+				ugvPoints[ugvOrder[0]],
+				ugvPoints[ugvOrder[1]],
+				'UGV'
+			)
+		]
 		for iCycle in range(len(uavCycles)):
-			# print('icycle', iCycle)
 			cycleAttempts[iCycle] += 1
 			# calculate ugv travel time
 			releasePoint = ugvPoints[ugvOrder[1 + 2*iCycle]]
 			collectPoint = ugvPoints[ugvOrder[2 + 2*iCycle]]
 			ugvTime = env.evaluate(releasePoint, collectPoint, 'UGV')
-			# print('ugv', releasePoint, '->', collectPoint, '=', ugvTime)
 
 			# calculate uav travel time
 			thisUavCycle = uavCycles[iCycle]
@@ -67,19 +74,6 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 					for j in range(0, len(thisUavCycle) - 1)
 				]) + \
 				env.evaluate(uavPoints[thisUavCycle[len(thisUavCycle)-1]], collectPoint, 'UAV') # TODO projection?
-			# print('uav\n',
-			# 	releasePoint, '->', uavPoints[thisUavCycle[0]], '=',
-			# 	env.evaluate(releasePoint, uavPoints[thisUavCycle[0]], 'UAV'), '\n',
-			# 	'\n'.join([
-			# 		str(uavPoints[thisUavCycle[j]]) + ' -> ' +
-			# 		str(uavPoints[thisUavCycle[j+1]]) + ' = ' +
-			# 		str(env.evaluate(uavPoints[thisUavCycle[j]], uavPoints[thisUavCycle[j+1]], 'UAV') ) for j in range(0, len(thisUavCycle) - 1)
-			# 	]), '\n',
-			# 	uavPoints[thisUavCycle[len(thisUavCycle)-1]], '->', collectPoint, '=',
-			# 	env.evaluate(uavPoints[thisUavCycle[len(thisUavCycle)-1]], collectPoint, 'UAV'), '\n=',
-			# 	uavTime)
-
-			# TODO hovering - we are just comparing max flight time to UGV time. is that sufficient?
 
 			# evaluate success / failure
 			failure = False
@@ -93,7 +87,21 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 
 			if failure:
 				break
+
+			# calculate ugv time to next release
+			#	note that this includes waiting at the final end point for 100% charge
+			chargeTime = (uavMaxTime - uavTime) / uavChargeRate
+			ugvTransitTimesThisRun.append( max(
+				chargeTime,
+				env.evaluate(
+					collectPoint,
+					ugvPoints[ugvOrder[3 + 2*iCycle]],
+					'UGV'
+				)
+			) )
+
 		remainingFlightTimes.append(remainingFlightTimesThisRun)
+		ugvTransitTimes.append(ugvTransitTimesThisRun)
 
 	# write results
 	results = {
@@ -101,7 +109,8 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 		'CYCLE_ATTEMPTS': cycleAttempts,
 		'UAV_TIMEOUT_FAILURES':	uavTimeoutFailures,
 		'UGV_TIMEOUT_FAILURES': ugvTimeoutFailures,
-		'REMAINING_FLIGHT_TIMES': remainingFlightTimes
+		'REMAINING_FLIGHT_TIMES': remainingFlightTimes,
+		'UGV_TRANSIT_TIMES': ugvTransitTimes
 	}
 	planFolder = toDir(absResultsPath)
 	writeYaml(results, os.path.join(planFolder, executeResultsFilename), maxDecimals=1)

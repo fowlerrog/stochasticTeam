@@ -2,6 +2,7 @@
 import os
 import yaml
 import traceback
+import re
 
 # project imports
 from .Constants import planPathResultsFilename
@@ -29,12 +30,13 @@ def roundIterable(d, maxDecimals=1):
 		return (roundIterable(e, maxDecimals) for e in d)
 	return d
 
-def loadYamlContents(settingsFile, defaultFilename = ''):
+def loadYamlContents(settingsFile, defaultFilename = '', verbose=True):
 	"""Returns the contents of a yaml file, if it exists"""
 	# check if we were given the folder instead
 	if os.path.isdir(settingsFile):
 		settingsFile = os.path.join(settingsFile, defaultFilename)
-	print('Loading', settingsFile)
+	if verbose:
+		print('Loading', settingsFile)
 	absFile = os.path.abspath(settingsFile)
 
 	# load run parameters from yaml
@@ -45,7 +47,7 @@ def loadYamlContents(settingsFile, defaultFilename = ''):
 		except Exception:
 			print(traceback.format_exc())
 
-	if len(params) == 0:
+	if len(params) == 0 and verbose:
 		print('Params not found')
 	return params
 
@@ -81,3 +83,8 @@ def getChildFolders(parentFolder):
 		if os.path.isdir(absResultsFolder):
 			results.append(absResultsFolder)
 	return results
+
+def getVarFromString(folderName, varName):
+	regexString = varName + '_([a-zA-Z\d\.\-]+)(?:_|$)' # varName_ followed by (letters, numbers, -, .) followed by _ or end of string
+	stringMatch = re.search(regexString, folderName)
+	return stringMatch.groups(1)[0]
