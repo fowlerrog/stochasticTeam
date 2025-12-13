@@ -628,6 +628,7 @@ class OurPlannerStochastic(OurPlanner):
         Returns log chance of both uav and ugv cost not exceeding the limit
         by sweeping release and collect points
         Note that because this is written for use with the PartitionSolver, which has n+1 costs, cycleStartIndex is inclusive and cycleEndIndex is exclusive
+        Note also that in case of symmetry e.g. Pr(success | r,c) = Pr(success | c,r) we choose c > r to minimize UGV transit time between tours
         """
         choices = []
         cycleLength = cycleEndIndex - cycleStartIndex
@@ -647,12 +648,12 @@ class OurPlannerStochastic(OurPlanner):
                 )
                 choices.append((
                     uavLogChance + ugvLogChance,
-                    release, collect
+                    collect, release # in case of ties, want collect > release
                 ))
         bestOption = max(choices)
 
         # chance, (release global index, collect global index)
-        return bestOption[0], (cycleStartIndex + bestOption[1], cycleStartIndex + bestOption[2])
+        return bestOption[0], (cycleStartIndex + bestOption[2], cycleStartIndex + bestOption[1])
 
     def createUavCycles(self, tspTour):
         """

@@ -1,6 +1,5 @@
 # python imports
 import os
-import re
 import sys
 from matplotlib import pyplot as plt
 import numpy as np
@@ -8,25 +7,20 @@ from math import prod
 
 # project imports
 from pathPlanning.PlotUtils import plotSelfComparison
-from pathPlanning.RunnerUtils import loadYamlContents, getChildFolders
+from pathPlanning.RunnerUtils import loadYamlContents, getChildFolders, getVarFromString
 from pathPlanning.Constants import executeResultsFilename, planPathResultsFilename
 from pathPlanning.OurPlanner import safeExp
 
-def getVarFromString(folderName, varName):
-	regexString = varName + '_([a-zA-Z\d\.\-]+)(?:_|$)' # varName_ followed by (letters, numbers, -, .) followed by _ or end of string
-	stringMatch = re.search(regexString, folderName)
-	return float(stringMatch.groups(1)[0])
-
 def getRunInfo(absResultsFolder, indVarName):
-	d = getVarFromString(absResultsFolder, indVarName)
+	d = float(getVarFromString(absResultsFolder, indVarName))
 
 	# load planning results
-	planResults = loadYamlContents(absResultsFolder, planPathResultsFilename)
+	planResults = loadYamlContents(absResultsFolder, planPathResultsFilename, verbose=False)
 	uavCycleValues = planResults['cycle_constraint_values']['UAV']
 	ugvCycleValues = planResults['cycle_constraint_values']['UGV']
 
 	# load execution results
-	executeResults = loadYamlContents(absResultsFolder, executeResultsFilename)
+	executeResults = loadYamlContents(absResultsFolder, executeResultsFilename, verbose=False)
 	numCycles = len(executeResults['CYCLE_ATTEMPTS'])
 	numRuns = executeResults['NUM_RUNS']
 	uavFailureRates = [executeResults['UAV_TIMEOUT_FAILURES'][i] / executeResults['CYCLE_ATTEMPTS'][i] for i in range(numCycles)]

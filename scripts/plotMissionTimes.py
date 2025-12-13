@@ -107,11 +107,11 @@ if __name__ == '__main__':
 	# plot
 	fig, ax = plt.subplots()
 	if len(detGroup[0]) > 0:
-		ax.plot(detGroup[0], detGroup[1], '.k', label='Det')
+		ax.plot(detGroup[0], detGroup[1], '.k', label='Deterministic')
 	if len(stochGroupNoRefine[0]) > 0:
-		ax.plot(stochGroupNoRefine[0], stochGroupNoRefine[1], '.g', label='Stoch')
+		ax.plot(stochGroupNoRefine[0], stochGroupNoRefine[1], 'vr', label='Stochastic')
 	if len(stochGroupRefine[0]) > 0:
-		ax.plot(stochGroupRefine[0], stochGroupRefine[1], '.r', label='Stoch Ref')
+		ax.plot(stochGroupRefine[0], stochGroupRefine[1], '^g', label='Stochastic Refined')
 
 	plt.grid(True)
 	plt.xlabel('Planned Mission Time')
@@ -134,8 +134,8 @@ if __name__ == '__main__':
 
 	fig, ax = plt.subplots()
 	ax.plot([stochGroupRefinePaired[0], stochGroupNoRefinePaired[0]], [stochGroupRefinePaired[1], stochGroupNoRefinePaired[1]], '-k')
-	ax.plot(stochGroupRefinePaired[0], stochGroupRefinePaired[1], '.g', label='Refined')
-	ax.plot(stochGroupNoRefinePaired[0], stochGroupNoRefinePaired[1], '.r', label='Unrefined')
+	ax.plot(stochGroupNoRefinePaired[0], stochGroupNoRefinePaired[1], 'vr', label='Unrefined')
+	ax.plot(stochGroupRefinePaired[0], stochGroupRefinePaired[1], '^g', label='Refined')
 	plt.grid(True)
 	plt.xlabel('Planned Mission Time')
 	plt.ylabel('Mean Successful Mission Time')

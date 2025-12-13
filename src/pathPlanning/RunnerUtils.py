@@ -16,6 +16,15 @@ def appendDict(d1, d2):
 			d1[k] = [d2[k]]
 	return d1
 
+def extendDict(d1, d2):
+	"""Extends the values in d1 with the values of d2, for matching keys"""
+	for k in d2.keys():
+		if k in d1:
+			d1[k].extend(d2[k])
+		else:
+			d1[k] = d2[k]
+	return d1
+
 def roundIterable(d, maxDecimals=1):
 	"""Rounds all floats in sets, lists, tuples, or dict values"""
 	if isinstance(d, float):
