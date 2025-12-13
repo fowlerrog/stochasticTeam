@@ -45,15 +45,15 @@ if __name__ == '__main__':
 				planPathResults['ugv_point_map'][planPathResults['ugv_path'][1]],
 				'UGV'
 			)
-			numCycles = len(planPathResults['uav_cycles'])
-			for i in range(numCycles):
-				# max cycle time per agent type
-				uavTime = planPathResults['cycle_costs']['UAV'][i][0]
+			numTours = len(planPathResults['uav_tours'])
+			for i in range(numTours):
+				# max tour time per agent type
+				uavTime = planPathResults['tour_costs']['UAV'][i][0]
 				plannedTime += max(
 					uavTime,
-					planPathResults['cycle_costs']['UGV'][i][0]
+					planPathResults['tour_costs']['UGV'][i][0]
 				)
-				# max of charging time or travel time to next cycle
+				# max of charging time or travel time to next tour
 				#	note that this will wait at the final end point for 100% charge
 				chargeTime = (planSettings['UAV_BATTERY_TIME'] - uavTime) / planSettings['CHARGE_RATE']
 				plannedTime += max(
@@ -70,7 +70,7 @@ if __name__ == '__main__':
 			try:
 				execResults = loadYamlContents(thisDir, executeResultsFilename, verbose=False)
 				execTime = np.mean( [
-					planSettings['UAV_BATTERY_TIME'] * len(execResults['CYCLE_ATTEMPTS']) -
+					planSettings['UAV_BATTERY_TIME'] * len(execResults['TOUR_ATTEMPTS']) -
 					sum(execResults['REMAINING_FLIGHT_TIMES'][i]) +
 					sum(execResults['UGV_TRANSIT_TIMES'][i])
 					for i in range(execResults['NUM_RUNS'])
@@ -88,7 +88,7 @@ if __name__ == '__main__':
 					detGroup[1].append(execTime)
 					detGroup[2].append(endFolderName)
 				elif 'stochastic' in endFolderName.lower():
-					if getVarFromString(endFolderName, 'REFINE_CYCLES') == 'True':
+					if getVarFromString(endFolderName, 'REFINE_TOURS') == 'True':
 						stochGroupRefine[0].append(plannedTime)
 						stochGroupRefine[1].append(execTime)
 						stochGroupRefine[2].append(endFolderName)
@@ -124,7 +124,7 @@ if __name__ == '__main__':
 		endIndex = folderName[startIndex + len(varToRemove) + 1:].index('_') if '_' in folderName[startIndex + len(varToRemove) + 1:] else len(folderName) # underscore after var value, if there is one
 		return folderName[:startIndex] + folderName[startIndex + len(varToRemove) + 1 + endIndex + 1:]
 
-	varName = 'REFINE_CYCLES'
+	varName = 'REFINE_TOURS'
 	stochGroupRefineTrimmed = [removeVariableFromFolderName(f, varName) for f in stochGroupRefine[2]]
 	stochGroupNoRefineTrimmed = [removeVariableFromFolderName(f, varName) for f in stochGroupNoRefine[2]]
 	pairs = [[i,j] for i in range(len(stochGroupRefineTrimmed)) for j in range(len(stochGroupNoRefineTrimmed)) if stochGroupRefineTrimmed[i] == stochGroupNoRefineTrimmed[j]]

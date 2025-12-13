@@ -30,7 +30,7 @@ if __name__ == '__main__':
 				referenceExp = 3
 				depVarName = [
 					'COST_TIME',
-					'CYCLE_TIME',
+					'TOUR_TIME',
 					'TSP_TIME',
 					'UGV_TIME'
 					# 'TOTAL_TIME'

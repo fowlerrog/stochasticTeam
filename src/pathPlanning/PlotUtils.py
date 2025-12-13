@@ -47,14 +47,14 @@ def plotPath(points, filename=None, show=True):
 	if show:
 		plt.show()
 
-def plotCycles(uavCycles, uavPoints, ugvPointMap, ugvPath, filename=None, show=True):
-	"""Plot points, clustered into cycles"""
-	cycleColorGroups = [0] * len(uavPoints)
-	for cix, cycle in enumerate(uavCycles):
-		for p in cycle:
-			cycleColorGroups[p] = cix
+def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=True):
+	"""Plot points, clustered into tours"""
+	tourColorGroups = [0] * len(uavPoints)
+	for cix, tour in enumerate(uavTours):
+		for p in tour:
+			tourColorGroups[p] = cix
 
-	cycleColors = plt.cm.get_cmap('tab20', len(uavCycles))
+	tourColors = plt.cm.get_cmap('tab20', len(uavTours))
 	fig, ax = plt.subplots(figsize=(8, 6))
 	# print(f"Mapping to points: {mapping_to_points}")
 	uavPoints = np.array(uavPoints)[:, :2]
@@ -62,8 +62,8 @@ def plotCycles(uavCycles, uavPoints, ugvPointMap, ugvPath, filename=None, show=T
 	# plot colored circles for uav points
 	for i, point in enumerate(uavPoints):
 		x,y = point
-		# print(x, y, cycleColorGroups[i], cycleColors(cycleColorGroups[i]))
-		color = cycleColors(cycleColorGroups[i])
+		# print(x, y, tourColorGroups[i], tourColors(tourColorGroups[i]))
+		color = tourColors(tourColorGroups[i])
 		ax.plot(x, y, 'o', color=color, markersize=16)
 		ax.text(x, y, f"{i}a", fontsize=16, color=color, verticalalignment='top')
 
@@ -81,10 +81,10 @@ def plotCycles(uavCycles, uavPoints, ugvPointMap, ugvPath, filename=None, show=T
 		i += 1
 
 	# plot uav path
-	for cycle in uavCycles:
-		for i in range(len(cycle) - 1):
-			x1, y1 = uavPoints[cycle[i]]
-			x2, y2 = uavPoints[cycle[i + 1]]
+	for tour in uavTours:
+		for i in range(len(tour) - 1):
+			x1, y1 = uavPoints[tour[i]]
+			x2, y2 = uavPoints[tour[i + 1]]
 			ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
 						arrowprops=dict(arrowstyle="-", color='black', lw=2))
 
@@ -111,20 +111,20 @@ def plotCycles(uavCycles, uavPoints, ugvPointMap, ugvPath, filename=None, show=T
 	if show:
 		plt.show()
 
-def plotOriginalCycles(originalPoints, originalCycles, startPoint=None, endPoint=None, filename=None, show=True):
-	colors = plt.cm.get_cmap('tab20', len(originalCycles))
+def plotOriginalTours(originalPoints, originalTours, startPoint=None, endPoint=None, filename=None, show=True):
+	colors = plt.cm.get_cmap('tab20', len(originalTours))
 	fig, ax = plt.subplots(figsize=(8, 6))
-	for i, cycle in enumerate(originalCycles):
+	for i, tour in enumerate(originalTours):
 		color = colors(i)
-		for ptIdx in cycle:
+		for ptIdx in tour:
 			x, y, _ = originalPoints[ptIdx]
 			ax.plot(x, y, 'o', color=color)
 			ax.text(x + 10, y + 10, f"{ptIdx}", fontsize=8, color=color)
-		cycleCoords = [originalPoints[ptIdx][:2] for ptIdx in cycle]
-		cycleCoords.append(cycleCoords[0])  # close the cycle
-		for j in range(len(cycleCoords) - 1):
-			x1, y1 = cycleCoords[j]
-			x2, y2 = cycleCoords[j + 1]
+		tourCoords = [originalPoints[ptIdx][:2] for ptIdx in tour]
+		tourCoords.append(tourCoords[0])  # close the tour
+		for j in range(len(tourCoords) - 1):
+			x1, y1 = tourCoords[j]
+			x2, y2 = tourCoords[j + 1]
 			ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
 						arrowprops=dict(arrowstyle="->", color=color, lw=1.5))
 	if startPoint:
@@ -134,14 +134,14 @@ def plotOriginalCycles(originalPoints, originalCycles, startPoint=None, endPoint
 		ax.plot(endPoint[0], endPoint[1], 'D', color='black', markersize=8, label='End')
 		ax.text(endPoint[0] + 10, endPoint[1] + 10, 'End', fontsize=9, color='black')
 
-	releasePoints = [originalPoints[cycle[0]] for cycle in originalCycles if len(cycle) > 0]
+	releasePoints = [originalPoints[tour[0]] for tour in originalTours if len(tour) > 0]
 	for i in range(len(releasePoints) - 1):
 		x1, y1 = releasePoints[i][:2]
 		x2, y2 = releasePoints[i + 1][:2]
 		ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
 					arrowprops=dict(arrowstyle="->", color='gray', lw=2, ls='--'))
 
-	ax.set_title("Original UAV Cycles + UGV Release Path")
+	ax.set_title("Original UAV Tours + UGV Release Path")
 	ax.set_aspect('equal')
 	ax.grid(True)
 
@@ -166,12 +166,12 @@ def plotPlanFromFolder(folderPath):
 	# 	plotPoints(points,
 	# 				filename=TSPFigureName)
 
-	cyclesFigureName = os.path.join(absFolderPath, 'uav_cycles.png')
-	plotCycles(plan['uav_cycles'],
+	toursFigureName = os.path.join(absFolderPath, 'uav_tours.png')
+	plotTours(plan['uav_tours'],
 			    plan['uav_points'],
 				plan["ugv_point_map"],
 				plan["ugv_path"],
-				cyclesFigureName,
+				toursFigureName,
 				False)
 
 	plt.show()

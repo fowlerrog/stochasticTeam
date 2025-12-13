@@ -28,7 +28,7 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 
 	# parse path
 	uavPoints = resultsDict['uav_points']
-	uavCycles = resultsDict['uav_cycles']
+	uavTours = resultsDict['uav_tours']
 	ugvOrder = resultsDict['ugv_path']
 	ugvPoints = resultsDict['ugv_point_map']
 	ugvPoints = {int(k):[*v, 0] for k,v in ugvPoints.items()} # str -> int : 2d -> 3d
@@ -42,9 +42,9 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 		seed(executeParams['SEED'])
 
 	# execute runs
-	cycleAttempts = [0] * len(uavCycles)
-	uavTimeoutFailures = [0] * len(uavCycles)
-	ugvTimeoutFailures = [0] * len(uavCycles)
+	tourAttempts = [0] * len(uavTours)
+	uavTimeoutFailures = [0] * len(uavTours)
+	ugvTimeoutFailures = [0] * len(uavTours)
 	remainingFlightTimes = []
 	ugvTransitTimes = []
 	numRuns = executeParams['NUM_RUNS']
@@ -58,31 +58,31 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 				'UGV'
 			)
 		]
-		for iCycle in range(len(uavCycles)):
-			cycleAttempts[iCycle] += 1
+		for iTour in range(len(uavTours)):
+			tourAttempts[iTour] += 1
 			# calculate ugv travel time
-			releasePoint = ugvPoints[ugvOrder[1 + 2*iCycle]]
-			collectPoint = ugvPoints[ugvOrder[2 + 2*iCycle]]
+			releasePoint = ugvPoints[ugvOrder[1 + 2*iTour]]
+			collectPoint = ugvPoints[ugvOrder[2 + 2*iTour]]
 			ugvTime = env.evaluate(releasePoint, collectPoint, 'UGV')
 
 			# calculate uav travel time
-			thisUavCycle = uavCycles[iCycle]
+			thisUavTour = uavTours[iTour]
 			uavTime = \
-				env.evaluate(releasePoint, uavPoints[thisUavCycle[0]], 'UAV') + \
+				env.evaluate(releasePoint, uavPoints[thisUavTour[0]], 'UAV') + \
 				sum([
-					env.evaluate(uavPoints[thisUavCycle[j]], uavPoints[thisUavCycle[j+1]], 'UAV')
-					for j in range(0, len(thisUavCycle) - 1)
+					env.evaluate(uavPoints[thisUavTour[j]], uavPoints[thisUavTour[j+1]], 'UAV')
+					for j in range(0, len(thisUavTour) - 1)
 				]) + \
-				env.evaluate(uavPoints[thisUavCycle[len(thisUavCycle)-1]], collectPoint, 'UAV') # TODO projection?
+				env.evaluate(uavPoints[thisUavTour[len(thisUavTour)-1]], collectPoint, 'UAV') # TODO projection?
 
 			# evaluate success / failure
 			failure = False
 			remainingFlightTimesThisRun.append(uavMaxTime - max(uavTime, ugvTime))
 			if ugvTime > uavMaxTime:
-				ugvTimeoutFailures[iCycle] += 1
+				ugvTimeoutFailures[iTour] += 1
 				failure = True
 			if uavTime > uavMaxTime:
-				uavTimeoutFailures[iCycle] += 1
+				uavTimeoutFailures[iTour] += 1
 				failure = True
 
 			if failure:
@@ -95,7 +95,7 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 				chargeTime,
 				env.evaluate(
 					collectPoint,
-					ugvPoints[ugvOrder[3 + 2*iCycle]],
+					ugvPoints[ugvOrder[3 + 2*iTour]],
 					'UGV'
 				)
 			) )
@@ -106,7 +106,7 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 	# write results
 	results = {
 		'NUM_RUNS': numRuns,
-		'CYCLE_ATTEMPTS': cycleAttempts,
+		'TOUR_ATTEMPTS': tourAttempts,
 		'UAV_TIMEOUT_FAILURES':	uavTimeoutFailures,
 		'UGV_TIMEOUT_FAILURES': ugvTimeoutFailures,
 		'REMAINING_FLIGHT_TIMES': remainingFlightTimes,

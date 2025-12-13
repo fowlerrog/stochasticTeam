@@ -13,9 +13,9 @@ from pathPlanning.NodeUtils import generatePoints
 
 class TestOurPlanner:
 
-	@pytest.mark.parametrize("plannerType", ["OurPlannerDeterministic"])#, "OurPlannerStochastic"]) # TODO since stochastic cycles optimize for Pr(success), this test fails
-	def test_oneCycle(self, plannerType):
-		"""A linear set of close points should end up in a predictable cycle"""
+	@pytest.mark.parametrize("plannerType", ["OurPlannerDeterministic"])#, "OurPlannerStochastic"]) # TODO since stochastic tours optimize for Pr(success), this test fails
+	def test_oneTour(self, plannerType):
+		"""A linear set of close points should end up in a predictable tour"""
 		thisScriptFolder = os.path.dirname(os.path.abspath(__file__))
 
 		# Generate points
@@ -34,10 +34,10 @@ class TestOurPlanner:
 		# Test results
 		solution = planner.standardizeSolution()
 
-		# uav has one cycle, in order
-		assert solution['uav_cycles'] == [list(range(numPoints))]
+		# uav has one tour, in order
+		assert solution['uav_tours'] == [list(range(numPoints))]
 
-		# ugv path is: start, cycle[0], cycle[-1], end, dummy
+		# ugv path is: start, tour[0], tour[-1], end, dummy
 		ugvPath = [solution['ugv_point_map'][i] for i in solution['ugv_path']]
 		ugvIdealPath = [
 			params['START_POINT'],
@@ -48,18 +48,18 @@ class TestOurPlanner:
 		]
 		assert ugvPath == ugvIdealPath
 
-	@pytest.mark.parametrize("plannerType", ["OurPlannerDeterministic"])#, "OurPlannerStochastic"]) # TODO since stochastic cycles optimize for Pr(success), this test fails
-	def test_twoCycles(self, plannerType):
-		"""Two distant clusters of points should become unique cycles"""
+	@pytest.mark.parametrize("plannerType", ["OurPlannerDeterministic"])#, "OurPlannerStochastic"]) # TODO since stochastic tours optimize for Pr(success), this test fails
+	def test_twoTours(self, plannerType):
+		"""Two distant clusters of points should become unique tours"""
 
 		thisScriptFolder = os.path.dirname(os.path.abspath(__file__))
 
 		# Generate points
-		numPointsPerCycle = 5
-		numCycles = 2
+		numPointsPerTour = 5
+		numTours = 2
 		points = []
-		for iCycle in range(numCycles):
-			points.extend([(iPoint * 100 + 100 + iCycle * 1000, iPoint * 100 + 100 + iCycle * 1000, 500) for iPoint in range(numPointsPerCycle)])
+		for iTour in range(numTours):
+			points.extend([(iPoint * 100 + 100 + iTour * 1000, iPoint * 100 + 100 + iTour * 1000, 500) for iPoint in range(numPointsPerTour)])
 
 		# Load plan settings
 		params = loadYamlContents(os.path.join(thisScriptFolder, planSettingsFilename))
@@ -73,16 +73,16 @@ class TestOurPlanner:
 		# Test results
 		solution = planner.standardizeSolution()
 
-		# uav has two cycles, in order
-		assert solution['uav_cycles'] == [list(range(iCycle * numPointsPerCycle, (iCycle + 1) * numPointsPerCycle)) for iCycle in range(numCycles)]
+		# uav has two tours, in order
+		assert solution['uav_tours'] == [list(range(iTour * numPointsPerTour, (iTour + 1) * numPointsPerTour)) for iTour in range(numTours)]
 
-		# ugv path is: start, cycles[0][0], cycles[0][-1], cycles[1][0], cycles[1][-1], end, dummy
+		# ugv path is: start, tours[0][0], tours[0][-1], tours[1][0], tours[1][-1], end, dummy
 		ugvPath = [solution['ugv_point_map'][i] for i in solution['ugv_path']]
 		ugvIdealPath = [
 			params['START_POINT'],
 			list(points[0][:2]),
-			list(points[numPointsPerCycle-1][:2]),
-			list(points[numPointsPerCycle][:2]),
+			list(points[numPointsPerTour-1][:2]),
+			list(points[numPointsPerTour][:2]),
 			list(points[-1][:2]),
 			params['END_POINT'],
 			params['DUMMY_POINT']
@@ -91,10 +91,10 @@ class TestOurPlanner:
 
 	@pytest.mark.parametrize("randomSeed", range(5))
 	@pytest.mark.parametrize("numPoints", [10, 20])
-	def test_cycleRefinement(self, randomSeed, numPoints):
+	def test_tourRefinement(self, randomSeed, numPoints):
 		"""
-		Stochastic planner cycle refinement should:
-		not change number of cycles
+		Stochastic planner tour refinement should:
+		not change number of tours
 		keep release, collect points unchanged
 		not remove any uav points
 		not increase risk
@@ -116,23 +116,23 @@ class TestOurPlanner:
 						  fixedZ=params['FIXED_Z'])
 	
 		# Run planner with and without refinement
-		planner1 = plannerFromParams(params | {'REFINE_CYCLES' : True})
+		planner1 = plannerFromParams(params | {'REFINE_TOURS' : True})
 		planner1.solve(points)
-		planner2 = plannerFromParams(params | {'REFINE_CYCLES' : False})
+		planner2 = plannerFromParams(params | {'REFINE_TOURS' : False})
 		planner2.solve(points)
 
 		# Test results
 		solution1 = planner1.standardizeSolution()
 		solution2 = planner2.standardizeSolution()
 
-		# same number of cycles
-		assert len(solution1['uav_cycles']) == len(solution2['uav_cycles'])
+		# same number of tours
+		assert len(solution1['uav_tours']) == len(solution2['uav_tours'])
 
 		# release and collect points are unchanged (uav side)
 		assert all(
-			euclidean(solution1['uav_points'][cycle1[0]], solution2['uav_points'][cycle2[0]]) < distTol and
-			euclidean(solution1['uav_points'][cycle1[-1]], solution2['uav_points'][cycle2[-1]]) < distTol
-			for cycle1, cycle2 in zip(solution1['uav_cycles'], solution1['uav_cycles'])
+			euclidean(solution1['uav_points'][tour1[0]], solution2['uav_points'][tour2[0]]) < distTol and
+			euclidean(solution1['uav_points'][tour1[-1]], solution2['uav_points'][tour2[-1]]) < distTol
+			for tour1, tour2 in zip(solution1['uav_tours'], solution1['uav_tours'])
 		)
 
 		# release and collect points are unchanged (ugv side)
@@ -149,10 +149,10 @@ class TestOurPlanner:
 		)
 
 		# total log prob success does not decrease
-		assert sum(sum(cycleLogProbs) for cycleLogProbs in solution1['cycle_constraint_values'].values()) >= sum(sum(cycleLogProbs) for cycleLogProbs in solution2['cycle_constraint_values'].values())
+		assert sum(sum(tourLogProbs) for tourLogProbs in solution1['tour_constraint_values'].values()) >= sum(sum(tourLogProbs) for tourLogProbs in solution2['tour_constraint_values'].values())
 
-		# uav mean time for each cycle does not increase
-		assert all( cost1[0] <= cost2[0] for cost1, cost2 in zip(solution1['cycle_costs']['UAV'], solution2['cycle_costs']['UAV']) )
+		# uav mean time for each tour does not increase
+		assert all( cost1[0] <= cost2[0] for cost1, cost2 in zip(solution1['tour_costs']['UAV'], solution2['tour_costs']['UAV']) )
 
 	@pytest.mark.parametrize("randomSeed", range(5))
 	@pytest.mark.parametrize("plannerType", ["OurPlannerDeterministic", "OurPlannerStochastic"])

@@ -16,26 +16,26 @@ def getRunInfo(absResultsFolder, indVarName):
 
 	# load planning results
 	planResults = loadYamlContents(absResultsFolder, planPathResultsFilename, verbose=False)
-	uavCycleValues = planResults['cycle_constraint_values']['UAV']
-	ugvCycleValues = planResults['cycle_constraint_values']['UGV']
+	uavTourValues = planResults['tour_constraint_values']['UAV']
+	ugvTourValues = planResults['tour_constraint_values']['UGV']
 
 	# load execution results
 	executeResults = loadYamlContents(absResultsFolder, executeResultsFilename, verbose=False)
-	numCycles = len(executeResults['CYCLE_ATTEMPTS'])
+	numTours = len(executeResults['TOUR_ATTEMPTS'])
 	numRuns = executeResults['NUM_RUNS']
-	uavFailureRates = [executeResults['UAV_TIMEOUT_FAILURES'][i] / executeResults['CYCLE_ATTEMPTS'][i] for i in range(numCycles)]
-	ugvFailureRates = [executeResults['UGV_TIMEOUT_FAILURES'][i] / executeResults['CYCLE_ATTEMPTS'][i] for i in range(numCycles)]
+	uavFailureRates = [executeResults['UAV_TIMEOUT_FAILURES'][i] / executeResults['TOUR_ATTEMPTS'][i] for i in range(numTours)]
+	ugvFailureRates = [executeResults['UGV_TIMEOUT_FAILURES'][i] / executeResults['TOUR_ATTEMPTS'][i] for i in range(numTours)]
 	totalFailureRates = [len([
 		executeResults['REMAINING_FLIGHT_TIMES'][j][i] for j in range(numRuns) if i < len(executeResults['REMAINING_FLIGHT_TIMES'][j]) and executeResults['REMAINING_FLIGHT_TIMES'][j][i] < 0
-		]) / executeResults['CYCLE_ATTEMPTS'][i] for i in range(numCycles)]
+		]) / executeResults['TOUR_ATTEMPTS'][i] for i in range(numTours)]
 	meanDeltas = [np.mean([
 		executeResults['REMAINING_FLIGHT_TIMES'][j][i] for j in range(numRuns) if i < len(executeResults['REMAINING_FLIGHT_TIMES'][j])
-	]) for i in range(numCycles)] # TODO might want to ignore negative values here
+	]) for i in range(numTours)] # TODO might want to ignore negative values here
 
 	return {
 		indVarName : d,
-		'uav_cycle_values' : uavCycleValues,
-		'ugv_cycle_values' : ugvCycleValues,
+		'uav_tour_values' : uavTourValues,
+		'ugv_tour_values' : ugvTourValues,
 		'uav_failure' : uavFailureRates,
 		'ugv_failure' : ugvFailureRates,
 		'total_failure' : totalFailureRates,
@@ -65,52 +65,43 @@ if __name__ == "__main__":
 	stochResults = getRunsInfo(stochFolder, 'FAILURE_RISK')
 
 	# Process results dicts into lists
-	plannedCycleFailureRatesStoch = []
-	empiricalCycleFailureRatesStoch = []
-	empiricalCycleDeltasStoch = []
 	plannedTourFailureRatesStoch = []
 	empiricalTourFailureRatesStoch = []
 	empiricalTourDeltasStoch = []
+	plannedPlanFailureRatesStoch = []
+	empiricalPlanFailureRatesStoch = []
+	empiricalPlanDeltasStoch = []
 	for run in stochResults:
-		plannedCycleFailureRatesStoch.extend(
-			[1 - safeExp(logPsUav + logPsUgv) for logPsUav, logPsUgv in zip(run['uav_cycle_values'], run['ugv_cycle_values'])]
+		plannedTourFailureRatesStoch.extend(
+			[1 - safeExp(logPsUav + logPsUgv) for logPsUav, logPsUgv in zip(run['uav_tour_values'], run['ugv_tour_values'])]
 		)
-		empiricalCycleFailureRatesStoch.extend(run['total_failure'])
-		empiricalCycleDeltasStoch.extend(run['delta_time'])
-		plannedTourFailureRatesStoch.append(run['FAILURE_RISK'])
-		empiricalTourFailureRatesStoch.append(1 - prod([1 - p for p in run['total_failure']]))
-		empiricalTourDeltasStoch.append(np.mean(run['delta_time']))
+		empiricalTourFailureRatesStoch.extend(run['total_failure'])
+		empiricalTourDeltasStoch.extend(run['delta_time'])
+		plannedPlanFailureRatesStoch.append(run['FAILURE_RISK'])
+		empiricalPlanFailureRatesStoch.append(1 - prod([1 - p for p in run['total_failure']]))
+		empiricalPlanDeltasStoch.append(np.mean(run['delta_time']))
 
-	plannedCycleDeltasDet = []
-	empiricalCycleFailureRatesDet = []
-	empiricalCycleDeltasDet = []
 	plannedTourDeltasDet = []
 	empiricalTourFailureRatesDet = []
 	empiricalTourDeltasDet = []
+	plannedPlanDeltasDet = []
+	empiricalPlanFailureRatesDet = []
+	empiricalPlanDeltasDet = []
 	for run in detResults:
-		plannedCycleDeltasDet.extend(
-			[min(dtUav, dtUgv) for dtUav, dtUgv in zip(run['uav_cycle_values'], run['ugv_cycle_values'])]
+		plannedTourDeltasDet.extend(
+			[min(dtUav, dtUgv) for dtUav, dtUgv in zip(run['uav_tour_values'], run['ugv_tour_values'])]
 		)
-		empiricalCycleFailureRatesDet.extend(run['total_failure'])
-		empiricalCycleDeltasDet.extend(run['delta_time'])
-		plannedTourDeltasDet.append(run['UAV_DELTA_TIME'])
-		empiricalTourFailureRatesDet.append(1 - prod([1 - p for p in run['total_failure']]))
-		empiricalTourDeltasDet.append(np.mean(run['delta_time']))
+		empiricalTourFailureRatesDet.extend(run['total_failure'])
+		empiricalTourDeltasDet.extend(run['delta_time'])
+		plannedPlanDeltasDet.append(run['UAV_DELTA_TIME'])
+		empiricalPlanFailureRatesDet.append(1 - prod([1 - p for p in run['total_failure']]))
+		empiricalPlanDeltasDet.append(np.mean(run['delta_time']))
 
 	# Plot self-comparisons
-	plotSelfComparison(plannedCycleFailureRatesStoch, empiricalCycleFailureRatesStoch, 'Stoch', 'Cycle Failure Rate')
 	plotSelfComparison(plannedTourFailureRatesStoch, empiricalTourFailureRatesStoch, 'Stoch', 'Tour Failure Rate')
-	plotSelfComparison(plannedCycleDeltasDet, empiricalCycleDeltasDet, 'Det', 'Cycle Delta Time')
-	plotSelfComparison(plannedTourDeltasDet, empiricalTourDeltasDet, 'Det', 'Tour Mean Delta Time')
-
-	# Plot delta-prob curves (by cycle)
-	plt.figure()
-	plt.plot(empiricalCycleDeltasDet, empiricalCycleFailureRatesDet, '.', label='Det')
-	plt.plot(empiricalCycleDeltasStoch, empiricalCycleFailureRatesStoch, 'x', label='Stoch')
-	plt.legend()
-	plt.grid(True)
-	plt.xlabel('Empirical Cycle Delta [seconds]')
-	plt.ylabel('Empirical Cycle Failure Rate')
+	plotSelfComparison(plannedPlanFailureRatesStoch, empiricalPlanFailureRatesStoch, 'Stoch', 'Plan Failure Rate')
+	plotSelfComparison(plannedTourDeltasDet, empiricalTourDeltasDet, 'Det', 'Tour Delta Time')
+	plotSelfComparison(plannedPlanDeltasDet, empiricalPlanDeltasDet, 'Det', 'Plan Mean Delta Time')
 
 	# Plot delta-prob curves (by tour)
 	plt.figure()
@@ -118,8 +109,17 @@ if __name__ == "__main__":
 	plt.plot(empiricalTourDeltasStoch, empiricalTourFailureRatesStoch, 'x', label='Stoch')
 	plt.legend()
 	plt.grid(True)
-	plt.xlabel('Empirical Tour Mean Delta [seconds]')
+	plt.xlabel('Empirical Tour Delta [seconds]')
 	plt.ylabel('Empirical Tour Failure Rate')
+
+	# Plot delta-prob curves (by plan)
+	plt.figure()
+	plt.plot(empiricalPlanDeltasDet, empiricalPlanFailureRatesDet, '.', label='Det')
+	plt.plot(empiricalPlanDeltasStoch, empiricalPlanFailureRatesStoch, 'x', label='Stoch')
+	plt.legend()
+	plt.grid(True)
+	plt.xlabel('Empirical Plan Mean Delta [seconds]')
+	plt.ylabel('Empirical Plan Failure Rate')
 
 	# TODO compare with actual found-plan values, not just user-specified vs. empirical
 	# TODO collect and plot execution times
