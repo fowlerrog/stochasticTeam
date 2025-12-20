@@ -267,7 +267,7 @@ class OurPlannerDeterministic(OurPlanner):
 
     def constructCost(self, p1, p2, agentType=''):
         """Construct a cost tuple from p1 to p2"""
-        return Cost(self.costMatrix[agentType][p1][p2])
+        return Cost(self.costMatrix[agentType][p1, p2])
 
     def evaluateConstraintBoolean(self, cost, agentType = ''):
         """Returns whether the tour constraint is satisfied"""
@@ -604,7 +604,7 @@ class OurPlannerStochastic(OurPlanner):
 
     def constructCost(self, p1 : int, p2 : int, agentType=''):
         """Construct a cost tuple from p1 to p2"""
-        return Cost(self.costMatrix[agentType][p1][p2], self.costVarMatrix[agentType][p1][p2])
+        return Cost(self.costMatrix[agentType][p1, p2], self.costVarMatrix[agentType][p1, p2])
 
     def evaluateConstraintBoolean(self, cost, agentType = ''):
         """Returns whether the tour constraint is satisfied"""
@@ -630,30 +630,46 @@ class OurPlannerStochastic(OurPlanner):
         Note that because this is written for use with the PartitionSolver, which has n+1 costs, tourStartIndex is inclusive and tourEndIndex is exclusive
         Note also that in case of symmetry e.g. Pr(success | r,c) = Pr(success | c,r) we choose c > r to minimize UGV transit time between tours
         """
-        choices = []
-        tourLength = tourEndIndex - tourStartIndex
-        for release in range(tourLength):
-            for collect in range(tourLength):
-                tourOrder = reorderList(range(tourStartIndex, tourEndIndex), release, collect)
-                uavLogChance = self.evaluateConstraintFloat(
-                    sum(
-                        [self.constructCost(tourOrder[i], tourOrder[i+1], 'UAV') for i in range(len(tourOrder) - 1)],
-                        start=self.baseCost('UAV')
-                    ), 'UAV'
-                )
-                ugvLogChance = self.evaluateConstraintFloat(
-                    self.constructCost(tourStartIndex + release, tourStartIndex + collect, 'UGV') +
-                    self.baseCost('UGV'),
-                    'UGV'
-                )
-                choices.append((
-                    uavLogChance + ugvLogChance,
-                    collect, release # in case of ties, want collect > release
-                ))
-        bestOption = max(choices)
+
+        baseTour = np.arange(tourStartIndex, tourEndIndex)
+
+        tourLength = tourEndIndex - tourStartIndex # length of tour = N
+        rcIndices = np.arange(tourLength) # 0:N
+        r, c = np.meshgrid(rcIndices, rcIndices) # 2d arrays of 0:N
+        rcPairs = np.array([r.flatten(), c.flatten()]).T # [[r,c], ...] for each combination
+
+        tours = np.apply_along_axis( # for each r,c pair
+            lambda a :
+            np.concatenate((
+                reorderList(baseTour, a[0], a[1]), # reorder the tour
+                np.zeros( ( int(a[0] != a[1]), ), dtype=np.int8 ) - 1 # padded with a -1 if r != c
+            ), 0),
+            1, rcPairs
+        )
+
+        logSuccessChances = np.apply_along_axis(
+            lambda t:
+            self.evaluateConstraintFloat( sum(
+                [self.constructCost(t[i], t[i+1], 'UAV') for i in range(tours.shape[1] - 1) if t[i+1] >= 0],
+                start = self.baseCost('UAV')
+            ), 'UAV' ) + # UAV log success chance
+            self.evaluateConstraintFloat(
+                self.constructCost(t[0], t[-1] if t[-1] >= 0 else t[-2], 'UGV') +
+                self.baseCost('UGV'),
+                'UGV' ), # plus UGV log success chance
+            1, tours # for each tour
+        )
+
+        bestOption = np.argmax(logSuccessChances) # find max index
+        bestRelease, bestCollect = rcPairs[bestOption, :] # best release and collect
+        bestLogChance = logSuccessChances[bestOption] # best log success chance
+
+        # check for symmetry
+        if bestRelease > bestCollect and logSuccessChances[bestRelease * tourLength + bestCollect] == bestLogChance:
+            bestRelease, bestCollect = bestCollect, bestRelease
 
         # chance, (release global index, collect global index)
-        return bestOption[0], (tourStartIndex + bestOption[2], tourStartIndex + bestOption[1])
+        return bestLogChance, (tourStartIndex + bestRelease, tourStartIndex + bestCollect)
 
     def createUavTours(self, tspPlan):
         """
