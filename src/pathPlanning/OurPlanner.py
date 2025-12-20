@@ -10,6 +10,7 @@ from pprint import pprint
 from dataclasses import dataclass
 from scipy.stats import norm
 from math import sqrt, prod
+from multiprocessing import Pool
 
 # project imports
 from .NodeUtils import *
@@ -18,7 +19,6 @@ from .Planner import Planner
 from .Constants import gtspInputFilename, gtspOutputFilename
 from .PartitionSolver import ExtendedPartitionSolver
 from .TspUtils import solveTspWithFixedStartEnd
-from .ParallelUtils import asyncioParallelEval
 
 @dataclass
 class Cost:
@@ -743,6 +743,17 @@ class OurPlannerStochastic(OurPlanner):
 
         return ugvResults, tourCollectCosts
 
+    def refineTour(self, tour):
+        """Refines a single tour with a TSP given a release and collect"""
+        newTour = []
+        if len(tour) > 3:
+            thisTourCostMatrix = createSubmatrix(self.costMatrix['UAV'], tour)
+            newTourIndices = solveTspWithFixedStartEnd(
+                thisTourCostMatrix, 0, len(tour) - 1,
+            )
+            newTour = [tour[j] for j in newTourIndices]
+        return newTour
+
     def refineTours(self, tours, uavPoints, ugvResults, tourCollectCosts):
         """Moves release and collect in tours and optionally solves a TSP on each"""
         # move release and collect to front and back
@@ -753,16 +764,8 @@ class OurPlannerStochastic(OurPlanner):
             print('Refining tours for time')
 
             # evaluate TSPs in parallel
-            def refineTour(tour):
-                newTour = []
-                if len(tour) > 3:
-                    thisTourCostMatrix = createSubmatrix(self.costMatrix['UAV'], tour)
-                    newTourIndices = solveTspWithFixedStartEnd(
-                        thisTourCostMatrix, 0, len(tour) - 1,
-                    )
-                    newTour = [tour[j] for j in newTourIndices]
-                return newTour
-            newTours = asyncioParallelEval(refineTour, [tuple(tour) for tour in tours])
+            tspPool = Pool()
+            newTours = tspPool.map(self.refineTour, tours)
 
             # test each for acceptance
             for i in range(len(tours)):
