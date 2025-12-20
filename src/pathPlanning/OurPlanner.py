@@ -18,6 +18,7 @@ from .Planner import Planner
 from .Constants import gtspInputFilename, gtspOutputFilename
 from .PartitionSolver import ExtendedPartitionSolver
 from .TspUtils import solveTspWithFixedStartEnd
+from .ParallelUtils import asyncioParallelEval
 
 @dataclass
 class Cost:
@@ -750,13 +751,23 @@ class OurPlannerStochastic(OurPlanner):
         # then solve a TSP
         if 'REFINE_TOURS' in self.params and self.params['REFINE_TOURS']:
             print('Refining tours for time')
+
+            # evaluate TSPs in parallel
+            def refineTour(tour):
+                newTour = []
+                if len(tour) > 3:
+                    thisTourCostMatrix = createSubmatrix(self.costMatrix['UAV'], tour)
+                    newTourIndices = solveTspWithFixedStartEnd(
+                        thisTourCostMatrix, 0, len(tour) - 1,
+                    )
+                    newTour = [tour[j] for j in newTourIndices]
+                return newTour
+            newTours = asyncioParallelEval(refineTour, [tuple(tour) for tour in tours])
+
+            # test each for acceptance
             for i in range(len(tours)):
                 if len(tours[i]) > 3:
-                    thisTourCostMatrix = createSubmatrix(self.costMatrix['UAV'], tours[i])
-                    newTourIndices = solveTspWithFixedStartEnd(
-                        thisTourCostMatrix, 0, len(tours[i]) - 1,
-                    )
-                    newTour = [tours[i][j] for j in newTourIndices]
+                    newTour = newTours[i]
                     # calculate costs and probabilities
                     existingUavCost = tourCollectCosts[i][tours[i][-1]]['UAV']
                     existingLogSuccess = self.evaluateConstraintFloat(existingUavCost)
@@ -767,7 +778,7 @@ class OurPlannerStochastic(OurPlanner):
                     # check if UAV Pr(success) has not decreased and mean time has not increased
                     if newLogSuccess >= existingLogSuccess and newUavCost.value[0] < existingUavCost.value[0]:
                         print(f'Improved tour {i}')
-                        tours[i] = newTour
+                        tours[i] = list(newTour)
                         tourCollectCosts[i][tours[i][-1]]['UAV'] = newUavCost
                     else:
                         print(f'Did not improve tour {i}')
