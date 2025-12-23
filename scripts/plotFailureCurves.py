@@ -4,6 +4,8 @@ import sys
 from matplotlib import pyplot as plt
 import numpy as np
 from math import prod
+from multiprocessing import Pool
+from itertools import repeat
 
 # project imports
 from pathPlanning.PlotUtils import plotSelfComparison
@@ -43,7 +45,11 @@ def getRunInfo(absResultsFolder, indVarName):
 	}
 
 def getRunsInfo(parentFolder, indVarName):
-	return [getRunInfo(f, indVarName) for f in getChildFolders(parentFolder)]
+	resultsFolders = [f for f in getChildFolders(parentFolder) if 'results_' in f]
+	print(f'Loading results from {len(resultsFolders)} runs in {parentFolder}')
+	# return [getRunInfo(f, indVarName) for f in resultsFolders]
+	p = Pool()
+	return p.starmap(getRunInfo, zip(resultsFolders, repeat(indVarName)))
 
 if __name__ == "__main__":
 	# print help message if necessary
@@ -63,6 +69,7 @@ if __name__ == "__main__":
 	# Read result files
 	detResults = getRunsInfo(detFolder, 'UAV_DELTA_TIME')
 	stochResults = getRunsInfo(stochFolder, 'FAILURE_RISK')
+	print('Done loading')
 
 	# Process results dicts into lists
 	plannedTourFailureRatesStoch = []
