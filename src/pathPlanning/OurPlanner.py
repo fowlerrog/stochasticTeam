@@ -10,7 +10,7 @@ from pprint import pprint
 from dataclasses import dataclass
 from scipy.stats import norm
 from math import sqrt, prod
-from multiprocessing import Pool
+from multiprocessing import Manager, Pool, get_context
 
 # project imports
 from .NodeUtils import *
@@ -682,14 +682,15 @@ class OurPlannerStochastic(OurPlanner):
         tourCosts = [Cost(0,0)] + [ # this represents point 0 -> point 0
             self.constructCost(i, i+1, 'UAV') for i in range(len(tspPlan) - 1)]
 
-        self.partitionSolver = ExtendedPartitionSolver(tourCosts, self.logSuccessChanceUavUgv, False)
-        for numSegments in range(1, len(tspPlan) + 1):
-            print(f'Partitioning for {numSegments} tours')
-            cuts, totalLogSuccess, segmentLogSuccesses = self.partitionSolver.solvePartitionProblem(numSegments)
-            print(f'\tFound log(Pr(success)) = {totalLogSuccess:.2e} -> Pr(success) = {safeExp(totalLogSuccess):.4f}')
-            if safeExp(totalLogSuccess) > 1 - self.params['FAILURE_RISK']:
-                print('\tAccepting')
-                break
+        self.partitionSolver = ExtendedPartitionSolver(tourCosts, self.logSuccessChanceUavUgv, concave=False)
+        with Manager() as manager, get_context("spawn").Pool() as pool:
+            for numSegments in range(1, len(tspPlan) + 1):
+                print(f'Partitioning for {numSegments} tours')
+                cuts, totalLogSuccess, segmentLogSuccesses = self.partitionSolver.solvePartitionProblem(numSegments, manager=manager, pool=pool)
+                print(f'\tFound log(Pr(success)) = {totalLogSuccess:.2e} -> Pr(success) = {safeExp(totalLogSuccess):.4f}')
+                if safeExp(totalLogSuccess) > 1 - self.params['FAILURE_RISK']:
+                    print('\tAccepting')
+                    break
 
         assert safeExp(totalLogSuccess) > 1 - self.params['FAILURE_RISK'], 'No feasible UAV tours found'
 
@@ -763,9 +764,12 @@ class OurPlannerStochastic(OurPlanner):
         if 'REFINE_TOURS' in self.params and self.params['REFINE_TOURS']:
             print('Refining tours for time')
 
-            # evaluate TSPs in parallel
-            tspPool = Pool()
-            newTours = tspPool.map(self.refineTour, tours)
+            # # evaluating TSPs in parallel seems to hang
+            # with get_context("spawn").Pool(len(tours)) as tspPool:
+            # tspPool = get_context("spawn").Pool(len(tours))
+                # newTours = tspPool.map(self.refineTour, tours, chunksize=1)
+            # tspPool.close()
+            newTours = [self.refineTour(t) for t in tours]
 
             # test each for acceptance
             for i in range(len(tours)):

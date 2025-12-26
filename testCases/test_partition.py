@@ -72,6 +72,7 @@ class TestPartition:
 		pool = Pool()
 		parallelSolver = PartitionSolver(costs, func, concave=False)
 		parallelBestCuts, parallelLogSuccess, parallelSegmentLogSuccesses = parallelSolver.solvePartitionProblem(numSegments, manager=manager, pool=pool)
+		manager.shutdown()
 		pool.close()
 
 		# check for consistency
@@ -140,6 +141,7 @@ class TestPartition:
 		dpBestCuts, dpLogSuccess, dpSegmentLogSuccesses = partitionSolver.solvePartitionProblem(numSegments, manager=manager, pool=pool)
 
 		if parallel:
+			manager.shutdown()
 			pool.close()
 
 		# check that function data was stored properly

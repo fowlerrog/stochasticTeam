@@ -38,6 +38,7 @@ class PartitionSolver():
 		self.parents = np.zeros( (0, len(costs)), dtype=np.int8 )
 		self.currentNumSegments = 0
 		self.fCache = {}
+		self.sharedFCache = {} # shared version of function cache
 
 		self.concave = concave
 
@@ -46,12 +47,12 @@ class PartitionSolver():
 		for i in range(1, len(costs) + 1):
 			self.runningTotalCosts[i] = self.runningTotalCosts[i-1] + costs[i-1]
 
-	def evalFunction(self, a, b, runningTotalCosts, *args, **kwargs):
+	def evalFunction(self, a, b, *args, **kwargs):
 		"""Helper function to speed up function evaluation"""
-		value = self.fCache.get( (a,b), None)
+		value = self.sharedFCache.get( (a,b), None)
 		if value is None:
-			value = self.f(runningTotalCosts[b] - runningTotalCosts[a], *args, **kwargs)
-			self.fCache[ (a,b) ] = value
+			value = self.f(self.runningTotalCosts[b] - self.runningTotalCosts[a], *args, **kwargs)
+			self.sharedFCache[ (a,b) ] = value
 		return value
 
 	def solvePartitionProblem(self, numSegments, manager = None, pool = None):
@@ -71,7 +72,7 @@ class PartitionSolver():
 			self.currentNumSegments += 1
 
 		cuts, segmentValues = self.getCuts(numElements, numSegments)
-		return [c + 1 for c in cuts], self.DP[numSegments - 1][numElements - 1], segmentValues
+		return [c + 1 for c in cuts], self.DP[numSegments - 1, numElements - 1], segmentValues
 
 	def solvePartitionProblemLayer(self, numSegments, manager = None, pool = None):
 		"""Solves for a given j, assuming j-1 is already solved"""
@@ -94,9 +95,10 @@ class PartitionSolver():
 
 		# evaluate the last element of this layer
 		if numSegments == 1: # layer 1 is just f(segment)
-			self.DP[numSegments - 1, -1] = self.evalFunction(0, numElements, self.runningTotalCosts)
+			self.DP[numSegments - 1, -1] = self.evalFunction(0, numElements)
 		else:
 			self.DP[numSegments - 1, -1], self.parents[numSegments - 1, -1] = self.solveDPvalue(numSegments - 1, numElements - 1)
+		self.fCache = dict(self.sharedFCache) # catch any new function evaluations
 
 	def solveRow(self, j, manager = None, pool = None):
 		"""
@@ -106,10 +108,11 @@ class PartitionSolver():
 		"""
 
 		# in order to avoid pickling the Manager and Pool by calling pool.map(self.evalFunction), we receive them from outside
-		parallel = False
-		if not (manager is None or pool is None):
-			parallel = True
-			self.fCache = manager.dict(self.fCache)
+		parallel = not (manager is None or pool is None)
+		if parallel:
+			self.sharedFCache = manager.dict(self.fCache)
+		else:
+			self.sharedFCache = self.fCache
 
 		# declare new rows
 		numElements = len(self.costs)
@@ -122,24 +125,19 @@ class PartitionSolver():
 					self.evalFunction,
 					zip(
 						repeat(0),
-						range(j + 1, numElements),
-						repeat(self.runningTotalCosts)
+						range(j + 1, numElements)
 					)
 				)
 			else:
 				for thisElements in range(j + 1, numElements):
-					dpValues[0, thisElements - 1] = self.evalFunction(0, thisElements, self.runningTotalCosts)
+					dpValues[0, thisElements - 1] = self.evalFunction(0, thisElements)
 		else: # consult previous layer for DP solution
 			if parallel:
 				result = pool.starmap(
 					self.solveDPvalue,
 					zip(
 						repeat(j),
-						range(j, numElements - 1),
-						repeat(None),
-						repeat(None),
-						repeat(self.DP[j-1,:]),
-						repeat(self.runningTotalCosts)
+						range(j, numElements - 1)
 					)
 				)
 				dpValues[0, j : numElements - 1] = np.array([el[0] for el in result])
@@ -147,6 +145,9 @@ class PartitionSolver():
 			else:
 				for thisElements in range(j + 1, numElements):
 					dpValues[0, thisElements - 1], parentValues[0, thisElements - 1] = self.solveDPvalue(j, thisElements - 1)
+
+		# update stored function cache
+		self.fCache = dict(self.sharedFCache)
 
 		return dpValues, parentValues
 
@@ -172,7 +173,7 @@ class PartitionSolver():
 		self.solveRowConcave(j, iMin, iMiddle)
 		self.solveRowConcave(j, iMiddle + 1, iMax)
 
-	def solveDPvalue(self, j, i, kMin=None, kMax=None, prevDpRow=None, runningTotalCosts=None):
+	def solveDPvalue(self, j, i, kMin=None, kMax=None):
 		"""
 		Solves for 1 value in DP matrix
 		note that i and j are 0-indexed (DP[1][2] = first 3 elements in 2 segments)
@@ -180,12 +181,10 @@ class PartitionSolver():
 		"""
 		if kMin is None: kMin = j-1
 		if kMax is None: kMax = i
-		if prevDpRow is None: prevDpRow = self.DP[j-1,:]
-		if runningTotalCosts is None: runningTotalCosts = self.runningTotalCosts
 
 		# find the cut that maximizes total value
 		#	choosing the smaller choice for ties
-		values = [ prevDpRow[k] + self.evalFunction(k+1, i+1, runningTotalCosts) for k in range(kMin, kMax) ]
+		values = [ self.DP[j-1, k] + self.evalFunction(k+1, i+1) for k in range(kMin, kMax) ]
 		bestInd = np.argmax(values)
 
 		return values[bestInd], bestInd + kMin
@@ -196,12 +195,12 @@ class PartitionSolver():
 		cuts = []
 		thisSegment = numSegments - 1
 		thisCut = self.parents[thisSegment, numElements - 1]
-		segmentValues = [self.evalFunction(thisCut + 1, numElements, self.runningTotalCosts)]
+		segmentValues = [self.evalFunction(thisCut + 1, numElements)]
 		while thisSegment > 0:
 			cuts.append(thisCut)
 			thisSegment -= 1
 			parent = self.parents[thisSegment, thisCut] if thisSegment > 0 else -1 # check for first segment
-			segmentValues = [self.evalFunction(parent + 1, thisCut + 1, self.runningTotalCosts)] + segmentValues
+			segmentValues = [self.evalFunction(parent + 1, thisCut + 1)] + segmentValues
 			thisCut = parent
 		cuts.reverse() # decreasing -> increasing
 
@@ -220,25 +219,50 @@ class ExtendedPartitionSolver(PartitionSolver):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		self.fData = {}
+		self.sharedFData = {} # shared version of fData
 
-	def evalFunction(self, a, b, runningTotalCosts):
+	def evalFunction(self, a, b):
 		"""
 		Returns the FIRST output of f normally
 		and stores the SECOND in self.fData[(a,b)]
 		"""
 
-		value, data = super().evalFunction(a, b, runningTotalCosts, a, b)
-		self.fData[(a,b)] = data
+		value, data = super().evalFunction(a, b, a, b)
+		self.sharedFData[ (a,b) ] = data
 		return value
+
+	def solvePartitionProblemLayer(self, numSegments, manager=None, pool=None):
+		"""
+		Catch any updates to self.sharedFData
+		"""
+
+		# do solving
+		result = super().solvePartitionProblemLayer(numSegments, manager, pool)
+
+		# store shared function data
+		self.fData = dict(self.sharedFData)
+
+		return result
 
 	def solveRow(self, j, manager=None, pool=None):
 		"""
 		Make self.fData shared in parallel case
 		"""
 
-		if not (manager is None or pool is None):
-			self.fData = manager.dict(self.fData)
-		return super().solveRow(j, manager, pool)
+		# create temporary shared function data dict
+		parallel = not (manager is None or pool is None)
+		if parallel:
+			self.sharedFData = manager.dict(self.fData)
+		else:
+			self.sharedFData = self.fData
+
+		# do solving
+		result = super().solveRow(j, manager=manager, pool=pool)
+
+		# store shared function data
+		self.fData = dict(self.sharedFData)
+
+		return result
 
 def solvePartitionExhaustively(costs, numSegments, f):
 	"""Solves the maximization problem for a list of costs split into a number of segments with function f"""
