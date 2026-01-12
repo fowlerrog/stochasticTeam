@@ -125,7 +125,7 @@ if __name__ == '__main__':
 	if len(detGroup[0]) > 0:
 		ax.plot(detGroup[0], detGroup[1], '.k', label='Deterministic')
 	if len(stochGroupNoRefine[0]) > 0:
-		ax.plot(stochGroupNoRefine[0], stochGroupNoRefine[1], 'vr', label='Stochastic')
+		ax.plot(stochGroupNoRefine[0], stochGroupNoRefine[1], 'vr', label='Stochastic Unrefined')
 	if len(stochGroupRefine[0]) > 0:
 		ax.plot(stochGroupRefine[0], stochGroupRefine[1], '^g', label='Stochastic Refined')
 

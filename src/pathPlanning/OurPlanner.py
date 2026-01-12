@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from scipy.stats import norm
 from math import sqrt, prod
 from multiprocessing import Manager, Pool, get_context
+from contextlib import nullcontext
 
 # project imports
 from .NodeUtils import *
@@ -683,7 +684,11 @@ class OurPlannerStochastic(OurPlanner):
             self.constructCost(i, i+1, 'UAV') for i in range(len(tspPlan) - 1)]
 
         self.partitionSolver = ExtendedPartitionSolver(tourCosts, self.logSuccessChanceUavUgv, concave=False)
-        with Manager() as manager, get_context("spawn").Pool() as pool:
+        parallelize = 'PARALLEL_DP' in self.params and self.params['PARALLEL_DP']
+        if parallelize:
+            print('Parallelizing DP solver')
+
+        with Manager() if parallelize else nullcontext() as manager, get_context("spawn").Pool() if parallelize else nullcontext() as pool:
             for numSegments in range(1, len(tspPlan) + 1):
                 print(f'Partitioning for {numSegments} tours')
                 cuts, totalLogSuccess, segmentLogSuccesses = self.partitionSolver.solvePartitionProblem(numSegments, manager=manager, pool=pool)

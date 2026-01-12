@@ -48,8 +48,8 @@ def getRunsInfo(parentFolder, indVarName):
 	resultsFolders = [f for f in getChildFolders(parentFolder) if 'results_' in f]
 	print(f'Loading results from {len(resultsFolders)} runs in {parentFolder}')
 	# return [getRunInfo(f, indVarName) for f in resultsFolders]
-	p = Pool()
-	return p.starmap(getRunInfo, zip(resultsFolders, repeat(indVarName)))
+	with Pool() as p:
+		return p.starmap(getRunInfo, zip(resultsFolders, repeat(indVarName)))
 
 if __name__ == "__main__":
 	# print help message if necessary
@@ -60,15 +60,20 @@ if __name__ == "__main__":
 	# TODO this folder structure is only necessary because we have no ability to do correlated plan_settings variables
 	# Find child folders
 	parentFolder = os.path.abspath(sys.argv[1])
-	detFolder = os.path.join(parentFolder, 'deterministic')
-	stochFolder = os.path.join(parentFolder, 'stochastic')
-	if not os.path.isdir(detFolder) or not os.path.isdir(stochFolder):
-		print('Folder %s must contain deterministic/ and stochastic/ subfolders'%parentFolder)
+	childFolders = getChildFolders(parentFolder)
+	detFolderList = [f for f in childFolders if 'deterministic' in os.path.split(f)[1]]
+	stochFolderList = [f for f in childFolders if 'stochastic' in os.path.split(f)[1]]
+	if not detFolderList or not stochFolderList:
+		print('Folder %s must contain *deterministic*/ and *stochastic*/ subfolders'%parentFolder)
 		exit()
 
 	# Read result files
-	detResults = getRunsInfo(detFolder, 'UAV_DELTA_TIME')
-	stochResults = getRunsInfo(stochFolder, 'FAILURE_RISK')
+	detResults = []
+	for detFolder in detFolderList:
+		detResults = detResults + getRunsInfo(detFolder, 'UAV_DELTA_TIME')
+	stochResults = []
+	for stochFolder in stochFolderList:
+		stochResults = stochResults + getRunsInfo(stochFolder, 'FAILURE_RISK')
 	print('Done loading')
 
 	# Process results dicts into lists
@@ -127,8 +132,5 @@ if __name__ == "__main__":
 	plt.grid(True)
 	plt.xlabel('Empirical Plan Mean Delta [seconds]')
 	plt.ylabel('Empirical Plan Failure Rate')
-
-	# TODO compare with actual found-plan values, not just user-specified vs. empirical
-	# TODO collect and plot execution times
 
 	plt.show()

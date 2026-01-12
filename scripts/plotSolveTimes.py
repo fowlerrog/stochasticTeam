@@ -40,7 +40,7 @@ if __name__ == '__main__':
 				depVarName = 'TOTAL_TIME'
 			else:
 				print('Folder type', endFolderName, 'not recognized')
-				continue
+				depVarName = 'TOTAL_TIME'
 
 			yamlContents = loadYamlContents(s, planTimeResultsFilename)
 			fig, ax = plotSolveTimes(yamlContents, indVarName, depVarName,
