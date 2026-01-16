@@ -3,9 +3,9 @@ This repo contains code to run various UAV-UGV planners.
 
 # Dependencies:
 
-Julia
+Julia (for deterministic planner)
 
-various python packages as outlined in pythonEnv.txt
+various python packages as listed in pythonEnv.txt
 
 # Structure:
 
@@ -37,7 +37,7 @@ python scripts/executePlan.py /path/to/execute_settings.yaml /path/to/plan_setti
 
 If you are having an environment issue, which may manifest itself as the pywrapcp optimizer not optimizing your TSP path solutions, create a python virtual environment (once):
 
-(This requires pip and python3.9 to be installed, and is written for windows and bash.)
+(This requires pip and python<=3.9 to be installed, and is written for bash. Using python>3.9 may cause the ortools TSP solver to not function.)
 
 `chmod 777 setupPythonVirtualEnvironment.sh`
 
@@ -45,7 +45,8 @@ If you are having an environment issue, which may manifest itself as the pywrapc
 
 Source it (once per session)
 
-`source .venv/Scripts/activate`
+`source .venv/Scripts/activate` on windows
+`source .venv/bin/activate` on linux
 
 And then run your scripts normally:
 
