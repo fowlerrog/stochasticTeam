@@ -3,5 +3,6 @@ matplotlib>=3.7
 numpy>=1.9
 -e git+https://github.com/fowlerrog/stochasticTeam.git@4b5247cb4b2f24ec3980d5a9e548c1a924aeab77#egg=pathPlanning
 ortools>=9.12
+PyQt5>=5.15
 PyYAML>=6.0.3
 scipy>=1.10
