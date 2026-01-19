@@ -55,3 +55,15 @@ And then run your scripts normally:
 To exit the venv:
 
 `deactivate`
+
+# Gazebo Installation:
+
+The Gazebo simulation relies on external Gazebo model repositories, and on Gazebo and ROS2 itself. Install these packages for the first time:
+
+`cd gazebo`
+`./installRos2Jazzy.sh`
+`./installGazeboRepos.sh`
+
+At the start of each session, set up your environment by sourcing the setup file:
+
+`./setupRos2Jazzy.sh`
