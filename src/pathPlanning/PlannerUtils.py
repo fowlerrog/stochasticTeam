@@ -1,14 +1,13 @@
 # python imports
 import sys
 import os
-from itertools import product
 from copy import deepcopy
 from random import seed
 
 # project imports
 from .NodeUtils import *
 from .Constants import planSettingsFilename, planTimeResultsFilename
-from .RunnerUtils import loadYamlContents, appendDict, toDir, writeYaml
+from .RunnerUtils import loadYamlContents, appendDict, toDir, writeYaml, dictToString, getIndependentValueCombos
 from .OurPlanner import *
 
 def plannerFromParams(params):
@@ -52,37 +51,26 @@ def runPlannerFromSettings(settingsFile):
 	absFolder = toDir(settingsFile)
 	params["RUN_FOLDER"] = absFolder
 
-	# make sure independent variables are present
-	independentVars = params["INDEPENDENT_VARIABLES"]
-	notPresent = [k not in params for k in independentVars]
-	if any(notPresent):
-		print('Did not find required independent variables:\n\t',
-		'\n\t'.join([independentVars[i] for i in range(len(notPresent)) if notPresent[i]]),
-		'\nStopping run', sep='')
+	# validate and extract independent variables
+	independentValueCombos = getIndependentValueCombos(params)
+	if independentValueCombos is None:
+		print('Failed to find independent variables')
 		return
-
-	#TODO this can only find top-level variables
-	#TODO allow correlated values
-
-	# generate all combinations of independent variables
-	independentDict = {k:params[k] for k in independentVars}
-	independentValueCombos = product(*[v for v in independentDict.values()])
 
 	# set up run result lists
 	independentResultsDict = {}
 	dependentResultsDict = {}
 
 	# call each combination
-	for combo in independentValueCombos:
+	for thisRunIndParams in independentValueCombos:
 		# combine with other variables in params
 		thisRunParams = deepcopy(params)
-		thisRunIndParams = dict(zip(independentVars, combo))
 		thisRunParams.update(thisRunIndParams)
 		print('Running independent parameters:\n', thisRunIndParams, sep='')
 
 		# set results save location, if desired
 		if "SAVE_PATHS" in params and params["SAVE_PATHS"]:
-			thisRunParams["SAVE_PATH_FOLDER"] = 'results_' + '_'.join(['%s_%s'%(k,v) for k,v in thisRunIndParams.items()])
+			thisRunParams["SAVE_PATH_FOLDER"] = 'results_' + dictToString(thisRunIndParams)
 
 		# run
 		thisRunOutput = runPlannerFromParams(thisRunParams)

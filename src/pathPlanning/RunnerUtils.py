@@ -3,6 +3,8 @@ import os
 import yaml
 import traceback
 import re
+from itertools import product
+from collections.abc import Iterable
 
 # project imports
 from .Constants import planPathResultsFilename
@@ -94,6 +96,43 @@ def getChildFolders(parentFolder):
 	return results
 
 def getVarFromString(folderName, varName):
+	"""Extracts variable value from a string of the form 'var1_value1_var2_value2' """
 	regexString = varName + '_([a-zA-Z\d\.\-]+)(?:_|$)' # varName_ followed by (letters, numbers, -, .) followed by _ or end of string
 	stringMatch = re.search(regexString, folderName)
 	return stringMatch.groups(1)[0]
+
+def dictToString(d):
+	"""Constructs 'var1_value1_var2_value2' from dict"""
+	return '_'.join(['%s_%s'%(k,v) for k,v in d.items()])
+
+def getIndependentValueCombos(params):
+	"""
+	Returns a list of dicts for all combinations of values of independent parameters in a dict
+	e.g. {'INDEPENDENT_VARIABLES' : ['A','B'], 'A' : [1,2], 'B' : [3,4]}
+		-> [ {'A':1,'B':3}, {'A':1,'B':4}, {'A':2,'B':3}, {'A':2,'B':4} ]
+	or None if invalid
+	"""
+
+	#TODO this can only find top-level variables
+	#TODO allow correlated values
+
+	# make sure independent variables are present
+	if 'INDEPENDENT_VARIABLES' not in params:
+		return [{}]
+	independentVars = params['INDEPENDENT_VARIABLES']
+
+	if not isinstance(independentVars, Iterable): # one string
+		independentVars = [independentVars]
+
+	notPresent = [k not in params for k in independentVars]
+	if any(notPresent):
+		print('Did not find required independent variables:\n\t',
+		'\n\t'.join([independentVars[i] for i in range(len(notPresent)) if notPresent[i]]),
+		'\nStopping run', sep='')
+		return None
+
+	# generate all combinations of independent variables
+	independentDict = {k:params[k] for k in independentVars}
+	independentValueCombos = product(*[v for v in independentDict.values()])
+
+	return [dict(zip(independentVars, combo)) for combo in independentValueCombos]

@@ -1,20 +1,18 @@
 # python imports
 import os
 from random import seed
+from copy import deepcopy
 
 # project imports
 from .Constants import executeSettingsFilename, planSettingsFilename, planPathResultsFilename, executeResultsFilename
-from .RunnerUtils import writeYaml, loadYamlContents, toDir
+from .RunnerUtils import writeYaml, loadYamlContents, toDir, dictToString, getIndependentValueCombos
 from .EnvUtils import envFromParamsOrFile
 
-def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPath):
+def executePlanFromParams(executeParams, executeSettingsPath, planSettingsPath, planResultsPath):
 	"""Executes a number of runs for a given plan"""
-
-	# TODO INDEPENDENT VARIABLES?
 
 	# load parameters from yamls
 	absExecutePath = os.path.abspath(executeSettingsPath)
-	executeParams = loadYamlContents(absExecutePath, executeSettingsFilename)
 	absPlanSettingsPath = os.path.abspath(planSettingsPath)
 	planParams = loadYamlContents(absPlanSettingsPath, planSettingsFilename)
 	absResultsPath = os.path.abspath(planResultsPath)
@@ -112,5 +110,39 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 		'REMAINING_FLIGHT_TIMES': remainingFlightTimes,
 		'UGV_TRANSIT_TIMES': ugvTransitTimes
 	}
-	planFolder = toDir(absResultsPath)
-	writeYaml(results, os.path.join(planFolder, executeResultsFilename), maxDecimals=1)
+	return results
+
+def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPath):
+	"""
+	Executes a plan from a settings file (or folder) path
+	which may generate several sets of parameters for separate runs
+	"""
+
+	# load parameters from yaml
+	absExecutePath = os.path.abspath(executeSettingsPath)
+	params = loadYamlContents(absExecutePath, executeSettingsFilename)
+
+	# validate and extract independent variables
+	independentValueCombos = getIndependentValueCombos(params)
+	if independentValueCombos is None:
+		print('Failed to find independent variables')
+		return
+
+	# call each combination
+	absResultsFolder = toDir(os.path.abspath(planResultsPath))
+	for thisRunIndParams in independentValueCombos:
+		# combine with other variables in params
+		thisRunParams = deepcopy(params)
+		thisRunParams.update(thisRunIndParams)
+		print('Running independent parameters:\n', thisRunIndParams, sep='')
+
+		# run
+		thisRunOutput = executePlanFromParams(thisRunParams, executeSettingsPath, planSettingsPath, planResultsPath)
+
+		# write results
+		yamlOutPath = os.path.join(absResultsFolder, executeResultsFilename)
+		if len(thisRunIndParams) > 0:
+			yamlOutPathParts = os.path.splitext(yamlOutPath)
+			indVarString = dictToString(thisRunIndParams)
+			yamlOutPath = yamlOutPathParts[0] + '_' + indVarString + yamlOutPathParts[1]
+		writeYaml(thisRunOutput, yamlOutPath, maxDecimals=1)
