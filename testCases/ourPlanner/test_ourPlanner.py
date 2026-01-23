@@ -43,8 +43,7 @@ class TestOurPlanner:
 			params['START_POINT'],
 			list(points[0][:2]),
 			list(points[-1][:2]),
-			params['END_POINT'],
-			params['DUMMY_POINT']
+			params['END_POINT']
 		]
 		assert ugvPath == ugvIdealPath
 
@@ -84,8 +83,7 @@ class TestOurPlanner:
 			list(points[numPointsPerTour-1][:2]),
 			list(points[numPointsPerTour][:2]),
 			list(points[-1][:2]),
-			params['END_POINT'],
-			params['DUMMY_POINT']
+			params['END_POINT']
 		]
 		assert ugvPath == ugvIdealPath
 

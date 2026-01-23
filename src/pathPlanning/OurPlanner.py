@@ -531,7 +531,7 @@ class OurPlannerDeterministic(OurPlanner):
                 graphIndex += 1
 
         mappingToPoints[graphIndex] = endPoint
-        mappingToPoints[graphIndex+1] = self.params["DUMMY_POINT"]  # Dummy point
+        mappingToPoints[graphIndex+1] = endPoint # Dummy Point - only connected to end point, to guarantee the tour ends here
         graphIndex += 2
         dim = graphIndex
 
@@ -556,6 +556,11 @@ class OurPlannerDeterministic(OurPlanner):
 
         path = tourToPath(tour, startIdx=0, dummyIdx=dim-1)
         print(f"Path: {path}")
+
+        # remove dummy point (repeated end point)
+        dummyIdx = path[-1]
+        path = path[:-1]
+        mappingToPoints.pop(dummyIdx, None)
 
         return {
             "ugv_path": path,
@@ -711,7 +716,7 @@ class OurPlannerStochastic(OurPlanner):
         we just need to pull the data out of the solver
         """
         ugvResults = {
-            'ugv_path': list(range(3 + 2*len(tours))), # [ point indices ]
+            'ugv_path': list(range(2 + 2*len(tours))), # [ point indices ]
             'ugv_point_map': {}, # { index : [x,y], ... }
         }
         tourCollectCosts = [] # [ {collect point: {'agentType': collect cost, ...}, ...} for each tour ]
@@ -719,8 +724,7 @@ class OurPlannerStochastic(OurPlanner):
         # starting point, ending point, dummy point
         ugvResults['ugv_point_map'].update({
             0 : self.params['START_POINT'],
-            1 + 2 * len(tours) : self.params['END_POINT'],
-            2 + 2 * len(tours) : self.params['DUMMY_POINT']
+            1 + 2 * len(tours) : self.params['END_POINT']
         })
 
         # each tour

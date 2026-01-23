@@ -89,7 +89,7 @@ def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=Tru
 						arrowprops=dict(arrowstyle="-", color='black', lw=2))
 
 	# plot ugv path
-	for i in range(len(ugvPath)):
+	for i in range(len(ugvPath)-1):
 		x1, y1 = ugvPointMap[ugvPath[i]]
 		x2, y2 = ugvPointMap[ugvPath[(i + 1) % len(ugvPath)]]
 		if x1 == x2 and y1 == y2:

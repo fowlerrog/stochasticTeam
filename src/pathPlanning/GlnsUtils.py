@@ -38,7 +38,6 @@ def writeGtspFile(index, clusters, distanceMatrix, gtspInputPath):
 
 def tourToPath(tour, startIdx, dummyIdx):
     """Converts a tour (from GTSP output) to a path (list of indices)"""
-    # TODO - this function just seems to reverse the tour
     startPos = tour.index(startIdx)
     dummyPos = tour.index(dummyIdx)
 
@@ -49,7 +48,5 @@ def tourToPath(tour, startIdx, dummyIdx):
         path = tour[startPos:] + tour[:startPos]
     else:
         raise ValueError("startIdx and dummyIdx are not adjacent in the tour")
-
-    # path = [x for x in path if x != dummyIdx]
 
     return path
