@@ -1,0 +1,2 @@
+PARENT_VALUE: 'PARENT1'
+CHILD: $folder/nested_child1.yaml

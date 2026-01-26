@@ -123,17 +123,16 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 	params = loadYamlContents(absExecutePath, executeSettingsFilename)
 
 	# validate and extract independent variables
-	independentValueCombos = getIndependentValueCombos(params)
+	independentValueCombos, fullIndependentDicts = getIndependentValueCombos(params)
 	if independentValueCombos is None:
 		print('Failed to find independent variables')
 		return
 
 	# call each combination
 	absResultsFolder = toDir(os.path.abspath(planResultsPath))
-	for thisRunIndParams in independentValueCombos:
-		# combine with other variables in params
-		thisRunParams = deepcopy(params)
-		thisRunParams.update(thisRunIndParams)
+	for i in range(len(independentValueCombos)):
+		thisRunIndParams = independentValueCombos[i]
+		thisRunParams = fullIndependentDicts[i]
 		print('Running independent parameters:\n', thisRunIndParams, sep='')
 
 		# run

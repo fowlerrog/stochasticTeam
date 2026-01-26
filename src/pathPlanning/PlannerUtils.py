@@ -52,7 +52,7 @@ def runPlannerFromSettings(settingsFile):
 	params["RUN_FOLDER"] = absFolder
 
 	# validate and extract independent variables
-	independentValueCombos = getIndependentValueCombos(params)
+	independentValueCombos, fullIndependentDicts = getIndependentValueCombos(params)
 	if independentValueCombos is None:
 		print('Failed to find independent variables')
 		return
@@ -62,10 +62,9 @@ def runPlannerFromSettings(settingsFile):
 	dependentResultsDict = {}
 
 	# call each combination
-	for thisRunIndParams in independentValueCombos:
-		# combine with other variables in params
-		thisRunParams = deepcopy(params)
-		thisRunParams.update(thisRunIndParams)
+	for i in range(len(independentValueCombos)):
+		thisRunIndParams = independentValueCombos[i]
+		thisRunParams = fullIndependentDicts[i]
 		print('Running independent parameters:\n', thisRunIndParams, sep='')
 
 		# set results save location, if desired

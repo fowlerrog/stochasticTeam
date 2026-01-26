@@ -35,7 +35,6 @@ if __name__ == '__main__':
 
 		'START_POINT' : [0, 0],
 		'END_POINT' : [4000, 4000],
-		'DUMMY_POINT' : [4000, 0],
 		'SPACE_SIZE' : 4000,
 		'FIXED_Z' : 500,
 

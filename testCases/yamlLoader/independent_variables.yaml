@@ -1,0 +1,8 @@
+INDEPENDENT_VARIABLES: [A, B, C.A]
+
+A: ['A1', 'A2']
+B: ['B1', 'B2']
+C:
+  A: ['CA1', 'CA2']
+  B: 'CB'
+D: 'D'
