@@ -6,7 +6,7 @@ from copy import deepcopy
 # project imports
 from .Constants import executeSettingsFilename, planSettingsFilename, planPathResultsFilename, executeResultsFilename
 from .RunnerUtils import writeYaml, loadYamlContents, toDir, dictToString, getIndependentValueCombos
-from .EnvUtils import envFromParamsOrFile
+from .EnvUtils import envFromParams
 
 def executePlanFromParams(executeParams, executeSettingsPath, planSettingsPath, planResultsPath):
 	"""Executes a number of runs for a given plan"""
@@ -20,9 +20,12 @@ def executePlanFromParams(executeParams, executeSettingsPath, planSettingsPath, 
 
 	# construct environment
 	envParams = executeParams['ENVIRONMENT']
-	if isinstance(envParams, str): # this is a path to another file, not params
-		envParams = os.path.join(toDir(absExecutePath), envParams)
-	env = envFromParamsOrFile(envParams)
+	env = envFromParams(envParams)
+
+	# construct online planner
+	onlinePlanner = None
+	if 'ONLINE_PLANNER' in executeParams:
+		pass
 
 	# parse path
 	uavPoints = resultsDict['uav_points']
@@ -32,8 +35,8 @@ def executePlanFromParams(executeParams, executeSettingsPath, planSettingsPath, 
 	ugvPoints = {int(k):[*v, 0] for k,v in ugvPoints.items()} # str -> int : 2d -> 3d
 
 	# TODO perhaps this should be in its own agent definition file, or the environment?
-	uavMaxTime = planParams['UAV_BATTERY_TIME']
-	uavChargeRate = planParams['CHARGE_RATE']
+	uavMaxTime = planParams['PLANNER']['UAV_BATTERY_TIME']
+	uavChargeRate = planParams['PLANNER']['CHARGE_RATE']
 
 	# set up RNG
 	if 'SEED' in executeParams and executeParams['SEED'] is not None:

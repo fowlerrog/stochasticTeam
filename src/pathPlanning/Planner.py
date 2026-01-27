@@ -1,7 +1,7 @@
 
 import os
 
-from .EnvUtils import envFromParamsOrFile
+from .EnvUtils import envFromParams
 from .Constants import planPathResultsFilename
 from .RunnerUtils import writeYaml
 
@@ -21,12 +21,9 @@ class Planner(object):
 
 		if 'ENVIRONMENT' in params:
 			envParams = params['ENVIRONMENT']
-			if isinstance(envParams, str): # this is a path to another file, not params
-				absFolder = params['RUN_FOLDER'] if 'RUN_FOLDER' in params else ''
-				envParams = os.path.join(absFolder, envParams)
-			self.env = envFromParamsOrFile(envParams)
+			self.env = envFromParams(envParams)
 
-	def solve(self, points):
+	def solve(self, points, startPoint=None, endPoint=None):
 		"""Solves the routing problem for a set of visited points"""
 		pass
 

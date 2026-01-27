@@ -65,9 +65,15 @@ def loadYamlContents(settingsFile, defaultFilename = '', verbose=True):
 			print(traceback.format_exc())
 
 	# load any recursive yamls
-	for k,v in params.items():
-		if isinstance(v, str) and v[0] == '$':
-			params[k] = loadYamlContents(os.path.join(absFolder, v[1:]), verbose=verbose)
+	def replaceFilepaths(d):
+		for k,v in d.items():
+			if isinstance(v, str) and v[0] == '$':
+				d[k] = loadYamlContents(os.path.join(absFolder, v[1:]), verbose=verbose)
+			elif isinstance(v, dict):
+				d[k] = replaceFilepaths(v)
+		return d
+
+	params = replaceFilepaths(params)
 
 	if len(params) == 0 and verbose:
 		print('Params not found')
@@ -114,7 +120,7 @@ def getVarFromString(folderName, varName):
 
 def dictToString(d):
 	"""Constructs 'var1_value1_var2_value2' from dict"""
-	return '_'.join(['%s_%s'%(k,v) for k,v in d.items()])
+	return '_'.join(['%s_%s' % (k if isinstance(k, str) else '.'.join(k), v) for k,v in d.items()])
 
 def dictGetRecursive(dict, keyIter):
 	"""Returns dict[keyList[0]][keyList[1]][...]"""

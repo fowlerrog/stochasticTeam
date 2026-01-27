@@ -16,7 +16,7 @@ if __name__ == '__main__':
 		exit()
 
 	# get independent variable name
-	indVarName = 'NUM_POINTS'
+	indVarName = 'POINTS.NUM_POINTS'
 
 	# for each plan time results, plot curve
 	fig = None

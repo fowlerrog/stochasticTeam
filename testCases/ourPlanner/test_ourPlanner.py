@@ -24,12 +24,12 @@ class TestOurPlanner:
 
 		# Load plan settings
 		params = loadYamlContents(os.path.join(thisScriptFolder, planSettingsFilename))
-		params['PLANNER_TYPE'] = plannerType
-		params['RUN_FOLDER'] = thisScriptFolder
+		params['PLANNER']['TYPE'] = plannerType
+		params['PLANNER']['RUN_FOLDER'] = thisScriptFolder
 	
 		# Run planner
-		planner = plannerFromParams(params)
-		planner.solve(points)
+		planner = plannerFromParams(params['PLANNER'])
+		planner.solve(points, startPoint = params['START_POINT'], endPoint = params['END_POINT'])
 
 		# Test results
 		solution = planner.standardizeSolution()
@@ -62,12 +62,12 @@ class TestOurPlanner:
 
 		# Load plan settings
 		params = loadYamlContents(os.path.join(thisScriptFolder, planSettingsFilename))
-		params['PLANNER_TYPE'] = plannerType
-		params['RUN_FOLDER'] = thisScriptFolder
+		params['PLANNER']['TYPE'] = plannerType
+		params['PLANNER']['RUN_FOLDER'] = thisScriptFolder
 	
 		# Run planner
-		planner = plannerFromParams(params)
-		planner.solve(points)
+		planner = plannerFromParams(params['PLANNER'])
+		planner.solve(points, startPoint = params['START_POINT'], endPoint = params['END_POINT'])
 
 		# Test results
 		solution = planner.standardizeSolution()
@@ -104,20 +104,17 @@ class TestOurPlanner:
 
 		# Load plan settings
 		params = loadYamlContents(os.path.join(thisScriptFolder, planSettingsFilename))
-		params['PLANNER_TYPE'] = 'OurPlannerStochastic'
+		params['PLANNER']['TYPE'] = 'OurPlannerStochastic'
 
 		# Generate points
 		random.seed(randomSeed)
-		points = generatePoints(numPoints,
-						  xRange=(0,params['SPACE_SIZE']),
-						  yRange=(0,params['SPACE_SIZE']),
-						  fixedZ=params['FIXED_Z'])
+		points = generatePoints(params['POINTS'] | {'NUM_POINTS' : numPoints})
 	
 		# Run planner with and without refinement
-		planner1 = plannerFromParams(params | {'REFINE_TOURS' : True})
-		planner1.solve(points)
-		planner2 = plannerFromParams(params | {'REFINE_TOURS' : False})
-		planner2.solve(points)
+		planner1 = plannerFromParams(params['PLANNER'] | {'REFINE_TOURS' : True})
+		planner1.solve(points, startPoint = params['START_POINT'], endPoint = params['END_POINT'])
+		planner2 = plannerFromParams(params['PLANNER'] | {'REFINE_TOURS' : False})
+		planner2.solve(points, startPoint = params['START_POINT'], endPoint = params['END_POINT'])
 
 		# Test results
 		solution1 = planner1.standardizeSolution()
@@ -154,7 +151,7 @@ class TestOurPlanner:
 
 	@pytest.mark.parametrize("randomSeed", range(5))
 	@pytest.mark.parametrize("plannerType", ["OurPlannerDeterministic", "OurPlannerStochastic"])
-	@pytest.mark.parametrize("environment", [None, "cost_matrix_env_settings.yaml"])
+	@pytest.mark.parametrize("environment", [None, "default"])
 	def test_costMatrix(self, randomSeed, plannerType, environment):
 		"""
 		Tests whether OurPlanner can correctly produce and reorder a cost matrix from an environment
@@ -167,19 +164,16 @@ class TestOurPlanner:
 
 		# Load plan settings
 		params = loadYamlContents(os.path.join(thisScriptFolder, 'cost_matrix_plan_settings.yaml'))
-		params['PLANNER_TYPE'] = plannerType
-		if not environment is None:
-			params['ENVIRONMENT'] = environment
-		params['RUN_FOLDER'] = thisScriptFolder
+		params['PLANNER']['TYPE'] = plannerType
+		if environment is None:
+			params['PLANNER'].pop('ENVIRONMENT')
+		params['PLANNER']['RUN_FOLDER'] = thisScriptFolder
 
 		# Generate points
 		random.seed(randomSeed)
-		points = generatePoints(numPoints,
-						  xRange=(0,params['SPACE_SIZE']),
-						  yRange=(0,params['SPACE_SIZE']),
-						  fixedZ=params['FIXED_Z'])
+		points = generatePoints(params['POINTS'] | {'NUM_POINTS' : numPoints})
 
-		planner = plannerFromParams(params)
+		planner = plannerFromParams(params['PLANNER'])
 		for agentType in agentTypes:
 			# Generate planner cost matrices
 			planner.createCostMatrix(points, agentType)

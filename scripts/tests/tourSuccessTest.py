@@ -12,51 +12,50 @@ from pathPlanning.OurPlanner import safeExp
 if __name__ == '__main__':
 	# create stochastic planner 
 	params = {
-		'PLANNER_TYPE' : 'OurPlannerStochastic',
-		'ENVIRONMENT' : {
-			'TYPE' : 'SplitEnvironment',
-			'AGENT_ENVIRONMENTS' : {
-				'UAV' : {
-					'TYPE' : 'GaussianEnvironment',
-					'WEIGHT' : 0.1,
-					'WEIGHT_STD_DEV' : 0.01
-				},
-				'UGV' : {
-					'TYPE' : 'GaussianEnvironment',
-					'WEIGHT' : 0.4,
-					'WEIGHT_STD_DEV' : 0.04
+		'SEED' : 0,
+		'POINTS' : {
+			'TYPE' : 'Uniform',
+			'NUM_POINTS' : 25,
+			'SPACE_SIZE' : 4000,
+			'FIXED_Z' : 500,
+		},
+		'PLANNER' : {
+			'TYPE' : 'OurPlannerStochastic',
+			'TSP_LOCAL_SEARCH' : False,
+			'FAILURE_RISK' : 0.0,
+			'REFINE_TOURS' : False,
+			'TAKEOFF_LANDING_TIME' : 100.0,
+			'UAV_BATTERY_TIME' : 600.0,
+			'ENVIRONMENT' : {
+				'TYPE' : 'SplitEnvironment',
+				'AGENT_ENVIRONMENTS' : {
+					'UAV' : {
+						'TYPE' : 'GaussianEnvironment',
+						'WEIGHT' : 0.1,
+						'WEIGHT_STD_DEV' : 0.01
+					},
+					'UGV' : {
+						'TYPE' : 'GaussianEnvironment',
+						'WEIGHT' : 0.4,
+						'WEIGHT_STD_DEV' : 0.04
+					}
 				}
 			}
 		},
-
-		'TSP_LOCAL_SEARCH' : False,
-		'FAILURE_RISK' : 0.0,
-		'REFINE_TOURS' : False,
-
 		'START_POINT' : [0, 0],
-		'END_POINT' : [4000, 4000],
-		'SPACE_SIZE' : 4000,
-		'FIXED_Z' : 500,
-
-		'TAKEOFF_LANDING_TIME' : 100.0,
-		'UAV_BATTERY_TIME' : 600.0
+		'END_POINT' : [4000, 4000]
 	}
-	planner = plannerFromParams(params)
+	planner = plannerFromParams(params['PLANNER'])
 
 	# generate some points
-	seed = 0
-	numPoints = 25
-	random.seed(seed)
-	points = generatePoints(numPoints,
-		xRange=(0,params['SPACE_SIZE']),
-		yRange=(0,params['SPACE_SIZE']),
-		fixedZ=params['FIXED_Z']
-	)
+	if 'SEED' in params:
+		random.seed(params['SEED'])
+	points = generatePoints(params['POINTS'])
 
 	# ask the planner to solve
 	#	FAILURE_RISK = 0.0, so this will fail
 	try:
-		planner.solve(points)
+		planner.solve(points, startPoint = params['START_POINT'], endPoint = params['END_POINT'])
 	except Exception:
 		print('Failure while planning:')
 		print(traceback.format_exc())

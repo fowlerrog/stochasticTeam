@@ -6,7 +6,7 @@ import random
 from itertools import repeat
 
 # project imports
-from pathPlanning.NodeUtils import generatePoints, createDistanceMatrix
+from pathPlanning.NodeUtils import generateUniformPoints, createDistanceMatrix
 from pathPlanning.TspUtils import solveTspWithFixedStartEnd
 
 def sq(n):
@@ -21,7 +21,7 @@ if __name__ == '__main__':
 	# generate points
 	print(f'Generating {n} points')
 	random.seed(seed)
-	points = generatePoints(n, (0,1000), (0,1000))
+	points = generateUniformPoints(n, (0,1000), (0,1000))
 
 	# generate cost matrices
 	matrix = createDistanceMatrix(points)

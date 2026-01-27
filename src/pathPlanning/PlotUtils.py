@@ -7,7 +7,7 @@ from math import log
 
 # project imports
 from .RunnerUtils import loadPlanResultsFromFolder
-from .EnvUtils import envFromParamsOrFile
+from .EnvUtils import envFromParams
 
 def plotPoints(points, filename=None, show=True):
 	"""Plot points with no path"""
@@ -103,7 +103,7 @@ def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=Tru
 	ax.grid(True)
 	ax.relim()
 	ax.autoscale_view()
-	ax.set_title("GTSP with Release & Collect (Full Tour incl. Dummy)")
+	ax.set_title("Full Mission Plan")
 	ax.set_aspect('equal')
 
 	if filename is not None:

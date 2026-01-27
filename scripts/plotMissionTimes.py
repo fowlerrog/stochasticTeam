@@ -10,7 +10,7 @@ from multiprocessing import Pool
 from pathPlanning.Constants import planPathResultsFilename, planSettingsFilename, executeResultsFilename
 from pathPlanning.RunnerUtils import loadYamlContents, toDir, getVarFromString
 # from pathPlanning.PlotUtils import plotMissionTimes
-from pathPlanning.EnvUtils import envFromParamsOrFile
+from pathPlanning.EnvUtils import envFromParams
 
 def harvestMissionTimeInfo(s):
 	"""
@@ -27,15 +27,13 @@ def harvestMissionTimeInfo(s):
 		thisDir = toDir(s)
 		planPathResults = loadYamlContents(thisDir, planPathResultsFilename, verbose=False)
 
-		# look for path settings one folder above
+		# look for path settings one folder above (this is brittle)
 		planFolder = os.path.split(thisDir)[0]
 		planSettings = loadYamlContents(planFolder, planSettingsFilename, verbose=False)
 
 		# construct environment
-		envParams = planSettings['ENVIRONMENT']
-		if isinstance(envParams, str): # this is a path to another file, not params
-			envParams = os.path.join(planFolder, envParams)
-		env = envFromParamsOrFile(envParams, verbose=False)
+		envParams = planSettings['PLANNER']['ENVIRONMENT']
+		env = envFromParams(envParams)
 
 		# running sum of planned path, starting with first release
 		plannedTime = env.estimateMean(
@@ -53,7 +51,7 @@ def harvestMissionTimeInfo(s):
 			)
 			# max of charging time or travel time to next tour
 			#	note that this will wait at the final end point for 100% charge
-			chargeTime = (planSettings['UAV_BATTERY_TIME'] - uavTime) / planSettings['CHARGE_RATE']
+			chargeTime = (planSettings['PLANNER']['UAV_BATTERY_TIME'] - uavTime) / planSettings['PLANNER']['CHARGE_RATE']
 			plannedTime += max(
 				chargeTime,
 				env.estimateMean(
@@ -63,20 +61,28 @@ def harvestMissionTimeInfo(s):
 				)
 			)
 
+		# find all execution output files
+		executeResultsFileparts = os.path.splitext(executeResultsFilename)
+		fileList = [f for f in os.listdir(thisDir) if os.path.isfile(f) and
+			  os.path.splitext(f)[0:len(executeResultsFileparts[0])] == executeResultsFileparts[0] and
+			  os.path.splitext(f)[1] == executeResultsFileparts[1]]
+
 		# mean of successful path executions
-		execTime = None
-		try:
-			execResults = loadYamlContents(thisDir, executeResultsFilename, verbose=False)
-			execTime = np.mean( [
-				planSettings['UAV_BATTERY_TIME'] * len(execResults['TOUR_ATTEMPTS']) -
-				sum(execResults['REMAINING_FLIGHT_TIMES'][i]) +
-				sum(execResults['UGV_TRANSIT_TIMES'][i])
-				for i in range(execResults['NUM_RUNS'])
-				if execResults['REMAINING_FLIGHT_TIMES'][i][-1] > 0
-			] )
-		except Exception:
-			print('Failure to load', executeResultsFilename, 'in', thisDir)
-			print(traceback.format_exc())
+		execTimes = []
+		for f in fileList:
+			try:
+				execResults = loadYamlContents(os.path.join(thisDir, f), verbose=False)
+				execTime.append(np.mean( [
+					planSettings['PLANNER']['UAV_BATTERY_TIME'] * len(execResults['TOUR_ATTEMPTS']) -
+					sum(execResults['REMAINING_FLIGHT_TIMES'][i]) +
+					sum(execResults['UGV_TRANSIT_TIMES'][i])
+					for i in range(execResults['NUM_RUNS'])
+					if execResults['REMAINING_FLIGHT_TIMES'][i][-1] > 0
+				] ) )
+			except Exception:
+				print('Failure to load', os.path.join(thisDir, f), 'in', thisDir)
+				print(traceback.format_exc())
+		execTime = np.mean(execTimes) if len(execTimes) > 0 else None
 
 		endFolderName = os.path.split(thisDir)[1]
 
@@ -111,7 +117,7 @@ if __name__ == '__main__':
 			detGroup[1].append(r[1])
 			detGroup[2].append(r[2])
 		elif 'stochastic' in r[2].lower():
-			if getVarFromString(r[2], 'REFINE_TOURS') == 'True':
+			if getVarFromString(r[2], 'PLANNER.REFINE_TOURS') == 'True':
 				stochGroupRefine[0].append(r[0])
 				stochGroupRefine[1].append(r[1])
 				stochGroupRefine[2].append(r[2])
@@ -140,7 +146,7 @@ if __name__ == '__main__':
 		endIndex = folderName[startIndex + len(varToRemove) + 1:].index('_') if '_' in folderName[startIndex + len(varToRemove) + 1:] else len(folderName) # underscore after var value, if there is one
 		return folderName[:startIndex] + folderName[startIndex + len(varToRemove) + 1 + endIndex + 1:]
 
-	varName = 'REFINE_TOURS'
+	varName = 'PLANNER.REFINE_TOURS'
 	stochGroupRefineTrimmed = [removeVariableFromFolderName(f, varName) for f in stochGroupRefine[2]]
 	stochGroupNoRefineTrimmed = [removeVariableFromFolderName(f, varName) for f in stochGroupNoRefine[2]]
 	pairs = [[i,j] for i in range(len(stochGroupRefineTrimmed)) for j in range(len(stochGroupNoRefineTrimmed)) if stochGroupRefineTrimmed[i] == stochGroupNoRefineTrimmed[j]]
