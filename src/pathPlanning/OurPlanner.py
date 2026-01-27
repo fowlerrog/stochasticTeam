@@ -67,7 +67,7 @@ class OurPlanner(Planner):
     def standardizeSolution(self):
         result = {k:v for k,v in self.solution.items()}
         result['uav_points'] = [list(v) for v in result['uav_points']] # tuple -> list
-        result['ugv_point_map'] = {k:[float(n) for n in v] for k,v in result["ugv_point_map"].items()} # yaml does not like np.array
+        result['ugv_point_map'] = [[float(n) for n in v] for v in result['ugv_point_map']] # yaml does not like np.array
         result['tour_costs'] = {k:[[float(c) for c in e.value] for e in v] for k,v in result['tour_costs'].items()} # Cost -> list
         result['tour_constraint_values'] = {k:[float(c) for c in l] for k,l in result['tour_constraint_values'].items()} # numpy scalar -> float
         return result
@@ -567,11 +567,15 @@ class OurPlannerDeterministic(OurPlanner):
         path = path[:-1]
         mappingToPoints.pop(dummyIdx, None)
 
+        # collapse path to continuous indices, and convert mappingToPoints to a list
+        newPath = [n for n in range(len(path))]
+        newMap = [mappingToPoints[path[i]] for i in range(len(path))]
+
         return {
-            "ugv_path": path,
+            "ugv_path": newPath,
             "gtsp_solver_time": solverTime,
             "total_cost": totalCost,
-            "ugv_point_map": mappingToPoints # TODO this is now a holdover and may be replacable with a more uav-like representation of points
+            "ugv_point_map": newMap
         }
 
 class OurPlannerStochastic(OurPlanner):
@@ -722,15 +726,13 @@ class OurPlannerStochastic(OurPlanner):
         """
         ugvResults = {
             'ugv_path': list(range(2 + 2*len(tours))), # [ point indices ]
-            'ugv_point_map': {}, # { index : [x,y], ... }
+            'ugv_point_map': [None for _ in range(2 + 2 * len(tours))], # [ [x,y], ... ]
         }
         tourCollectCosts = [] # [ {collect point: {'agentType': collect cost, ...}, ...} for each tour ]
 
         # starting point, ending point, dummy point
-        ugvResults['ugv_point_map'].update({
-            0 : startPoint,
-            1 + 2 * len(tours) : endPoint
-        })
+        ugvResults['ugv_point_map'][0] = startPoint
+        ugvResults['ugv_point_map'][-1]= endPoint
 
         # each tour
         for i in range(len(tours)):
@@ -738,10 +740,8 @@ class OurPlannerStochastic(OurPlanner):
             # Ask partitionSolver cache for release and collect
             startEndTuple = (tour[0], tour[-1] + 1) # inclusive, exclusive
             release, collect = self.partitionSolver.fData[startEndTuple]
-            ugvResults['ugv_point_map'].update({
-                2 * i + 1 : uavPoints[release][:2],
-                2 * i + 2 : uavPoints[collect][:2]
-            })
+            ugvResults['ugv_point_map'][2 * i + 1] = uavPoints[release][:2]
+            ugvResults['ugv_point_map'][2 * i + 2] = uavPoints[collect][:2]
             reorderedTour = reorderList(tour, tour.index(release), tour.index(collect))
             tourCollectCosts.append({collect :
             {
