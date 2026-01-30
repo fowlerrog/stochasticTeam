@@ -69,12 +69,13 @@ def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=Tru
 
 	# plot colored circles for ugv path (including start, end)
 	i = 0
-	while i < len(ugvPath) - 1:
+	while i < len(ugvPath):
 		x,y = ugvPointMap[ugvPath[i]]
-		color = 'g' if i == 0 else 'r' if i == len(ugvPath) - 2 else 'k'
+		color = 'g' if i == 0 else 'r' if i == len(ugvPath) - 1 else 'k'
 		ax.plot(x, y, 'x', color=color, markersize=16)
+		# label (with repeated points)
 		labelNum = str(i)
-		while ugvPointMap[ugvPath[i]] == ugvPointMap[ugvPath[i+1]]:
+		while i < len(ugvPath) - 1 and ugvPointMap[ugvPath[i]] == ugvPointMap[ugvPath[i+1]]:
 			i += 1
 			labelNum += ',' + str(i)
 		ax.text(x, y, labelNum + 'g', fontsize=16, color=color, verticalalignment='bottom')

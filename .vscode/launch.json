@@ -5,7 +5,7 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Run scripts/planPath.py runs/test/settings.yaml",
+			"name": "Run scripts/planPath.py runs/test/plan_settings.yaml",
 			"type": "debugpy",
 			"request": "launch",
 			"program": "${workspaceFolder}/scripts/planPath.py",

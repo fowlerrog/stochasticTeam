@@ -13,6 +13,7 @@ from scipy.spatial.distance import euclidean
 from math import sqrt, prod
 from multiprocessing import Manager, Pool, get_context
 from contextlib import nullcontext
+from ortools.algorithms.python import knapsack_solver
 
 # project imports
 from .NodeUtils import *
@@ -34,6 +35,10 @@ class Cost:
     def __str__(self):
         """To string method"""
         return 'Cost' + str(self.value)
+
+    def round(self, ndigits):
+        """Rounding method"""
+        return Cost(*[round(v, ndigits) for v in self.value])
 
     """Operators:"""
     def __add__(self, other): return Cost(*[sum(x) for x in zip(self.value, other.value)])
@@ -586,6 +591,7 @@ class OurPlannerStochastic(OurPlanner):
         self.costVarMatrix = {} # str(agentType) : matrix[startIndex][endIndex]
         self.COST_DIM = 2
         self.logSuccessLimit = math.log(1 - self.params['FAILURE_RISK'])
+        self.KNAPSACK_WEIGHT_SUBDIVISIONS = 100
 
     def printResultsToYaml(self, maxDecimals=4):
         return super().printResultsToYaml(maxDecimals)
@@ -785,30 +791,83 @@ class OurPlannerStochastic(OurPlanner):
             # tspPool.close()
             newTours = [self.refineTour(t) for t in tours]
 
-            # test each for acceptance
-            for i in range(len(tours)):
-                if len(tours[i]) > 3:
-                    newTour = newTours[i]
-                    # calculate costs and probabilities
-                    existingUavCost = tourCollectCosts[i][tours[i][-1]]['UAV']
-                    existingLogSuccess = self.evaluateConstraintFloat(existingUavCost)
+            # evaluate the change in time and risk for each tour
+            costSavings = []
+            logSuccessDecreases = []
+            consideredIndices = []
+            currentUavLogProbSuccess = 0
+            currentUgvLogProbSuccess = 0
+
+            existingUavCosts = []
+            newUavCosts = []
+            existingUavLogSuccesses = []
+            newUavLogSuccesses = []
+
+            for iTour in range(len(newTours)):
+                # get existing UAV costs and probabilities
+                existingUavCost = tourCollectCosts[iTour][tours[iTour][-1]]['UAV']
+                existingUavCosts.append(existingUavCost)
+                existingUavLogSuccess = self.evaluateConstraintFloat(existingUavCost, 'UAV')
+                existingUavLogSuccesses.append(existingUavLogSuccess)
+                currentUavLogProbSuccess += existingUavLogSuccess
+
+                # get existing UGV costs and probabilities
+                collectPoint = ugvResults['ugv_point_map'][ugvResults['ugv_path'][2 + 2*iTour]]
+                closestUavPointIndex = findClosestPoint(uavPoints, (*collectPoint[:2], 0))
+                for agentType, agentCost in tourCollectCosts[iTour][closestUavPointIndex].items():
+                    currentUgvLogProbSuccess += self.evaluateConstraintFloat(agentCost, agentType)
+
+                if len(newTours[iTour]) > 0: # if this tour was refined
+                    # evaluate new solution against old solution
                     newUavCost = sum([
-                        self.constructCost(newTour[j], newTour[j+1], 'UAV') for j in range(len(newTour)-1)
+                        self.constructCost(newTours[iTour][j], newTours[iTour][j+1], 'UAV') for j in range(len(newTours[iTour])-1)
                     ], start = self.baseCost('UAV'))
-                    newLogSuccess = self.evaluateConstraintFloat(newUavCost)
-                    # check if UAV Pr(success) has not decreased and mean time has not increased
-                    if newLogSuccess >= existingLogSuccess and newUavCost.value[0] < existingUavCost.value[0]:
-                        print(f'Improved tour {i}')
-                        tours[i] = list(newTour)
-                        tourCollectCosts[i][tours[i][-1]]['UAV'] = newUavCost
-                    else:
-                        print(f'Did not improve tour {i}')
+                    newUavCosts.append(newUavCost)
+                    newUavLogSuccess = self.evaluateConstraintFloat(newUavCost, 'UAV')
+                    newUavLogSuccesses.append(newUavLogSuccess)
+                    # store value and weight for knapsack
+                    if newUavCost < existingUavCost:
+                        consideredIndices.append(iTour)
+                        costSavings.append(existingUavCost - newUavCost)
+                        logSuccessDecreases.append(existingUavLogSuccess - newUavLogSuccess)
+                else:
+                    newUavCosts.append(None)
+                    newUavLogSuccesses.append(None)
+
+            if len(consideredIndices) == 0:
+                print('No tours to refine')
+                return tours, tourCollectCosts
+
+            # normalize weights
+            availableWeight = currentUavLogProbSuccess + currentUgvLogProbSuccess - self.logSuccessLimit
+            weightUnit = availableWeight / self.KNAPSACK_WEIGHT_SUBDIVISIONS
+
+            # round time savings and weights so they are ints, pessimistically for both
+            timeSavings = [math.floor(c.value[0]) for c in costSavings] # only consider mean time
+            normalizedWeights = [math.ceil(l / weightUnit) for l in logSuccessDecreases]
+
+            # solve knapsack problem
+            solver = knapsack_solver.KnapsackSolver(
+                knapsack_solver.SolverType.KNAPSACK_DYNAMIC_PROGRAMMING_SOLVER,
+                'MyKnapsackSolver'
+            )
+            solver.init(timeSavings, [normalizedWeights], [self.KNAPSACK_WEIGHT_SUBDIVISIONS])
+            solver.solve()
+
+            # get results
+            print('Solved knapsack on tours:', consideredIndices)
+            for i in range(len(consideredIndices)):
+                iTour = consideredIndices[i]
+                if solver.best_solution_contains(i):
+                    print(f'Refined tour {iTour}')
+                    tours[iTour] = list(newTours[iTour])
+                    tourCollectCosts[iTour][tours[iTour][-1]]['UAV'] = newUavCosts[iTour]
                     print(
-                        f'\tCost : {existingUavCost} -> {newUavCost}\n' +
-                        f'\tlog(Pr(success)) : {existingLogSuccess:.2e} -> {newLogSuccess:.2e}\n' +
-                        f'\tPr(success) : {safeExp(existingLogSuccess):.4f} -> {safeExp(newLogSuccess):.4f}'
+                        f'\tCost : {existingUavCosts[iTour].round(2)} -> {newUavCosts[iTour].round(2)}\n' +
+                        f'\tlog(Pr(success)) : {existingUavLogSuccesses[iTour]:.2e} -> {newUavLogSuccesses[iTour]:.2e}\n' +
+                        f'\tPr(success) : {safeExp(existingUavLogSuccesses[iTour]):.4f} -> {safeExp(newUavLogSuccesses[iTour]):.4f}'
                     )
                 else:
-                    print(f'Skipping tour {i} with length {len(tours[i])}')
+                    print(f'Did not refine tour {consideredIndices[i]}')
 
         return tours, tourCollectCosts

@@ -88,7 +88,7 @@ class TestOurPlanner:
 		assert ugvPath == ugvIdealPath
 
 	@pytest.mark.parametrize("randomSeed", range(5))
-	@pytest.mark.parametrize("numPoints", [10, 20])
+	@pytest.mark.parametrize("numPoints", [10, 20, 50])
 	def test_tourRefinement(self, randomSeed, numPoints):
 		"""
 		Stochastic planner tour refinement should:
@@ -105,6 +105,7 @@ class TestOurPlanner:
 		# Load plan settings
 		params = loadYamlContents(os.path.join(thisScriptFolder, planSettingsFilename))
 		params['PLANNER']['TYPE'] = 'OurPlannerStochastic'
+		params['PLANNER']['PARALLEL_DP'] = True
 
 		# Generate points
 		random.seed(randomSeed)
@@ -144,7 +145,8 @@ class TestOurPlanner:
 		)
 
 		# total log prob success does not decrease
-		assert sum(sum(tourLogProbs) for tourLogProbs in solution1['tour_constraint_values'].values()) >= sum(sum(tourLogProbs) for tourLogProbs in solution2['tour_constraint_values'].values())
+		epsilon = 1e-6 # these values may have small rounding errors
+		assert sum(sum(tourLogProbs) for tourLogProbs in solution1['tour_constraint_values'].values()) >= sum(sum(tourLogProbs) for tourLogProbs in solution2['tour_constraint_values'].values()) * (1 + epsilon)
 
 		# uav mean time for each tour does not increase
 		assert all( cost1[0] <= cost2[0] for cost1, cost2 in zip(solution1['tour_costs']['UAV'], solution2['tour_costs']['UAV']) )
