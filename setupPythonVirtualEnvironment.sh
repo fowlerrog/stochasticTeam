@@ -32,6 +32,7 @@ pythonLocation="${allpython3s[$index]}"
 echo "User chose interpreter at $pythonLocation"
 
 # install virtualenv
+# note that this kind of runaround to tell whether pip or apt is necessary could also be done on linux by checking whether the file /usr/lib/python3.12/EXTERNALLY-MANAGED exists (for whatever the default non-venv version of python is on the system), but I don't know how to do so on Windows
 echo "Installing virtualenv"
 if command -v virtualenv ; then
 	echo "virtualenv already installed"

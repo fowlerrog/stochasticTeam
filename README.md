@@ -1,11 +1,19 @@
 
-This repo contains code to run various UAV-UGV planners.
+This repo contains code to run various UAV-UGV planners. Setting up the Python Virtual Environment is recommended.
 
 # Dependencies:
 
 Julia (for deterministic planner)
 
 various python packages as listed in pythonEnv.txt
+
+For gazebo simulator:
+
+ROS2 : https://docs.ros.org/en/jazzy/index.html
+
+Turtlebot 4 : https://github.com/turtlebot/turtlebot4_simulator
+
+MRS UAV System : https://github.com/ctu-mrs/mrs_uav_system/tree/ros2
 
 # Structure:
 
@@ -33,7 +41,7 @@ python scripts/plotPlan.py /path/to/results/folder/
 
 python scripts/executePlan.py /path/to/execute_settings.yaml /path/to/plan_settings.yaml /path/to/plan/results/folder/
 
-# Troubleshooting:
+# Setting up Python Virtual Environment:
 
 If you are having an environment issue, which may manifest itself as the pywrapcp optimizer not optimizing your TSP path solutions, create a python virtual environment (once):
 
@@ -67,7 +75,9 @@ To exit the venv:
 
 `deactivate`
 
-# Gazebo Installation:
+# Gazebo/ROS2 Installation:
+
+Make sure you are inside the Python VM when using the Gazebo simulator, and also when installing the Gazebo simulator/ROS2. This is to avoid any missing python packages inside the virtual environment.
 
 The Gazebo simulation relies on external Gazebo model repositories, and on Gazebo and ROS2 itself. Install these packages for the first time:
 
@@ -75,8 +85,20 @@ The Gazebo simulation relies on external Gazebo model repositories, and on Gazeb
 
 `./installRos2Jazzy.sh`
 
+Before installing the gazebo models, set up your environment by sourcing the setup file:
+
+(You also have to source this file at the start of each session to use ROS2)
+
+`source /opt/ros/jazzy/setup.bash`
+
+The install the gazebo models:
+
 `./installGazeboRepos.sh`
 
-At the start of each session, set up your environment by sourcing the setup file:
+And source again to get the new packages:
 
-`./setupRos2Jazzy.sh`
+`source /opt/ros/jazzy/setup.bash`
+
+The convenience script setup.sh is provided for your convenience, which puts you in the Python VM and sources ROS2.
+
+`source setup.sh`
