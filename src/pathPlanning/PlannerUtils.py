@@ -1,7 +1,6 @@
 # python imports
 import sys
 import os
-from copy import deepcopy
 from random import seed
 
 # project imports

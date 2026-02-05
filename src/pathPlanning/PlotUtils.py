@@ -7,7 +7,6 @@ from math import log
 
 # project imports
 from .RunnerUtils import loadPlanResultsFromFolder
-from .EnvUtils import envFromParams
 
 def plotPoints(points, filename=None, show=True):
 	"""Plot points with no path"""
@@ -303,6 +302,3 @@ def plotSolveTimes(yamlContents, xKey, yKey, fig=None, ax=None, labelString='', 
 def evalNormalizedFunction(f, xRange, fOfXMin):
 	"""Evaluates f(xRange) normalized to f(min(xRange)) = fOfXMin"""
 	return [fOfXMin * f(x) / f(min(xRange)) for x in xRange]
-
-def plotMissionTimes():
-	pass
