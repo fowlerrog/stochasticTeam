@@ -120,10 +120,17 @@ class OurPlanner(Planner):
     def solve(self, points, startPoint=None, endPoint=None):
         """Solves a uav/ugv path for a set of points"""
 
+        # check if start/end exist
         if startPoint is None:
             startPoint = points[0]
         if endPoint is None:
             endPoint = points[0]
+
+        # check that start/end are 3d
+        if len(startPoint) == 2:
+            startPoint = [*startPoint, 0]
+        if len(endPoint) == 2:
+            endPoint = [*endPoint, 0]
 
         try:
             totalStartTime = time.perf_counter()
@@ -216,8 +223,8 @@ class OurPlanner(Planner):
 
         # Find the closest points to START_POINT and END_POINT
         # TODO these should be cost matrix calls
-        startIndex = findClosestPoint(uavPoints, (*startPoint, 0))
-        endIndex = findClosestPoint(uavPoints, (*endPoint, 0))
+        startIndex = findClosestPoint(uavPoints, startPoint)
+        endIndex = findClosestPoint(uavPoints, endPoint)
 
         # Reorder so the closest points to start and end are at the beginning and end
         reorderedPointOrder = reorderList(list(range(len(uavPoints))), startIndex, endIndex)
@@ -528,7 +535,7 @@ class OurPlannerDeterministic(OurPlanner):
         graphIndex = 1
         mappingToRelease = {}
         mappingToCollect = {}
-        mappingToPoints = {0: startPoint}
+        mappingToPoints = {0: startPoint[:2]}
         # TODO: Use graphx
         for tour, collectCostsDict in zip(tours, tourCollectCosts):
             releaseIdx = tour[0]
@@ -540,8 +547,8 @@ class OurPlannerDeterministic(OurPlanner):
                 mappingToPoints[graphIndex] = points[collectIdx]
                 graphIndex += 1
 
-        mappingToPoints[graphIndex] = endPoint
-        mappingToPoints[graphIndex+1] = endPoint # Dummy Point - only connected to end point, to guarantee the tour ends here
+        mappingToPoints[graphIndex] = endPoint[:2]
+        mappingToPoints[graphIndex+1] = endPoint[:2] # Dummy Point - only connected to start and end points, to guarantee the tour passes through them with no other points between
         graphIndex += 2
         dim = graphIndex
 
@@ -737,8 +744,8 @@ class OurPlannerStochastic(OurPlanner):
         tourCollectCosts = [] # [ {collect point: {'agentType': collect cost, ...}, ...} for each tour ]
 
         # starting point, ending point, dummy point
-        ugvResults['ugv_point_map'][0] = startPoint
-        ugvResults['ugv_point_map'][-1]= endPoint
+        ugvResults['ugv_point_map'][0] = startPoint[:2]
+        ugvResults['ugv_point_map'][-1]= endPoint[:2]
 
         # each tour
         for i in range(len(tours)):

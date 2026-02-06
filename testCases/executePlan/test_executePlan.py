@@ -25,7 +25,7 @@ class TestExecutePlan:
 		"""
 
 		thisScriptFolder = os.path.dirname(os.path.abspath(__file__))
-		planResultsFolder = 'plan_results'
+		planResultsFolder = 'results_from_planning'
 		distTol = 1e-3 # two points match within this distance
 		timeTol = 1e-3 # two times match within this time
 
@@ -36,7 +36,7 @@ class TestExecutePlan:
 		random.seed(randomSeed)
 		points = generatePoints(planParams['POINTS'] | {'NUM_POINTS' : numPoints})
 	
-		# Run planner with and without refinement
+		# Run planner
 		planner = plannerFromParams(planParams['PLANNER'] | {'RUN_FOLDER' : thisScriptFolder, 'SAVE_PATH_FOLDER' : planResultsFolder})
 		planner.solve(points, startPoint = planParams['START_POINT'], endPoint = planParams['END_POINT'])
 		solution = planner.standardizeSolution()
@@ -45,8 +45,11 @@ class TestExecutePlan:
 		# Evaluate mission plan
 		totalPlannedMeanTime, totalPlannedLogProbSuccess = calculatePlannedMission(planParams, solution)
 
-		# Execute mission plan
+		# Execute mission plan 1 time with 0 variance
 		executeParams = loadYamlContents(os.path.join(thisScriptFolder, executeSettingsFilename))
+		executeParams['NUM_RUNS'] = 1
+		executeParams['ENVIRONMENT']['AGENT_ENVIRONMENTS']['UAV']['WEIGHT_STD_DEV'] = 0
+		executeParams['ENVIRONMENT']['AGENT_ENVIRONMENTS']['UGV']['WEIGHT_STD_DEV'] = 0
 		executeResults = executePlanFromParamsWithOnlinePlanner(
 			executeParams,
 			os.path.join(thisScriptFolder, planSettingsFilename),

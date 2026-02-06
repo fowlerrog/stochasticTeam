@@ -148,8 +148,7 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 		onlineParams = executeParams['ONLINE_PLANNER']
 		if verbose:
 			print("Constructing online planner:", onlineParams)
-		# onlinePlanner = plannerFromParams(onlineParams)
-		onlinePlanner = None
+		onlinePlanner = plannerFromParams(onlineParams)
 
 	# parse path
 	uavPoints = resultsDict['uav_points']
@@ -173,6 +172,7 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 	ugvFinalPoints = [] # list of actual ugv points
 	tourTimes = [] # list of lists of tour times
 	totalTimes = [] # list of total plan execution times
+	replanTimes = [] # list of list of replan computation times
 
 	numRuns = executeParams['NUM_RUNS']
 	print('Running %d runs'%numRuns)
@@ -184,14 +184,15 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 		thisUgvOrder = deepcopy(ugvOrder)
 		thisUgvPoints = deepcopy(ugvPoints)
 
-		ugvIndex = 0 # current ugvOrder position
+		ugvIndex = 0 # most recent ugvOrder position
 		ugvPosition = None # actual ugv 3d position
-		iTour = 0 # current position in uavTours
-		jTour = 0 # current position in uavTours[i]
+		iTour = 0 # most recent position in uavTours, or the upcoming tour if between tours
+		jTour = 0 # most recent position in uavTours[i], or the upcoming tour if between tours
 		uavTourTime = 0 # how long the UAV has been in flight (depleting its battery)
 
 		thisTourTimes = []
 		thisTotalTime = 0
+		thisReplanTimes = []
 
 		# note that every instance of this loop occurs just after we are AT ugvIndex, iTour, jTour
 		#	and that we cannot change the plan for those points because they have occurred
@@ -205,16 +206,27 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 					'UGV'
 				)
 				thisTotalTime += ugvTransitTime
+				if verbose:
+					print(f'Transiting to end : {thisUgvPoints[thisUgvOrder[ugvIndex]]} -> {thisUgvPoints[thisUgvOrder[ugvIndex+1]]} = {ugvTransitTime:.2f}')
 				break
 
-			# we are between tours, just after collect
+			# we are between tours, just after collect (or before first tour)
 			elif ugvIndex % 2 == 0:
 				# replan, agents together
 				if onlinePlanner is not None:
-					pass
 					if verbose:
 						print('Replanning')
-					# thisUavTours, thisUgvOrder, thisUgvPoints = onlinePlanner.solve()
+					thisUavTours, thisUgvOrder, thisUgvPoints = onlinePlanner.solve(
+						thisUavTours, uavPoints,
+						thisUgvOrder, thisUgvPoints,
+						iTour, jTour, ugvIndex,
+						thisUgvPoints[thisUgvOrder[ugvIndex]], thisUgvPoints[thisUgvOrder[ugvIndex]],
+						0
+					)
+					thisReplanTimes.append(onlinePlanner.getSolveTime())
+					if thisUavTours is None:
+						print('No valid plan found')
+						break
 				# do transit
 				chargeTime = uavTourTime / uavChargeRate
 				ugvTransitTime = env.evaluate(
@@ -245,7 +257,17 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 				if onlinePlanner is not None:
 					if verbose:
 						print('Replanning')
-					pass
+					thisUavTours, thisUgvOrder, thisUgvPoints = onlinePlanner.solve(
+						thisUavTours, uavPoints,
+						thisUgvOrder, thisUgvPoints,
+						iTour, jTour, ugvIndex,
+						ugvPosition, uavPoints[thisUavTours[iTour][jTour]],
+						uavTourTime
+					)
+					thisReplanTimes.append(onlinePlanner.getSolveTime())
+					if thisUavTours is None:
+						print('No valid plan found')
+						break
 				collectPoint = thisUgvPoints[thisUgvOrder[ugvIndex+1]]
 
 				# normal part of UAV movement to next air point
@@ -305,13 +327,13 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 
 				# check for end of tour
 				if finishedTour:
-					iTour += 1
 					jTour = 0
 					ugvIndex += 1
 					thisTotalTime += uavTourTime
 					thisTourTimes.append(uavTourTime)
 					if verbose:
-						print(f'Successfully finished tour {iTour-1}')
+						print(f'Successfully finished tour {iTour}')
+					iTour += 1
 
 		# store results at end of plan
 		uavFinalTours.append(thisUavTours)
@@ -319,6 +341,7 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 		ugvFinalPoints.append(thisUgvPoints)
 		totalTimes.append(thisTotalTime)
 		tourTimes.append(thisTourTimes)
+		replanTimes.append(thisReplanTimes)
 
 	# write results
 	results = {
@@ -328,7 +351,8 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 		'UGV_FINAL_ORDERS': ugvFinalOrders,
 		'UGV_FINAL_POINTS': ugvFinalPoints,
 		'TOTAL_TIMES': totalTimes,
-		'TOUR_TIMES': tourTimes
+		'TOUR_TIMES': tourTimes,
+		'REPLAN_TIMES': replanTimes
 	}
 	return results
 
