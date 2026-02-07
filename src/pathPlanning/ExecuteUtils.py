@@ -173,6 +173,7 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 	tourTimes = [] # list of lists of tour times
 	totalTimes = [] # list of total plan execution times
 	replanTimes = [] # list of list of replan computation times
+	replanFailures = 0 # how many total replan failures were there
 
 	numRuns = executeParams['NUM_RUNS']
 	print('Running %d runs'%numRuns)
@@ -216,7 +217,7 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 				if onlinePlanner is not None:
 					if verbose:
 						print('Replanning')
-					thisUavTours, thisUgvOrder, thisUgvPoints = onlinePlanner.solve(
+					thisUavTours, thisUgvOrder, thisUgvPoints, successFlag = onlinePlanner.solve(
 						thisUavTours, uavPoints,
 						thisUgvOrder, thisUgvPoints,
 						iTour, jTour, ugvIndex,
@@ -224,6 +225,7 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 						0
 					)
 					thisReplanTimes.append(onlinePlanner.getSolveTime())
+					replanFailures += not successFlag
 					if thisUavTours is None:
 						print('No valid plan found')
 						break
@@ -257,7 +259,7 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 				if onlinePlanner is not None:
 					if verbose:
 						print('Replanning')
-					thisUavTours, thisUgvOrder, thisUgvPoints = onlinePlanner.solve(
+					thisUavTours, thisUgvOrder, thisUgvPoints, successFlag = onlinePlanner.solve(
 						thisUavTours, uavPoints,
 						thisUgvOrder, thisUgvPoints,
 						iTour, jTour, ugvIndex,
@@ -265,6 +267,7 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 						uavTourTime
 					)
 					thisReplanTimes.append(onlinePlanner.getSolveTime())
+					replanFailures += not successFlag
 					if thisUavTours is None:
 						print('No valid plan found')
 						break
@@ -352,7 +355,8 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 		'UGV_FINAL_POINTS': ugvFinalPoints,
 		'TOTAL_TIMES': totalTimes,
 		'TOUR_TIMES': tourTimes,
-		'REPLAN_TIMES': replanTimes
+		'REPLAN_TIMES': replanTimes,
+		'REPLAN_FAILURES': replanFailures
 	}
 	return results
 

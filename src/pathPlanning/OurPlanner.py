@@ -93,6 +93,10 @@ class OurPlanner(Planner):
         """Reorders the cost matrix"""
         self.costMatrix[agentType] = createSubmatrix(self.costMatrix[agentType], newOrder)
 
+    def project(self, point):
+        """Projects a 3d point to the 2d plane"""
+        return [*point[:2], 0]
+
     def baseCost(self, agentType = ''):
         """Sets a base cost for an agent"""
         raise NotImplementedError("OurPlanner subclass must implement baseCost(self, agentType))")
@@ -100,6 +104,15 @@ class OurPlanner(Planner):
     def constructCost(self, p1, p2, agentType = ''):
         """Constructs a cost for an agent traveling from index p1 to index p2"""
         raise NotImplementedError("OurPlanner subclass must implement constructCost(self, p1, p2, agentType))")
+
+    def constructTourCost(self, tour, agentType = ''):
+        """Constructs the total cost for an agent following a tour"""
+        if agentType == 'UAV':
+            return sum( [self.constructCost(tour[k+1], tour[k], agentType) for k in range(len(tour) - 1)], start=self.baseCost(agentType) )
+        elif agentType == 'UGV':
+            return self.constructCost(tour[0], tour[-1], agentType) + self.baseCost(agentType)
+        else:
+            raise IndexError('agentType %s not recognized'%agentType)
 
     def evaluateConstraintBoolean(self, cost, agentType = ''):
         """Returns whether a cost is feasible"""
@@ -127,10 +140,11 @@ class OurPlanner(Planner):
             endPoint = points[0]
 
         # check that start/end are 3d
-        if len(startPoint) == 2:
-            startPoint = [*startPoint, 0]
-        if len(endPoint) == 2:
-            endPoint = [*endPoint, 0]
+        startPoint = self.project(startPoint)
+        endPoint = self.project(endPoint)
+
+        self.timeInfo = {}
+        self.solution = {}
 
         try:
             totalStartTime = time.perf_counter()
@@ -145,7 +159,7 @@ class OurPlanner(Planner):
             # TODO memoize these matrices
             costStartTime = time.perf_counter()
             self.reorderCostMatrix(newOrdering, 'UAV')
-            self.createCostMatrix(uavPoints, 'UGV')
+            self.createCostMatrix([self.project(p) for p in uavPoints], 'UGV')
             costEndTime = time.perf_counter()
 
             # Break into UAV tours
@@ -178,7 +192,7 @@ class OurPlanner(Planner):
             # TODO this should really be parameterized on release/collect, but the way i'm constructing tourCollectCosts for the stochastic case avoids that complication by fixing release to what was chosen
             for iTour in range(len(tours)):
                 collectPoint = ugvResults['ugv_point_map'][ugvResults['ugv_path'][2 + 2*iTour]]
-                closestUavPointIndex = findClosestPoint(uavPoints, (*collectPoint[:2], 0))
+                closestUavPointIndex = findClosestPoint([self.project(p) for p in uavPoints], self.project(collectPoint))
                 for agentType, agentCost in tourCollectCosts[iTour][closestUavPointIndex].items():
                     tourCosts[agentType][iTour] = agentCost
                     tourConstraintValues[agentType][iTour] = self.evaluateConstraintFloat(agentCost, agentType)
@@ -222,7 +236,7 @@ class OurPlanner(Planner):
         """
 
         # Find the closest points to START_POINT and END_POINT
-        # TODO these should be cost matrix calls
+        # TODO these should be cost function calls
         startIndex = findClosestPoint(uavPoints, startPoint)
         endIndex = findClosestPoint(uavPoints, endPoint)
 
@@ -255,11 +269,11 @@ class OurPlanner(Planner):
         for iTour in range(len(tours)):
             # release
             releasePoint = ugvResults['ugv_point_map'][ugvResults['ugv_path'][1 + 2*iTour]]
-            closestUavReleaseIndex = findClosestPoint(uavPoints, (*releasePoint[:2], 0) )
+            closestUavReleaseIndex = findClosestPoint([self.project(p) for p in uavPoints], self.project(releasePoint) )
             tourReleaseIndex = tours[iTour].index(closestUavReleaseIndex)
             # collect
             collectPoint = ugvResults['ugv_point_map'][ugvResults['ugv_path'][2 + 2*iTour]]
-            closestUavCollectIndex = findClosestPoint(uavPoints, (*collectPoint[:2], 0) )
+            closestUavCollectIndex = findClosestPoint([self.project(p) for p in uavPoints], self.project(collectPoint) )
             tourCollectIndex = tours[iTour].index(closestUavCollectIndex)
             # reorder
             tours[iTour] = reorderList(tours[iTour], tourReleaseIndex, tourCollectIndex)
@@ -442,17 +456,15 @@ class OurPlannerDeterministic(OurPlanner):
         tourCollectCosts = []
         for _, tour in enumerate(tours):
             thisTourCollectCosts = {}
-            travelCost = sum( [self.constructCost(tour[k+1], tour[k], 'UAV') for k in range(len(tour) - 1)], Cost(*[0]*self.COST_DIM) )
+            baseUavCost = self.constructTourCost(tour, 'UAV')
 
             for collectIdx in tour:
                 if collectIdx == tour[-1]:
-                    totalCost = travelCost
+                    uavCost = baseUavCost
                 else:
-                    extraCost = self.constructCost(collectIdx, tour[-1], 'UAV')
-                    totalCost = travelCost + extraCost
+                    uavCost = baseUavCost + self.constructCost(tour[-1], collectIdx, 'UAV')
 
-                uavCost = totalCost + self.baseCost('UAV')
-                ugvCost = self.constructCost(tour[0], collectIdx, 'UGV')
+                ugvCost = self.constructTourCost(tour + [collectIdx], 'UGV')
                 costDict = {'UAV' : uavCost, 'UGV' : ugvCost}
 
                 if not self.evaluateConstraintsBoolean(costDict):
@@ -478,7 +490,7 @@ class OurPlannerDeterministic(OurPlanner):
         if self.env is None:
             startCost = euclidean(startPoint, points[tours[0][0]])
         else:
-            startCost = self.env.estimateMean(startPoint, points[tours[0][0]], 'UGV')
+            startCost = self.env.estimateMean(self.project(startPoint), self.project(points[tours[0][0]]), 'UGV')
         matrix[0, mappingToRelease[tours[0][0]]] = startCost
         matrix[mappingToRelease[tours[0][0]], 0] = startCost
 
@@ -514,7 +526,7 @@ class OurPlannerDeterministic(OurPlanner):
             if self.env is None:
                 endCost = euclidean(points[collectIdx], endPoint)
             else:
-                endCost = self.env.estimateMean(points[collectIdx], endPoint, 'UGV')
+                endCost = self.env.estimateMean(self.project(points[collectIdx]), self.project(endPoint), 'UGV')
             matrix[mappingToCollect[collectIdx], dim-2] = endCost
             matrix[dim-2, mappingToCollect[collectIdx]] = endCost
 
@@ -678,13 +690,11 @@ class OurPlannerStochastic(OurPlanner):
 
         logSuccessChances = np.apply_along_axis(
             lambda t:
-            self.evaluateConstraintFloat( sum(
-                [self.constructCost(t[i], t[i+1], 'UAV') for i in range(tours.shape[1] - 1) if t[i+1] >= 0],
-                start = self.baseCost('UAV')
-            ), 'UAV' ) + # UAV log success chance
             self.evaluateConstraintFloat(
-                self.constructCost(t[0], t[-1] if t[-1] >= 0 else t[-2], 'UGV') +
-                self.baseCost('UGV'),
+                self.constructTourCost(t if t[-1] >= 0 else t[:-1], 'UAV'), 'UAV'
+                ) + # UAV log success chance
+            self.evaluateConstraintFloat(
+                self.constructTourCost(t if t[-1] >= 0 else t[:-1], 'UGV'),
                 'UGV' ), # plus UGV log success chance
             1, tours # for each tour
         )
@@ -743,7 +753,7 @@ class OurPlannerStochastic(OurPlanner):
         }
         tourCollectCosts = [] # [ {collect point: {'agentType': collect cost, ...}, ...} for each tour ]
 
-        # starting point, ending point, dummy point
+        # starting point, ending point
         ugvResults['ugv_point_map'][0] = startPoint[:2]
         ugvResults['ugv_point_map'][-1]= endPoint[:2]
 
@@ -758,10 +768,8 @@ class OurPlannerStochastic(OurPlanner):
             reorderedTour = reorderList(tour, tour.index(release), tour.index(collect))
             tourCollectCosts.append({collect :
             {
-                'UAV': sum([
-                    self.constructCost(reorderedTour[i], reorderedTour[i+1], 'UAV') for i in range(len(reorderedTour)-1)
-                    ], start = self.baseCost('UAV')),
-                'UGV': self.constructCost(release, collect, 'UGV') + self.baseCost('UGV')
+                'UAV': self.constructTourCost(reorderedTour, 'UAV'),
+                'UGV': self.constructTourCost(reorderedTour, 'UGV')
             }
             })
 
@@ -820,15 +828,13 @@ class OurPlannerStochastic(OurPlanner):
 
                 # get existing UGV costs and probabilities
                 collectPoint = ugvResults['ugv_point_map'][ugvResults['ugv_path'][2 + 2*iTour]]
-                closestUavPointIndex = findClosestPoint(uavPoints, (*collectPoint[:2], 0))
+                closestUavPointIndex = findClosestPoint([self.project(p) for p in uavPoints], self.project(collectPoint))
                 for agentType, agentCost in tourCollectCosts[iTour][closestUavPointIndex].items():
                     currentUgvLogProbSuccess += self.evaluateConstraintFloat(agentCost, agentType)
 
                 if len(newTours[iTour]) > 0: # if this tour was refined
                     # evaluate new solution against old solution
-                    newUavCost = sum([
-                        self.constructCost(newTours[iTour][j], newTours[iTour][j+1], 'UAV') for j in range(len(newTours[iTour])-1)
-                    ], start = self.baseCost('UAV'))
+                    newUavCost = self.constructTourCost(newTours[iTour], 'UAV')
                     newUavCosts.append(newUavCost)
                     newUavLogSuccess = self.evaluateConstraintFloat(newUavCost, 'UAV')
                     newUavLogSuccesses.append(newUavLogSuccess)
