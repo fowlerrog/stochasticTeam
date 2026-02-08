@@ -159,14 +159,14 @@ if __name__ == '__main__':
 		stochGroupNoRefinePaired = [[dataVec[pair[1]] for pair in pairs] for dataVec in stochGroupNoRefine[:2]]
 
 		numPairs = len(pairs)
-		plannedTimeDiffs = [stochGroupRefinePaired[0][i] - stochGroupNoRefinePaired[0][i] for i in range(numPairs)]
+		plannedTimeDiffs = [stochGroupNoRefinePaired[0][i] - stochGroupRefinePaired[0][i] for i in range(numPairs)]
 		plannedPercentDiffs = [100 * plannedTimeDiffs[i] / stochGroupNoRefinePaired[0][i] for i in range(numPairs)]
 		print('Planned mission time stats:')
 		print(f'Mean unrefined  : {np.mean([stochGroupNoRefinePaired[0][i] for i in range(numPairs)]) : .2f}')
 		print(f'Mean refined    : {np.mean([stochGroupRefinePaired[0][i] for i in range(numPairs)]) : .2f}')
 		print(f'Mean diff       : {np.mean(plannedTimeDiffs) : .2f}    Range [{np.min(plannedTimeDiffs):.2f}, {np.max(plannedTimeDiffs):.2f}]')
 		print(f'Mean % decrease : {np.mean(plannedPercentDiffs) : .2f}    Range [{np.min(plannedPercentDiffs):.2f}, {np.max(plannedPercentDiffs):.2f}]')
-		realTimeDiffs = [stochGroupRefinePaired[1][i] - stochGroupNoRefinePaired[1][i] for i in range(numPairs)]
+		realTimeDiffs = [stochGroupNoRefinePaired[1][i] - stochGroupRefinePaired[1][i] for i in range(numPairs)]
 		realPercentDiffs = [100 * realTimeDiffs[i] / stochGroupNoRefinePaired[1][i] for i in range(numPairs)]
 		print('Real mission time stats:')
 		print(f'Mean unrefined  : {np.mean([stochGroupNoRefinePaired[1][i] for i in range(numPairs)]) : .2f}')
