@@ -46,7 +46,7 @@ def plotPath(points, filename=None, show=True):
 	if show:
 		plt.show()
 
-def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=True):
+def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=True, fig=None, ax=None):
 	"""Plot points, clustered into tours"""
 	tourColorGroups = [0] * len(uavPoints)
 	for cix, tour in enumerate(uavTours):
@@ -54,7 +54,8 @@ def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=Tru
 			tourColorGroups[p] = cix
 
 	tourColors = plt.cm.get_cmap('tab20', len(uavTours))
-	fig, ax = plt.subplots(figsize=(8, 6))
+	if fig==None or ax==None:
+		fig, ax = plt.subplots(figsize=(8, 6))
 	# print(f"Mapping to points: {mapping_to_points}")
 	uavPoints = np.array(uavPoints)[:, :2]
 
@@ -110,6 +111,8 @@ def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=Tru
 		plt.savefig(filename)
 	if show:
 		plt.show()
+
+	return fig, ax
 
 def plotOriginalTours(originalPoints, originalTours, startPoint=None, endPoint=None, filename=None, show=True):
 	colors = plt.cm.get_cmap('tab20', len(originalTours))

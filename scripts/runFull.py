@@ -4,7 +4,6 @@ import traceback
 import os
 
 # project imports
-sys.path.append('../src')
 from pathPlanning.Constants import executeSettingsFilename, planSettingsFilename
 from pathPlanning.ExecuteUtils import executePlanFromSettings
 from pathPlanning.PlannerUtils import runPlannerFromSettings

@@ -9,7 +9,6 @@ from multiprocessing import Pool
 # project imports
 from pathPlanning.Constants import planPathResultsFilename, planSettingsFilename, executeResultsFilename
 from pathPlanning.RunnerUtils import loadYamlContents, toDir, getVarFromString
-# from pathPlanning.PlotUtils import plotMissionTimes
 from pathPlanning.EnvUtils import envFromParams
 
 def harvestMissionTimeInfo(s):
@@ -50,34 +49,36 @@ def harvestMissionTimeInfo(s):
 				planPathResults['tour_costs']['UGV'][i][0]
 			)
 			# max of charging time or travel time to next tour
-			#	note that this will wait at the final end point for 100% charge
 			chargeTime = (planSettings['PLANNER']['UAV_BATTERY_TIME'] - uavTime) / planSettings['PLANNER']['CHARGE_RATE']
-			plannedTime += max(
-				chargeTime,
-				env.estimateMean(
-					planPathResults['ugv_point_map'][planPathResults['ugv_path'][2*i + 2]],
-					planPathResults['ugv_point_map'][planPathResults['ugv_path'][2*i + 3]],
-					'UGV'
-				)
+			ugvTransitTime = env.estimateMean(
+				planPathResults['ugv_point_map'][planPathResults['ugv_path'][2*i + 2]],
+				planPathResults['ugv_point_map'][planPathResults['ugv_path'][2*i + 3]],
+				'UGV'
 			)
+			if i < numTours - 1:
+				plannedTime += max(chargeTime, ugvTransitTime)
+			else: # end point, don't worry about charging
+				plannedTime += ugvTransitTime
 
 		# find all execution output files
 		executeResultsFileparts = os.path.splitext(executeResultsFilename)
-		fileList = [f for f in os.listdir(thisDir) if os.path.isfile(f) and
-			  os.path.splitext(f)[0:len(executeResultsFileparts[0])] == executeResultsFileparts[0] and
-			  os.path.splitext(f)[1] == executeResultsFileparts[1]]
+		fileList = [f for f in os.listdir(thisDir) if
+			os.path.isfile(os.path.join(thisDir, f)) and
+			os.path.splitext(f)[0][0:len(executeResultsFileparts[0])] == executeResultsFileparts[0] and
+			os.path.splitext(f)[1] == executeResultsFileparts[1]
+		]
 
 		# mean of successful path executions
 		execTimes = []
 		for f in fileList:
 			try:
 				execResults = loadYamlContents(os.path.join(thisDir, f), verbose=False)
-				execTime.append(np.mean( [
-					planSettings['PLANNER']['UAV_BATTERY_TIME'] * len(execResults['TOUR_ATTEMPTS']) -
-					sum(execResults['REMAINING_FLIGHT_TIMES'][i]) +
-					sum(execResults['UGV_TRANSIT_TIMES'][i])
-					for i in range(execResults['NUM_RUNS'])
-					if execResults['REMAINING_FLIGHT_TIMES'][i][-1] > 0
+				execTimes.append(np.mean( [
+					planSettings['PLANNER']['UAV_BATTERY_TIME'] * len(execResults['TOUR_ATTEMPTS']) - # total available battery time
+					sum(execResults['REMAINING_FLIGHT_TIMES'][i]) + # minus remaining battery time
+					sum(execResults['UGV_TRANSIT_TIMES'][i]) # plus intertour time
+					for i in range(execResults['NUM_RUNS']) # for each run
+					if execResults['REMAINING_FLIGHT_TIMES'][i][-1] > 0 # if successful run
 				] ) )
 			except Exception:
 				print('Failure to load', os.path.join(thisDir, f), 'in', thisDir)
@@ -87,7 +88,7 @@ def harvestMissionTimeInfo(s):
 		endFolderName = os.path.split(thisDir)[1]
 
 	except Exception:
-		print('Failure during plotting of', s)
+		print('Failure during evaluation of', s)
 		print(traceback.format_exc())
 
 	return [plannedTime, execTime, endFolderName]
@@ -151,16 +152,35 @@ if __name__ == '__main__':
 	stochGroupNoRefineTrimmed = [removeVariableFromFolderName(f, varName) for f in stochGroupNoRefine[2]]
 	pairs = [[i,j] for i in range(len(stochGroupRefineTrimmed)) for j in range(len(stochGroupNoRefineTrimmed)) if stochGroupRefineTrimmed[i] == stochGroupNoRefineTrimmed[j]]
 
-	stochGroupRefinePaired = [[dataVec[pair[0]] for pair in pairs] for dataVec in stochGroupRefine[:2]]
-	stochGroupNoRefinePaired = [[dataVec[pair[1]] for pair in pairs] for dataVec in stochGroupNoRefine[:2]]
+	if len(pairs) == 0:
+		print('No refined/unrefined pairs found')
+	else:
+		stochGroupRefinePaired = [[dataVec[pair[0]] for pair in pairs] for dataVec in stochGroupRefine[:2]]
+		stochGroupNoRefinePaired = [[dataVec[pair[1]] for pair in pairs] for dataVec in stochGroupNoRefine[:2]]
 
-	fig, ax = plt.subplots()
-	ax.plot([stochGroupRefinePaired[0], stochGroupNoRefinePaired[0]], [stochGroupRefinePaired[1], stochGroupNoRefinePaired[1]], '-k')
-	ax.plot(stochGroupNoRefinePaired[0], stochGroupNoRefinePaired[1], 'vr', label='Unrefined')
-	ax.plot(stochGroupRefinePaired[0], stochGroupRefinePaired[1], '^g', label='Refined')
-	plt.grid(True)
-	plt.xlabel('Planned Mission Time')
-	plt.ylabel('Mean Successful Mission Time')
-	plt.legend()
+		numPairs = len(pairs)
+		plannedTimeDiffs = [stochGroupRefinePaired[0][i] - stochGroupNoRefinePaired[0][i] for i in range(numPairs)]
+		plannedPercentDiffs = [100 * plannedTimeDiffs[i] / stochGroupNoRefinePaired[0][i] for i in range(numPairs)]
+		print('Planned mission time stats:')
+		print(f'Mean unrefined  : {np.mean([stochGroupNoRefinePaired[0][i] for i in range(numPairs)]) : .2f}')
+		print(f'Mean refined    : {np.mean([stochGroupRefinePaired[0][i] for i in range(numPairs)]) : .2f}')
+		print(f'Mean diff       : {np.mean(plannedTimeDiffs) : .2f}    Range [{np.min(plannedTimeDiffs):.2f}, {np.max(plannedTimeDiffs):.2f}]')
+		print(f'Mean % decrease : {np.mean(plannedPercentDiffs) : .2f}    Range [{np.min(plannedPercentDiffs):.2f}, {np.max(plannedPercentDiffs):.2f}]')
+		realTimeDiffs = [stochGroupRefinePaired[1][i] - stochGroupNoRefinePaired[1][i] for i in range(numPairs)]
+		realPercentDiffs = [100 * realTimeDiffs[i] / stochGroupNoRefinePaired[1][i] for i in range(numPairs)]
+		print('Real mission time stats:')
+		print(f'Mean unrefined  : {np.mean([stochGroupNoRefinePaired[1][i] for i in range(numPairs)]) : .2f}')
+		print(f'Mean refined    : {np.mean([stochGroupRefinePaired[1][i] for i in range(numPairs)]) : .2f}')
+		print(f'Mean diff       : {np.mean(realTimeDiffs) : .2f}    Range [{np.min(realTimeDiffs):.2f}, {np.max(realTimeDiffs):.2f}]')
+		print(f'Mean % decrease : {np.mean(realPercentDiffs) : .2f}    Range [{np.min(realPercentDiffs):.2f}, {np.max(realPercentDiffs):.2f}]')
+
+		fig, ax = plt.subplots()
+		ax.plot([stochGroupRefinePaired[0], stochGroupNoRefinePaired[0]], [stochGroupRefinePaired[1], stochGroupNoRefinePaired[1]], '-k')
+		ax.plot(stochGroupNoRefinePaired[0], stochGroupNoRefinePaired[1], 'vr', label='Unrefined')
+		ax.plot(stochGroupRefinePaired[0], stochGroupRefinePaired[1], '^g', label='Refined')
+		plt.grid(True)
+		plt.xlabel('Planned Mission Time')
+		plt.ylabel('Mean Successful Mission Time')
+		plt.legend()
 
 	plt.show()

@@ -86,7 +86,7 @@ class OurOnlinePlanner(OurPlannerStochastic):
 		replanPoints = [uavPoints[i] for i in replanIndices]
 
 		# define start and end points (which are not required to be in replanPoints)
-		# choosing the next uav point as start forces that point to be first in the TSP, instead of choosing uav position which can force a situation for choosing tours
+		# choosing the next uav point as start forces that point to be first in the TSP, instead of choosing uav position which can force a bad situation for choosing tours
 		if together:
 			startPoint = uavPoints[uavTours[iTour][jTour]]
 		else:
@@ -209,8 +209,8 @@ class OurOnlinePlanner(OurPlannerStochastic):
 		baseTour = list(range(tourStartIndex, tourEndIndex))
 		possibleTours = [
 			baseTour[:i] + baseTour[i+1:] + [baseTour[i]]
-			for i in range(len(baseTour))
-		]
+			for i in range(1, len(baseTour))
+		] # we do not allow the immediate point to be moved to the end of the tour because this causes a duplication issue e.g tour = [A B A] -> [B A B] - > [A B A] under repeated replanning
 
 		logSuccessChances = [
 			self.evaluateConstraintFloat(

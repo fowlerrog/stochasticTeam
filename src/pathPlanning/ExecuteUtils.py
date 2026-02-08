@@ -151,10 +151,10 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 		onlinePlanner = plannerFromParams(onlineParams)
 
 	# parse path
-	uavPoints = resultsDict['uav_points']
+	uavPoints = resultsDict['uav_points'] # 3d
 	uavTours = resultsDict['uav_tours']
 	ugvOrder = resultsDict['ugv_path']
-	ugvPoints = [[*v, 0] for v in resultsDict['ugv_point_map']] # 2d -> 3d
+	ugvPoints = resultsDict['ugv_point_map'] # 2d
 
 	# TODO perhaps this should be in its own agent definition file, or the environment?
 	uavMaxTime = planParams['PLANNER']['UAV_BATTERY_TIME']
@@ -197,146 +197,19 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 
 		# note that every instance of this loop occurs just after we are AT ugvIndex, iTour, jTour
 		#	and that we cannot change the plan for those points because they have occurred
-		while ugvIndex < len(thisUgvOrder):
-			# ended final tour
-			if ugvIndex == len(thisUgvOrder) - 2:
-				# do transit without charging
-				ugvTransitTime = env.evaluate(
-					thisUgvPoints[thisUgvOrder[ugvIndex]],
-					thisUgvPoints[thisUgvOrder[ugvIndex+1]],
-					'UGV'
-				)
-				thisTotalTime += ugvTransitTime
-				if verbose:
-					print(f'Transiting to end : {thisUgvPoints[thisUgvOrder[ugvIndex]]} -> {thisUgvPoints[thisUgvOrder[ugvIndex+1]]} = {ugvTransitTime:.2f}')
-				break
-
-			# we are between tours, just after collect (or before first tour)
-			elif ugvIndex % 2 == 0:
-				# replan, agents together
-				if onlinePlanner is not None:
-					if verbose:
-						print('Replanning')
-					thisUavTours, thisUgvOrder, thisUgvPoints, successFlag = onlinePlanner.solve(
-						thisUavTours, uavPoints,
-						thisUgvOrder, thisUgvPoints,
-						iTour, jTour, ugvIndex,
-						thisUgvPoints[thisUgvOrder[ugvIndex]], thisUgvPoints[thisUgvOrder[ugvIndex]],
-						0
-					)
-					thisReplanTimes.append(onlinePlanner.getSolveTime())
-					replanFailures += not successFlag
-					if thisUavTours is None:
-						print('No valid plan found')
-						break
-				# do transit
-				chargeTime = uavTourTime / uavChargeRate
-				ugvTransitTime = env.evaluate(
-					thisUgvPoints[thisUgvOrder[ugvIndex]],
-					thisUgvPoints[thisUgvOrder[ugvIndex+1]],
-					'UGV'
-				)
-				if verbose:
-					print(f'Transiting to tour {ugvIndex // 2} : {thisUgvPoints[thisUgvOrder[ugvIndex]]} -> {thisUgvPoints[thisUgvOrder[ugvIndex+1]]} = {ugvTransitTime:.2f} w/ charge = {chargeTime:.2f}')
-				thisTotalTime += max(chargeTime, ugvTransitTime)
-				ugvIndex += 1
-				ugvPosition = thisUgvPoints[thisUgvOrder[ugvIndex]]
-
-			# we are in a tour
-			else:
-				deltaT = 0 # time change during this loop instance
-				# we are starting a tour
-				if jTour == 0:
-					tourAttempts += 1
-					# take off
-					uavTourTime = 0
-					takeoffTime = env.evaluate(ugvPosition, uavPoints[thisUavTours[iTour][jTour]], 'UAV')
-					deltaT += takeoffTime
-					if verbose:
-						print(f'Starting tour {iTour} : {ugvPosition} -> {uavPoints[thisUavTours[iTour][jTour]]} = {takeoffTime:.2f}')
-
-				# replan, agents apart
-				if onlinePlanner is not None:
-					if verbose:
-						print('Replanning')
-					thisUavTours, thisUgvOrder, thisUgvPoints, successFlag = onlinePlanner.solve(
-						thisUavTours, uavPoints,
-						thisUgvOrder, thisUgvPoints,
-						iTour, jTour, ugvIndex,
-						ugvPosition, uavPoints[thisUavTours[iTour][jTour]],
-						uavTourTime
-					)
-					thisReplanTimes.append(onlinePlanner.getSolveTime())
-					replanFailures += not successFlag
-					if thisUavTours is None:
-						print('No valid plan found')
-						break
-				collectPoint = thisUgvPoints[thisUgvOrder[ugvIndex+1]]
-
-				# normal part of UAV movement to next air point
-				airTime = env.evaluate(uavPoints[thisUavTours[iTour][jTour]], uavPoints[thisUavTours[iTour][jTour+1]], 'UAV')
-				deltaT += airTime
-				if verbose:
-					print(f'Taking tour {iTour} step {jTour} : {uavPoints[thisUavTours[iTour][jTour]]} -> {uavPoints[thisUavTours[iTour][jTour+1]]} = {airTime:.2f}')
-
-				# we are ending a tour
-				finishedTour = False
-				if jTour == len(thisUavTours[iTour]) - 2:
-					finishedTour = True
-					# land
-					landingTime = env.evaluate(uavPoints[thisUavTours[iTour][jTour+1]], collectPoint, 'UAV')
-					if verbose:
-						print(f'Ending tour {iTour} : {uavPoints[thisUavTours[iTour][jTour+1]]} -> {collectPoint} = {landingTime:.2f}')
-					deltaT += landingTime
-
-				# update uav time
-				uavTourTime += deltaT
-
-				# UGV has not arrived yet
-				if ugvPosition != collectPoint:
-					# update UGV position
-					#	we know deltaT has elapsed, and we can evaluate UGV travel time
-					actualUgvTime = env.evaluate(ugvPosition, collectPoint, 'UGV')
-					ugvOldPosition = ugvPosition
-					if actualUgvTime <= deltaT:
-						ugvPosition = collectPoint
-					else:
-						ugvPosition = [ugvPosition[i] + (collectPoint[i] - ugvPosition[i]) * deltaT / actualUgvTime for i in range(3)]
-					if verbose:
-						print(f'UGV movement : [' + ', '.join([f'{p:.2f}' for p in ugvOldPosition]) + f'] -> [' + ', '.join([f'{p:.2f}' for p in ugvPosition]) + f']')
-				elif verbose:
-					print('UGV already arrived')
-
-				# UGV must still move to finish the tour
-				if finishedTour and ugvPosition != collectPoint:
-					ugvFinishTime = env.evaluate(ugvPosition, collectPoint, 'UGV')
-					if verbose:
-						print(f'UGV additional time : [' + ', '.join([f'{p:.2f}' for p in ugvPosition]) + f'] -> {collectPoint} = {ugvFinishTime:.2f}')
-					ugvPosition = collectPoint
-					uavTourTime += ugvFinishTime
-					if verbose:
-						print(f'Final tour time : {uavTourTime:.2f}')
-
-				# check for failure
-				if uavTourTime >= uavMaxTime:
-					timeoutFailures += 1
-					thisTotalTime += uavTourTime
-					thisTourTimes.append(uavTourTime)
-					if verbose:
-						print(f'FAILURE')
-					break
-
-				jTour += 1
-
-				# check for end of tour
-				if finishedTour:
-					jTour = 0
-					ugvIndex += 1
-					thisTotalTime += uavTourTime
-					thisTourTimes.append(uavTourTime)
-					if verbose:
-						print(f'Successfully finished tour {iTour}')
-					iTour += 1
+		while ugvIndex < len(thisUgvOrder) - 1:
+			thisUavTours, thisUgvOrder, thisUgvPoints, \
+			ugvIndex, ugvPosition, iTour, jTour, uavTourTime, \
+			thisTourTimes, thisTotalTime, thisReplanTimes, \
+			timeoutFailures, replanFailures, tourAttempts = \
+			stepOnlineExecution(onlinePlanner, env, uavPoints,
+				thisUavTours, thisUgvOrder, thisUgvPoints,
+				ugvIndex, ugvPosition, iTour, jTour, uavTourTime,
+				thisTourTimes, thisTotalTime, thisReplanTimes,
+				timeoutFailures, replanFailures, tourAttempts,
+				uavChargeRate, uavMaxTime,
+				verbose=verbose
+			)
 
 		# store results at end of plan
 		uavFinalTours.append(thisUavTours)
@@ -359,6 +232,165 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 		'REPLAN_FAILURES': replanFailures
 	}
 	return results
+
+def stepOnlineExecution(onlinePlanner, env, uavPoints,
+				thisUavTours, thisUgvOrder, thisUgvPoints,
+				ugvIndex, ugvPosition, iTour, jTour, uavTourTime,
+				thisTourTimes, thisTotalTime, thisReplanTimes,
+				timeoutFailures, replanFailures, tourAttempts,
+				uavChargeRate, uavMaxTime,
+				verbose=False):
+	"""Executes one UAV point in an online-replanning scenario"""
+	while True: # this is a hack so I can break
+		# ended final tour
+		if ugvIndex == len(thisUgvOrder) - 2:
+			# do transit without charging
+			ugvTransitTime = env.evaluate(
+				thisUgvPoints[thisUgvOrder[ugvIndex]],
+				thisUgvPoints[thisUgvOrder[ugvIndex+1]],
+				'UGV'
+			)
+			thisTotalTime += ugvTransitTime
+			if verbose:
+				print(f'Transiting to end : {thisUgvPoints[thisUgvOrder[ugvIndex]]} -> {thisUgvPoints[thisUgvOrder[ugvIndex+1]]} = {ugvTransitTime:.2f}')
+			ugvIndex += 1
+			break
+
+		# we are between tours, just after collect (or before first tour)
+		elif ugvIndex % 2 == 0:
+			# replan, agents together
+			if onlinePlanner is not None:
+				uavPos = onlinePlanner.project(thisUgvPoints[thisUgvOrder[ugvIndex]])
+				ugvPos = thisUgvPoints[thisUgvOrder[ugvIndex]]
+				if verbose:
+					print(f'Replanning at UAV {iTour} {jTour} = {uavPos}\tUGV {ugvIndex} = [' + ', '.join(f'{u}' for u in ugvPos) + ']')
+				thisUavTours, thisUgvOrder, thisUgvPoints, successFlag = onlinePlanner.solve(
+					thisUavTours, uavPoints,
+					thisUgvOrder, thisUgvPoints,
+					iTour, jTour, ugvIndex,
+					uavPos, ugvPos,
+					0
+				)
+				thisReplanTimes.append(onlinePlanner.getSolveTime())
+				replanFailures += not successFlag
+				if thisUavTours is None:
+					print('No valid plan found')
+					break
+			# do transit
+			chargeTime = uavTourTime / uavChargeRate
+			ugvTransitTime = env.evaluate(
+				thisUgvPoints[thisUgvOrder[ugvIndex]],
+				thisUgvPoints[thisUgvOrder[ugvIndex+1]],
+				'UGV'
+			)
+			if verbose:
+				print(f'Transiting to tour {ugvIndex // 2} : {thisUgvPoints[thisUgvOrder[ugvIndex]]} -> {thisUgvPoints[thisUgvOrder[ugvIndex+1]]} = {ugvTransitTime:.2f} w/ charge = {chargeTime:.2f}')
+			thisTotalTime += max(chargeTime, ugvTransitTime)
+			ugvIndex += 1
+			ugvPosition = thisUgvPoints[thisUgvOrder[ugvIndex]]
+
+		# we are in a tour
+		else:
+			deltaT = 0 # time change during this loop instance
+			# we are starting a tour
+			if jTour == 0:
+				tourAttempts += 1
+				# take off
+				uavTourTime = 0
+				takeoffTime = env.evaluate(onlinePlanner.project(ugvPosition), uavPoints[thisUavTours[iTour][jTour]], 'UAV')
+				deltaT += takeoffTime
+				if verbose:
+					print(f'Starting tour {iTour} : {ugvPosition} -> {uavPoints[thisUavTours[iTour][jTour]]} = {takeoffTime:.2f}')
+
+			# replan, agents apart
+			if onlinePlanner is not None:
+				uavPos = uavPoints[thisUavTours[iTour][jTour]]
+				if verbose:
+					print(f'Replanning at UAV {iTour} {jTour} = {uavPos}\tUGV {ugvIndex} = [' + ', '.join(f'{u}' for u in ugvPosition) + f']\tt = {uavTourTime:2f}')
+				thisUavTours, thisUgvOrder, thisUgvPoints, successFlag = onlinePlanner.solve(
+					thisUavTours, uavPoints,
+					thisUgvOrder, thisUgvPoints,
+					iTour, jTour, ugvIndex,
+					uavPos, ugvPosition,
+					uavTourTime
+				)
+				thisReplanTimes.append(onlinePlanner.getSolveTime())
+				replanFailures += not successFlag
+				if thisUavTours is None:
+					print('No valid plan found')
+			collectPoint = thisUgvPoints[thisUgvOrder[ugvIndex+1]]
+
+			# normal part of UAV movement to next air point
+			airTime = env.evaluate(uavPoints[thisUavTours[iTour][jTour]], uavPoints[thisUavTours[iTour][jTour+1]], 'UAV')
+			deltaT += airTime
+			if verbose:
+				print(f'Taking tour {iTour} step {jTour} : {uavPoints[thisUavTours[iTour][jTour]]} -> {uavPoints[thisUavTours[iTour][jTour+1]]} = {airTime:.2f}')
+
+			# we are ending a tour
+			finishedTour = False
+			if jTour == len(thisUavTours[iTour]) - 2:
+				finishedTour = True
+				# land
+				landingTime = env.evaluate(uavPoints[thisUavTours[iTour][jTour+1]], onlinePlanner.project(collectPoint), 'UAV')
+				if verbose:
+					print(f'Ending tour {iTour} : {uavPoints[thisUavTours[iTour][jTour+1]]} -> {collectPoint} = {landingTime:.2f}')
+				deltaT += landingTime
+
+			# update uav time
+			uavTourTime += deltaT
+
+			# UGV has not arrived yet
+			if ugvPosition != collectPoint:
+				# update UGV position
+				#	we know deltaT has elapsed, and we can evaluate UGV travel time
+				actualUgvTime = env.evaluate(ugvPosition, collectPoint, 'UGV')
+				ugvOldPosition = ugvPosition
+				if actualUgvTime <= deltaT:
+					ugvPosition = collectPoint
+				else:
+					ugvPosition = [ugvPosition[i] + (collectPoint[i] - ugvPosition[i]) * deltaT / actualUgvTime for i in range(2)]
+				if verbose:
+					print(f'UGV movement : [' + ', '.join([f'{p:.2f}' for p in ugvOldPosition]) + f'] -> [' + ', '.join([f'{p:.2f}' for p in ugvPosition]) + f']')
+			elif verbose:
+				print('UGV already arrived')
+
+			# UGV must still move to finish the tour
+			if finishedTour and ugvPosition != collectPoint:
+				ugvFinishTime = env.evaluate(ugvPosition, collectPoint, 'UGV')
+				if verbose:
+					print(f'UGV additional time : [' + ', '.join([f'{p:.2f}' for p in ugvPosition]) + f'] -> {collectPoint} = {ugvFinishTime:.2f}')
+				ugvPosition = collectPoint
+				uavTourTime += ugvFinishTime
+				if verbose:
+					print(f'Final tour time : {uavTourTime:.2f}')
+
+			# check for failure
+			if uavTourTime >= uavMaxTime:
+				timeoutFailures += 1
+				thisTotalTime += uavTourTime
+				thisTourTimes.append(uavTourTime)
+				if verbose:
+					print(f'FAILURE')
+				break
+
+			jTour += 1
+
+			# check for end of tour
+			if finishedTour:
+				jTour = 0
+				ugvIndex += 1
+				thisTotalTime += uavTourTime
+				thisTourTimes.append(uavTourTime)
+				if verbose:
+					print(f'Successfully finished tour {iTour}')
+				iTour += 1
+		
+		break # only do loop once
+	
+	return thisUavTours, thisUgvOrder, thisUgvPoints, \
+	ugvIndex, ugvPosition, iTour, jTour, uavTourTime, \
+	thisTourTimes, thisTotalTime, thisReplanTimes, \
+	timeoutFailures, replanFailures, tourAttempts
 
 def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPath):
 	"""
@@ -402,6 +434,7 @@ def calculatePlannedMission(planSettingsData, planResultsData, verbose=False):
 	Reads a dict loaded from a plan_settings.yaml
 	and a dict loaded from a plan_path_results.yaml
 	and estimates plan execution time and log prob success
+	Note that a planSettingsData with unspecified independent variables will break this
 	"""
 
 	# construct planner
@@ -414,7 +447,6 @@ def calculatePlannedMission(planSettingsData, planResultsData, verbose=False):
 	ugvPoints = [[*v, 0] for v in planResultsData['ugv_point_map']] # 2d -> 3d
 
 	uavChargeRate = planSettingsData['PLANNER']['CHARGE_RATE']
-	uavBatteryTime = planSettingsData['PLANNER']['UAV_BATTERY_TIME']
 
 	# sum over tours
 	totalMeanTime = 0

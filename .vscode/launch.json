@@ -43,6 +43,14 @@
 			"program": "${workspaceFolder}/scripts/executePlan.py",
 			"console": "integratedTerminal",
 			"args": "runs/test/execute_settings.yaml runs/test/plan_settings.yaml ${command:pickArgs}"
+		},
+		{
+			"name": "Run scripts/plotMissionTimes.py user/choice/folder/plan_path_results.yaml",
+			"type": "debugpy",
+			"request": "launch",
+			"program": "${workspaceFolder}/scripts/plotMissionTimes.py",
+			"console": "integratedTerminal",
+			"args": "${command:pickArgs}"
 		}
 	]
 }

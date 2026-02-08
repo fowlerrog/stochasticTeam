@@ -96,7 +96,7 @@ class TestOurOnlinePlanner:
 					]
 					ugvPosition = [*ugvPosition, 0]
 
-			# Calculate replan			
+			# Calculate replan
 			newUavTours, newUgvOrder, newUgvPoints, successFlag = onlinePlanner.solve(
 				originalUavTours, originalUavPoints, originalUgvOrder, originalUgvPoints,
 				iTour, jTour, ugvIndex, uavPosition, ugvPosition, uavFlightTime

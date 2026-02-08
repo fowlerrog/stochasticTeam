@@ -238,7 +238,9 @@ class OurPlanner(Planner):
         # Find the closest points to START_POINT and END_POINT
         # TODO these should be cost function calls
         startIndex = findClosestPoint(uavPoints, startPoint)
-        endIndex = findClosestPoint(uavPoints, endPoint)
+        endIndex = findClosestPoint(uavPoints[:startIndex] + uavPoints[startIndex+1:], endPoint) # disallow repeats
+        if endIndex >= startIndex:
+            endIndex += 1 # fix indexing
 
         # Reorder so the closest points to start and end are at the beginning and end
         reorderedPointOrder = reorderList(list(range(len(uavPoints))), startIndex, endIndex)
