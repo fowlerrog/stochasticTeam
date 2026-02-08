@@ -11,9 +11,9 @@ For gazebo simulator:
 
 ROS2 : https://docs.ros.org/en/jazzy/index.html
 
-Turtlebot 4 : https://github.com/turtlebot/turtlebot4_simulator
+Jackal : https://clearpathrobotics.com/assets/guides/foxy/jackal/index.html
 
-MRS UAV System : https://github.com/ctu-mrs/mrs_uav_system/tree/ros2
+SJTU Drone Simulator : https://github.com/NovoG93/sjtu_drone
 
 # Structure:
 
@@ -27,7 +27,6 @@ MRS UAV System : https://github.com/ctu-mrs/mrs_uav_system/tree/ros2
 
 - *_settings.yaml files are lists of inputs.
 	- INDEPENDENT_VARIABLES define which variables will be varied across runs
-	- settings grouped together in this list will be correlated when generating runs 
 - plan_time_results.yaml files are output timing information for benchmarking
 - results_* folders are single-run path solutions
 
