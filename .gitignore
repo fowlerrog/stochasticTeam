@@ -24,3 +24,7 @@ testCases/**/GTSP_output.txt
 testCases/**/*.png
 testCases/**/*_results.yaml
 testCases/**/results*
+
+# gazebo sim artifacts
+gazebo/ros_ws
+gazebo/rosflight_memory

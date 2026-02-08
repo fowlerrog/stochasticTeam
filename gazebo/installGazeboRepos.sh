@@ -6,8 +6,11 @@ if ! [[ $input =~ ^[yY]$ ]] ; then
 fi
 
 # save this script's path
-SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
+SCRIPT=$(realpath "${BASH_SOURCE[0]}")
+SCRIPT_DIR=$(dirname "$SCRIPT")
 echo "    This script is at $SCRIPT_DIR"
+
+ROS_WS_FOLDER="ros_ws"
 
 # check that wget and colcon are installed
 echo "### Installing wget and colcon ###"
@@ -17,31 +20,35 @@ sudo apt-get install wget colcon -y
 # get gazebo
 echo "### Installing gazebo ###"
 sudo apt-get update
-sudo apt-get install gz-harmonic ros-jazzy-gazebo-ros-pkgs -y
+sudo apt-get install gz-harmonic ros-jazzy-ros-gz -y
 
-# get jackal sim
-echo "### Installing Jackal sim ###"
-wget https://packages.clearpathrobotics.com/public.key -O - | sudo apt-key add -
-sudo sh -c 'echo "deb https://packages.clearpathrobotics.com/stable/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/clearpath-latest.list'
+# get turtlebot sim
+echo "### Installing turtlebot4 ###"
+sudo sh -c 'echo "deb http://packages.osrfoundation.org/gazebo/ubuntu-stable `lsb_release -cs` main" > /etc/apt/sources.list.d/gazebo-stable.list'
+wget http://packages.osrfoundation.org/gazebo.key -O - | sudo apt-key add -
 sudo apt-get update
-sudo apt-get install ros-foxy-jackal-desktop ros-foxy-jackal-simulator -y
-
-# Source - https://stackoverflow.com/a/22592801
-if [ $(dpkg-query -W -f='${Status}' ros-foxy-jackal-desktop 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
-	echo "### Failed to install prebuilt deb package (may not be available for your OS version) ###"
-	echo "### Installing from source ###"
-	mkdir -p $SCRIPT_DIR/jackal_ws/src
-	cd $SCRIPT_DIR/jackal_ws/src
-	git clone -b foxy-devel https://github.com/jackal/jackal.git
-	git clone -b foxy-devel https://github.com/jackal/jackal_desktop.git
-	git clone -b foxy-devel https://github.com/jackal/jackal_simulator.git
-	cd ..
-	source /opt/ros/jazzy/setup.bash
-	rosdep install --from-paths src --ignore-src --rosdistro=$ROS_DISTRO
-	colcon build
-	source install/setup.bash
-fi
-
+sudo apt-get install ros-jazzy-turtlebot4-simulator
 
 # get drone sim
-echo "### Cloning and building SJTU Drone simulator ###"
+echo "### Cloning rosflight ###"
+mkdir -p $SCRIPT_DIR/$ROS_WS_FOLDER/src
+cd $SCRIPT_DIR/$ROS_WS_FOLDER/src
+git clone https://github.com/rosflight/rosflight_ros_pkgs --recursive
+git clone https://github.com/rosflight/roscopter
+
+# install sim dependencies
+echo "### Installing rosflight dependencies with rosdep ###"
+source /opt/ros/jazzy/setup.bash
+#source $SCRIPT_DIR/setup.bash
+cd $SCRIPT_DIR/$ROS_WS_FOLDER
+sudo rosdep init
+rosdep update
+rosdep install --from-path . -y --ignore-src
+
+# build sim
+echo "### Building rosflight sim with colcon ###"
+cd $SCRIPT_DIR/$ROS_WS_FOLDER
+# export PYTHON_EXECUTABLE=$SCRIPT_DIR/../.venv/bin/python3
+# echo "PYTHON_EXECUTABLE: $PYTHON_EXECUTABLE"
+# echo "CMAKE_PREFIX_PATH: $CMAKE_PREFIX_PATH"
+colcon build

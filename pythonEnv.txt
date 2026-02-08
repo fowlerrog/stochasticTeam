@@ -1,4 +1,7 @@
+catkin-pkg>=1.1.0
+empy>=4.0
 julia>=0.6.2
+lxml==6.0.2
 matplotlib>=3.7
 numpy>=1.9
 -e git+https://github.com/fowlerrog/stochasticTeam.git@4b5247cb4b2f24ec3980d5a9e548c1a924aeab77#egg=pathPlanning

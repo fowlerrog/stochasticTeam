@@ -11,9 +11,9 @@ For gazebo simulator:
 
 ROS2 : https://docs.ros.org/en/jazzy/index.html
 
-Jackal : https://clearpathrobotics.com/assets/guides/foxy/jackal/index.html
+Turtlebot 4 : https://github.com/turtlebot/turtlebot4_simulator
 
-SJTU Drone Simulator : https://github.com/NovoG93/sjtu_drone
+Rosflight / Roscopter : https://github.com/rosflight/roscopter
 
 # Structure:
 
@@ -76,7 +76,7 @@ To exit the venv:
 
 # Gazebo/ROS2 Installation:
 
-Make sure you are inside the Python VM when using the Gazebo simulator, and also when installing the Gazebo simulator/ROS2. This is to avoid any missing python packages inside the virtual environment.
+Make sure you are inside the Python VM when using the Gazebo simulator. When installing the Gazebo simulator/ROS2, colcon does not seem to find packages or Python3 properly, so try building outside of the VM and running inside the VM.
 
 The Gazebo simulation relies on external Gazebo model repositories, and on Gazebo and ROS2 itself. Install these packages for the first time:
 
@@ -84,20 +84,12 @@ The Gazebo simulation relies on external Gazebo model repositories, and on Gazeb
 
 `./installRos2Jazzy.sh`
 
-Before installing the gazebo models, set up your environment by sourcing the setup file:
-
-(You also have to source this file at the start of each session to use ROS2)
-
-`source /opt/ros/jazzy/setup.bash`
+`./installGazeboHarmonic.sh`
 
 The install the gazebo models:
 
 `./installGazeboRepos.sh`
 
-And source again to get the new packages:
-
-`source /opt/ros/jazzy/setup.bash`
-
-The convenience script setup.sh is provided for your convenience, which puts you in the Python VM and sources ROS2.
+The script setup.sh is provided for your convenience, which puts you in the Python VM and sources ROS2.
 
 `source setup.sh`

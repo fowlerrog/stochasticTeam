@@ -11,4 +11,4 @@ echo "Sourcing ROS2"
 source /opt/ros/jazzy/setup.bash
 
 echo "Sourcing ros_ws"
-source $SCRIPT_DIR/jackal_ws/install/setup.bash
+source $SCRIPT_DIR/ros_ws/install/setup.bash
