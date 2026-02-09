@@ -118,6 +118,24 @@ def getVarFromString(folderName, varName):
 	stringMatch = re.search(regexString, folderName)
 	return stringMatch.groups(1)[0]
 
+def fillIndependentVariablesFromString(dataDict, folderName):
+	"""
+	Fills a dict containing 'INDEPENDENT_VARIABLES'
+	by pulling those values out of a string folder name
+	"""
+	if 'INDEPENDENT_VARIABLES' not in dataDict or len(dataDict['INDEPENDENT_VARIABLES']) == 0:
+		return dataDict
+
+	outDict = deepcopy(dataDict)
+	for indVar in dataDict['INDEPENDENT_VARIABLES']:
+		indVarList = indVar.split('.')
+		choices = dictGetRecursive(outDict, indVarList)
+		chosen = getVarFromString(folderName, indVar)
+		correctInds = [i for i in range(len(choices)) if str(choices[i]) == chosen]
+		assert len(correctInds) == 1, f'Found {len(correctInds)} matches for {indVar} == {chosen} in {choices}'
+		outDict = dictSetRecursive(outDict, indVarList, choices[correctInds[0]])
+	return outDict
+
 def dictToString(d):
 	"""Constructs 'var1_value1_var2_value2' from dict"""
 	return '_'.join(['%s_%s' % (k if isinstance(k, str) else '.'.join(k), v) for k,v in d.items()])

@@ -86,12 +86,12 @@ class OurOnlinePlanner(OurPlannerStochastic):
 		replanPoints = [uavPoints[i] for i in replanIndices]
 
 		# define start and end points (which are not required to be in replanPoints)
-		# choosing the next uav point as start forces that point to be first in the TSP, instead of choosing uav position which can force a bad situation for choosing tours
+		# start is the next uav point
 		if together:
 			startPoint = uavPoints[uavTours[iTour][jTour]]
 		else:
 			startPoint = uavPoints[uavTours[iTour][jTour + 1]]
-		endPoint = ugvPoints[ugvOrder[3 + 2*iMax]] # release point of next tour, or end point
+		endPoint = uavPoints[uavTours[iMax][-1]] # last point of last replanned tour
 
 		# find the actual risk limit by evaluating all tours past the horizon
 		#	using edgeCost because constructCost would require a cost matrix
@@ -207,10 +207,13 @@ class OurOnlinePlanner(OurPlannerStochastic):
 		#	and we already have some nonzero flight time
 
 		baseTour = list(range(tourStartIndex, tourEndIndex))
-		possibleTours = [
-			baseTour[:i] + baseTour[i+1:] + [baseTour[i]]
-			for i in range(1, len(baseTour))
-		] # we do not allow the immediate point to be moved to the end of the tour because this causes a duplication issue e.g tour = [A B A] -> [B A B] - > [A B A] under repeated replanning
+		if len(baseTour) == 1:
+			possibleTours = [baseTour]
+		else:
+			possibleTours = [
+				baseTour[:i] + baseTour[i+1:] + [baseTour[i]]
+				for i in range(1, len(baseTour))
+			] # we do not allow the immediate point to be moved to the end of the tour because this causes a duplication issue e.g tour = [A B A] -> [B A B] - > [A B A] under repeated replanning
 
 		logSuccessChances = [
 			self.evaluateConstraintFloat(

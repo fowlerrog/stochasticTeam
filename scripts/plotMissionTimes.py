@@ -8,8 +8,8 @@ from multiprocessing import Pool
 
 # project imports
 from pathPlanning.Constants import planPathResultsFilename, planSettingsFilename, executeResultsFilename
-from pathPlanning.RunnerUtils import loadYamlContents, toDir, getVarFromString
-from pathPlanning.EnvUtils import envFromParams
+from pathPlanning.RunnerUtils import loadYamlContents, toDir, getVarFromString, fillIndependentVariablesFromString
+from pathPlanning.ExecuteUtils import calculatePlannedMission
 
 def harvestMissionTimeInfo(s):
 	"""
@@ -30,35 +30,9 @@ def harvestMissionTimeInfo(s):
 		planFolder = os.path.split(thisDir)[0]
 		planSettings = loadYamlContents(planFolder, planSettingsFilename, verbose=False)
 
-		# construct environment
-		envParams = planSettings['PLANNER']['ENVIRONMENT']
-		env = envFromParams(envParams)
-
-		# running sum of planned path, starting with first release
-		plannedTime = env.estimateMean(
-			planPathResults['ugv_point_map'][planPathResults['ugv_path'][0]],
-			planPathResults['ugv_point_map'][planPathResults['ugv_path'][1]],
-			'UGV'
-		)
-		numTours = len(planPathResults['uav_tours'])
-		for i in range(numTours):
-			# max tour time per agent type
-			uavTime = planPathResults['tour_costs']['UAV'][i][0]
-			plannedTime += max(
-				uavTime,
-				planPathResults['tour_costs']['UGV'][i][0]
-			)
-			# max of charging time or travel time to next tour
-			chargeTime = (planSettings['PLANNER']['UAV_BATTERY_TIME'] - uavTime) / planSettings['PLANNER']['CHARGE_RATE']
-			ugvTransitTime = env.estimateMean(
-				planPathResults['ugv_point_map'][planPathResults['ugv_path'][2*i + 2]],
-				planPathResults['ugv_point_map'][planPathResults['ugv_path'][2*i + 3]],
-				'UGV'
-			)
-			if i < numTours - 1:
-				plannedTime += max(chargeTime, ugvTransitTime)
-			else: # end point, don't worry about charging
-				plannedTime += ugvTransitTime
+		# fill independent variables and get planned run time
+		thisPlanSettings = fillIndependentVariablesFromString(planSettings, thisDir)
+		plannedTime, _ = calculatePlannedMission(thisPlanSettings, planPathResults)
 
 		# find all execution output files
 		executeResultsFileparts = os.path.splitext(executeResultsFilename)
@@ -75,8 +49,8 @@ def harvestMissionTimeInfo(s):
 				execResults = loadYamlContents(os.path.join(thisDir, f), verbose=False)
 				execTimes.append(np.mean( [
 					planSettings['PLANNER']['UAV_BATTERY_TIME'] * len(execResults['TOUR_ATTEMPTS']) - # total available battery time
-					sum(execResults['REMAINING_FLIGHT_TIMES'][i]) + # minus remaining battery time
-					sum(execResults['UGV_TRANSIT_TIMES'][i]) # plus intertour time
+					sum(execResults['REMAINING_FLIGHT_TIMES'][i]) + # minus remaining battery time (accounting for UAV and UGV delays)
+					sum(execResults['UGV_TRANSIT_TIMES'][i]) # plus intertour time (accounting for charging)
 					for i in range(execResults['NUM_RUNS']) # for each run
 					if execResults['REMAINING_FLIGHT_TIMES'][i][-1] > 0 # if successful run
 				] ) )

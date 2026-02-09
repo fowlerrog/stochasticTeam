@@ -77,8 +77,9 @@ def executePlanFromParams(executeParams, planSettingsPath, planResultsPath):
 				env.evaluate(uavPoints[thisUavTour[len(thisUavTour)-1]], collectPoint, 'UAV')
 
 			# evaluate success / failure
+			realFlightTime = max(uavTime, ugvTime)
 			failure = False
-			remainingFlightTimesThisRun.append(uavMaxTime - max(uavTime, ugvTime))
+			remainingFlightTimesThisRun.append(uavMaxTime - realFlightTime)
 			if ugvTime > uavMaxTime:
 				ugvTimeoutFailures[iTour] += 1
 				failure = True
@@ -91,7 +92,7 @@ def executePlanFromParams(executeParams, planSettingsPath, planResultsPath):
 
 			# calculate ugv time to next release
 			if iTour < len(uavTours) - 1:
-				chargeTime = (uavMaxTime - uavTime) / uavChargeRate
+				chargeTime = realFlightTime / uavChargeRate
 				ugvTransitTimesThisRun.append( max(
 					chargeTime,
 					env.evaluate(
@@ -197,7 +198,8 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 
 		# note that every instance of this loop occurs just after we are AT ugvIndex, iTour, jTour
 		#	and that we cannot change the plan for those points because they have occurred
-		while ugvIndex < len(thisUgvOrder) - 1:
+		prevTimeoutFailures = timeoutFailures
+		while ugvIndex < len(thisUgvOrder) - 1 and prevTimeoutFailures == timeoutFailures:
 			thisUavTours, thisUgvOrder, thisUgvPoints, \
 			ugvIndex, ugvPosition, iTour, jTour, uavTourTime, \
 			thisTourTimes, thisTotalTime, thisReplanTimes, \
@@ -263,7 +265,7 @@ def stepOnlineExecution(onlinePlanner, env, uavPoints,
 				uavPos = onlinePlanner.project(thisUgvPoints[thisUgvOrder[ugvIndex]])
 				ugvPos = thisUgvPoints[thisUgvOrder[ugvIndex]]
 				if verbose:
-					print(f'Replanning at UAV {iTour} {jTour} = {uavPos}\tUGV {ugvIndex} = [' + ', '.join(f'{u}' for u in ugvPos) + ']')
+					print(f'Replanning at UAV {iTour} {jTour} = {uavPos}\tUGV {ugvIndex} = [' + ', '.join(f'{u:.2f}' for u in ugvPos) + ']')
 				thisUavTours, thisUgvOrder, thisUgvPoints, successFlag = onlinePlanner.solve(
 					thisUavTours, uavPoints,
 					thisUgvOrder, thisUgvPoints,
@@ -306,13 +308,13 @@ def stepOnlineExecution(onlinePlanner, env, uavPoints,
 			if onlinePlanner is not None:
 				uavPos = uavPoints[thisUavTours[iTour][jTour]]
 				if verbose:
-					print(f'Replanning at UAV {iTour} {jTour} = {uavPos}\tUGV {ugvIndex} = [' + ', '.join(f'{u}' for u in ugvPosition) + f']\tt = {uavTourTime:2f}')
+					print(f'Replanning at UAV {iTour} {jTour} = {uavPos}\tUGV {ugvIndex} = [' + ', '.join(f'{u:.2f}' for u in ugvPosition) + f']\tt = {uavTourTime:.2f}')
 				thisUavTours, thisUgvOrder, thisUgvPoints, successFlag = onlinePlanner.solve(
 					thisUavTours, uavPoints,
 					thisUgvOrder, thisUgvPoints,
 					iTour, jTour, ugvIndex,
 					uavPos, ugvPosition,
-					uavTourTime
+					uavTourTime + deltaT
 				)
 				thisReplanTimes.append(onlinePlanner.getSolveTime())
 				replanFailures += not successFlag
@@ -392,7 +394,7 @@ def stepOnlineExecution(onlinePlanner, env, uavPoints,
 	thisTourTimes, thisTotalTime, thisReplanTimes, \
 	timeoutFailures, replanFailures, tourAttempts
 
-def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPath):
+def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPath, verbose=False):
 	"""
 	Executes a plan from a settings file (or folder) path
 	which may generate several sets of parameters for separate runs
@@ -417,7 +419,7 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 
 		# run
 		if 'ONLINE_PLANNER' in thisRunParams:
-			thisRunOutput = executePlanFromParamsWithOnlinePlanner(thisRunParams, planSettingsPath, planResultsPath, verbose=True)
+			thisRunOutput = executePlanFromParamsWithOnlinePlanner(thisRunParams, planSettingsPath, planResultsPath, verbose=verbose)
 		else:
 			thisRunOutput = executePlanFromParams(thisRunParams, planSettingsPath, planResultsPath)
 
@@ -427,7 +429,7 @@ def executePlanFromSettings(executeSettingsPath, planSettingsPath, planResultsPa
 			yamlOutPathParts = os.path.splitext(yamlOutPath)
 			indVarString = dictToString(thisRunIndParams)
 			yamlOutPath = yamlOutPathParts[0] + '_' + indVarString + yamlOutPathParts[1]
-		writeYaml(thisRunOutput, yamlOutPath, maxDecimals=1)
+		writeYaml(thisRunOutput, yamlOutPath, maxDecimals=2)
 
 def calculatePlannedMission(planSettingsData, planResultsData, verbose=False):
 	"""
