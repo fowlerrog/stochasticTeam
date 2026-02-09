@@ -712,7 +712,7 @@ class OurPlannerStochastic(OurPlanner):
         # chance, (release global index, collect global index)
         return bestLogChance, (tourStartIndex + bestRelease, tourStartIndex + bestCollect)
 
-    def createUavTours(self, tspPlan):
+    def createUavTours(self, tspPlan, requireFeasible=True):
         """
         Break TSP solution into feasible uav tours
         and optionally refine by computing a TSP on each
@@ -727,16 +727,25 @@ class OurPlannerStochastic(OurPlanner):
         if parallelize:
             print('Parallelizing DP solver')
 
+        solutions = []
+
         with Manager() if parallelize else nullcontext() as manager, get_context("spawn").Pool() if parallelize else nullcontext() as pool:
             for numSegments in range(1, len(tspPlan) + 1):
                 print(f'Partitioning for {numSegments} tours')
                 cuts, totalLogSuccess, segmentLogSuccesses = self.partitionSolver.solvePartitionProblem(numSegments, manager=manager, pool=pool)
                 print(f'\tFound log(Pr(success)) = {totalLogSuccess:.2e} -> Pr(success) = {safeExp(totalLogSuccess):.4f}')
-                if safeExp(totalLogSuccess) > 1 - self.params['FAILURE_RISK']:
+                solutions.append((cuts, totalLogSuccess))
+                if totalLogSuccess > self.logSuccessLimit:
                     print('\tAccepting')
                     break
 
-        assert safeExp(totalLogSuccess) > 1 - self.params['FAILURE_RISK'], 'No feasible UAV tours found'
+        if totalLogSuccess <= self.logSuccessLimit:
+            if requireFeasible: # only return a feasible solution
+                assert False, 'No feasible UAV tours found'
+            else: # return most feasible solution, preferring lower number of tours in case of ties
+                planIndex = np.argmax([e[1] for e in solutions])
+                print(f'\tAccepting most feasible m = {planIndex + 1}')
+                cuts = solutions[planIndex][0]
 
         # construct tours
         cuts = [0] + cuts + [len(tspPlan)]

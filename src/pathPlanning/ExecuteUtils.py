@@ -235,6 +235,20 @@ def executePlanFromParamsWithOnlinePlanner(executeParams, planSettingsPath, plan
 	}
 	return results
 
+def moveUgv(currentPosition, goalPosition, dt, env, verbose=False):
+	"""
+	Helper function to move UGV for a certain duration of time
+	by predicting its movement time and moving some fraction of it
+	"""
+	actualUgvTime = env.evaluate(currentPosition, goalPosition, 'UGV')
+	if actualUgvTime <= dt:
+		ugvPosition = goalPosition
+	else:
+		ugvPosition = [currentPosition[i] + (goalPosition[i] - currentPosition[i]) * dt / actualUgvTime for i in range(len(currentPosition))]
+	if verbose:
+		print(f'UGV movement : [' + ', '.join([f'{p:.2f}' for p in currentPosition]) + f'] -> [' + ', '.join([f'{p:.2f}' for p in ugvPosition]) + f']')
+	return ugvPosition
+
 def stepOnlineExecution(onlinePlanner, env, uavPoints,
 				thisUavTours, thisUgvOrder, thisUgvPoints,
 				ugvIndex, ugvPosition, iTour, jTour, uavTourTime,
@@ -243,6 +257,10 @@ def stepOnlineExecution(onlinePlanner, env, uavPoints,
 				uavChargeRate, uavMaxTime,
 				verbose=False):
 	"""Executes one UAV point in an online-replanning scenario"""
+	if onlinePlanner is None:
+		project = lambda x: [*x[:2], 0] # define manual 2d->3d plane projection function
+	else:
+		project = onlinePlanner.project
 	while True: # this is a hack so I can break
 		# ended final tour
 		if ugvIndex == len(thisUgvOrder) - 2:
@@ -293,28 +311,31 @@ def stepOnlineExecution(onlinePlanner, env, uavPoints,
 
 		# we are in a tour
 		else:
-			deltaT = 0 # time change during this loop instance
 			# we are starting a tour
 			if jTour == 0:
 				tourAttempts += 1
 				# take off
 				uavTourTime = 0
-				takeoffTime = env.evaluate(onlinePlanner.project(ugvPosition), uavPoints[thisUavTours[iTour][jTour]], 'UAV')
-				deltaT += takeoffTime
+				takeoffTime = env.evaluate(project(ugvPosition), uavPoints[thisUavTours[iTour][jTour]], 'UAV')
+				# move UGV
+				collectPoint = thisUgvPoints[thisUgvOrder[ugvIndex+1]]
+				ugvPosition = moveUgv(ugvPosition, collectPoint, takeoffTime, env, verbose=verbose)
 				if verbose:
 					print(f'Starting tour {iTour} : {ugvPosition} -> {uavPoints[thisUavTours[iTour][jTour]]} = {takeoffTime:.2f}')
+			else:
+				takeoffTime = 0
 
 			# replan, agents apart
 			if onlinePlanner is not None:
 				uavPos = uavPoints[thisUavTours[iTour][jTour]]
 				if verbose:
-					print(f'Replanning at UAV {iTour} {jTour} = {uavPos}\tUGV {ugvIndex} = [' + ', '.join(f'{u:.2f}' for u in ugvPosition) + f']\tt = {uavTourTime:.2f}')
+					print(f'Replanning at UAV {iTour} {jTour} = {uavPos}\tUGV {ugvIndex} = [' + ', '.join(f'{u:.2f}' for u in ugvPosition) + f']\tt = {uavTourTime + takeoffTime:.2f}')
 				thisUavTours, thisUgvOrder, thisUgvPoints, successFlag = onlinePlanner.solve(
 					thisUavTours, uavPoints,
 					thisUgvOrder, thisUgvPoints,
 					iTour, jTour, ugvIndex,
 					uavPos, ugvPosition,
-					uavTourTime + deltaT
+					uavTourTime + takeoffTime
 				)
 				thisReplanTimes.append(onlinePlanner.getSolveTime())
 				replanFailures += not successFlag
@@ -324,7 +345,6 @@ def stepOnlineExecution(onlinePlanner, env, uavPoints,
 
 			# normal part of UAV movement to next air point
 			airTime = env.evaluate(uavPoints[thisUavTours[iTour][jTour]], uavPoints[thisUavTours[iTour][jTour+1]], 'UAV')
-			deltaT += airTime
 			if verbose:
 				print(f'Taking tour {iTour} step {jTour} : {uavPoints[thisUavTours[iTour][jTour]]} -> {uavPoints[thisUavTours[iTour][jTour+1]]} = {airTime:.2f}')
 
@@ -333,26 +353,21 @@ def stepOnlineExecution(onlinePlanner, env, uavPoints,
 			if jTour == len(thisUavTours[iTour]) - 2:
 				finishedTour = True
 				# land
-				landingTime = env.evaluate(uavPoints[thisUavTours[iTour][jTour+1]], onlinePlanner.project(collectPoint), 'UAV')
+				landingTime = env.evaluate(uavPoints[thisUavTours[iTour][jTour+1]], project(collectPoint), 'UAV')
 				if verbose:
 					print(f'Ending tour {iTour} : {uavPoints[thisUavTours[iTour][jTour+1]]} -> {collectPoint} = {landingTime:.2f}')
-				deltaT += landingTime
+			else:
+				landingTime = 0
 
 			# update uav time
-			uavTourTime += deltaT
+			uavTourTime += takeoffTime + airTime + landingTime
 
 			# UGV has not arrived yet
 			if ugvPosition != collectPoint:
 				# update UGV position
 				#	we know deltaT has elapsed, and we can evaluate UGV travel time
-				actualUgvTime = env.evaluate(ugvPosition, collectPoint, 'UGV')
-				ugvOldPosition = ugvPosition
-				if actualUgvTime <= deltaT:
-					ugvPosition = collectPoint
-				else:
-					ugvPosition = [ugvPosition[i] + (collectPoint[i] - ugvPosition[i]) * deltaT / actualUgvTime for i in range(2)]
-				if verbose:
-					print(f'UGV movement : [' + ', '.join([f'{p:.2f}' for p in ugvOldPosition]) + f'] -> [' + ', '.join([f'{p:.2f}' for p in ugvPosition]) + f']')
+				#	ignoring takeoff which would have been accounted for before replan
+				ugvPosition = moveUgv(ugvPosition, collectPoint, airTime + landingTime, env, verbose=verbose)
 			elif verbose:
 				print('UGV already arrived')
 

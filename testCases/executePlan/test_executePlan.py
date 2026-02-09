@@ -73,7 +73,7 @@ class TestExecutePlan:
 
 		# ugv tours are unchanged
 		assert all(
-			euclidean([*solution['ugv_point_map'][ugvPoint1], 0], executeResults['UGV_FINAL_POINTS'][0][ugvPoint2]) < distTol
+			euclidean(solution['ugv_point_map'][ugvPoint1], executeResults['UGV_FINAL_POINTS'][0][ugvPoint2]) < distTol
 			for ugvPoint1, ugvPoint2 in zip(solution['ugv_path'], executeResults['UGV_FINAL_ORDERS'][0])
 		)
 
