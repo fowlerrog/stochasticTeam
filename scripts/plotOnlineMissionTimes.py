@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
 	plannedTimes = [] # total planned mean times
 	plannedSuccessRates = [] # total planned success rates
-	realTimes = [] # mean execution times of successful plans
+	realSuccessfulTimes = [] # mean execution times of successful plans
 	realSuccessRates = [] # mean success rates
 	planChangeRates = [] # how many runs did we have any replans, out of total runs
 
@@ -42,12 +42,18 @@ if __name__ == '__main__':
 
 		# load execute results
 		executeResults = loadYamlContents(f, executeResultsFilename)
+		if len(executeResults) == 0:
+			print(f'Skipping empty or nonexistent {os.path.join(f, executeResultsFilename)}')
+			plannedTimes.pop()
+			plannedSuccessRates.pop()
+			continue
+
 		totalRealTime = 0
 		numFailures = 0
 		numReplans = 0
 		for i in range(len(executeResults['TOTAL_TIMES'])):
 			# look for failure
-			if len(executeResults['TOUR_TIMES'][i]) < len(executeResults['UAV_FINAL_TOURS'][i]) or executeResults['TOUR_TIMES'][i][-1] >= thisPlanSettingsData['PLANNER']['UAV_BATTERY_TIME']:
+			if executeResults['TOUR_TIMES'][i][-1] >= thisPlanSettingsData['PLANNER']['UAV_BATTERY_TIME']:
 				numFailures += 1
 			else:
 				totalRealTime += executeResults['TOTAL_TIMES'][i]
@@ -63,28 +69,28 @@ if __name__ == '__main__':
 		# calculate means
 		numRuns = executeResults['NUM_RUNS']
 		if numRuns > numFailures:
-			realTimes.append(totalRealTime / numRuns)
+			realSuccessfulTimes.append(totalRealTime / numRuns)
 		else:
-			realTimes.append(None)
+			realSuccessfulTimes.append(float('NaN')) # all failures, no mean successful time
 		realSuccessRates.append((numRuns - numFailures) / numRuns)
 		planChangeRates.append(numReplans / numRuns)
 
 	# plot
-	plotSelfComparison(plannedTimes, realTimes, 'Mission Time [s]')
-	plotSelfComparison(plannedSuccessRates, realSuccessRates, 'Mission Time [s]')
+	plotSelfComparison(plannedTimes, realSuccessfulTimes, 'Mission Time [s]')
+	plotSelfComparison(plannedSuccessRates, realSuccessRates, 'Success Rate')
 
 	fig, ax1 = plt.subplots()
 	ax1.plot(planChangeRates, [r - p for r,p in zip(realSuccessRates, plannedSuccessRates)], '.')
 	ax1.set_xlabel('Ratio of Runs With Any Replan') # this is almost always = 1.0
 	ax1.set_ylabel('Absolute Increase in Success Rate')
 	ax2 = ax1.twinx()
-	ax2.plot(planChangeRates, [100 * (p - r) / p for r,p in zip(realTimes, plannedTimes)], '.')
+	ax2.plot(planChangeRates, [100 * (p - r) / p for r,p in zip(realSuccessfulTimes, plannedTimes)], '.')
 	ax2.set_ylabel('Percent Decrease in Mean Mission Time during Execution')
 
 	fig, ax1 = plt.subplots()
 	ax1.plot(
 		[100 * (r - p) for r,p in zip(realSuccessRates, plannedSuccessRates)],
-		[100 * (r - p) / p for r,p in zip(realTimes, plannedTimes)],
+		[100 * (r - p) / p for r,p in zip(realSuccessfulTimes, plannedTimes)],
 		'.')
 	ax1.set_xlabel('Absolute Increase in Success Rate [Percent]')
 	ax1.set_ylabel('Increase in Mean Mission Time during Execution [Percent]')

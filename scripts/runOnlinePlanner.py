@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 # project imports
 from pathPlanning.Constants import executeSettingsFilename, planSettingsFilename, planPathResultsFilename
-from pathPlanning.RunnerUtils import loadYamlContents
+from pathPlanning.RunnerUtils import loadYamlContents, formatList
 from pathPlanning.EnvUtils import envFromParams
 from pathPlanning.PlannerUtils import plannerFromParams
 from pathPlanning.ExecuteUtils import stepOnlineExecution
@@ -18,7 +18,7 @@ from pathPlanning.PlotUtils import plotTours
 # based on executePlanFromParamsWithOnlinePlanner()
 
 def plotPlanWithPositions(thisUavTours, uavPoints, thisUgvPoints, thisUgvOrder, uavPosition, ugvPosition, fig, ax):
-	print(f'Plotting: UAV {uavPosition}\tUGV {ugvPosition}')
+	print('Plotting: UAV', formatList(uavPosition, '%.2f'), '\tUGV', formatList(ugvPosition, '%.2f'))
 	if ax is not None:
 		ax.clear()
 	fig, ax = plotTours(thisUavTours, uavPoints, thisUgvPoints, thisUgvOrder, show=False, fig=fig, ax=ax)

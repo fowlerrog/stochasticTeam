@@ -42,6 +42,10 @@ def roundIterable(d, maxDecimals=1):
 		return (roundIterable(e, maxDecimals) for e in d)
 	return d
 
+def formatList(l, fString):
+	"""Formats a list into a string"""
+	return '[' + ', '.join(fString%e for e in l) + ']'
+
 def loadYamlContents(settingsFile, defaultFilename = '', verbose=True):
 	"""
 	Returns the contents of a yaml file, if it exists
@@ -58,11 +62,11 @@ def loadYamlContents(settingsFile, defaultFilename = '', verbose=True):
 
 	# load run parameters from yaml
 	params = {}
-	with open(absFile, 'r') as f:
-		try:
+	try:
+		with open(absFile, 'r') as f:
 			params = yaml.safe_load(f)
-		except Exception:
-			print(traceback.format_exc())
+	except Exception:
+		print(traceback.format_exc())
 
 	# load any recursive yamls
 	def replaceFilepaths(d):

@@ -728,6 +728,7 @@ class OurPlannerStochastic(OurPlanner):
             print('Parallelizing DP solver')
 
         solutions = []
+        validTourFlag = False
 
         with Manager() if parallelize else nullcontext() as manager, get_context("spawn").Pool() if parallelize else nullcontext() as pool:
             for numSegments in range(1, len(tspPlan) + 1):
@@ -736,12 +737,13 @@ class OurPlannerStochastic(OurPlanner):
                 print(f'\tFound log(Pr(success)) = {totalLogSuccess:.2e} -> Pr(success) = {safeExp(totalLogSuccess):.4f}')
                 solutions.append((cuts, totalLogSuccess))
                 if totalLogSuccess > self.logSuccessLimit:
+                    validTourFlag = True
                     print('\tAccepting')
                     break
 
-        if totalLogSuccess <= self.logSuccessLimit:
+        if not validTourFlag: # no feasible solutions
             if requireFeasible: # only return a feasible solution
-                assert False, 'No feasible UAV tours found'
+                assert totalLogSuccess > self.logSuccessLimit, 'No feasible UAV tours found'
             else: # return most feasible solution, preferring lower number of tours in case of ties
                 planIndex = np.argmax([e[1] for e in solutions])
                 print(f'\tAccepting most feasible m = {planIndex + 1}')

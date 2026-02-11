@@ -18,7 +18,7 @@ class OurOnlinePlanner(OurPlannerStochastic):
 	params = {} # input parameters
 	horizonTours = None # number of tours, including the remainder of the current, to replan
 	solveTime = 0 # previous solve time
-	requireFeasible = False # whether to only return feasible plans
+	requireFeasible = True # whether to only return feasible plans
 
 	globalRiskLimit = None # total risk limit, whereas params['FAILURE_RISK'] will be overwritten for each solve
 	together = None # flag for whether agents are together
@@ -238,4 +238,4 @@ class OurOnlinePlanner(OurPlannerStochastic):
 		"""
 		Because this is an online planner, we allow returning a non-feasible plan if necessary
 		"""
-		return super().createUavTours(tspPlan, self.requireFeasible)
+		return super().createUavTours(tspPlan, requireFeasible=self.requireFeasible)
