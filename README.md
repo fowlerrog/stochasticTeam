@@ -86,10 +86,25 @@ The Gazebo simulation relies on external Gazebo model repositories, and on Gazeb
 
 `./installGazeboHarmonic.sh`
 
-The install the gazebo models:
+Then install and build the gazebo models, including our package:
 
 `./installGazeboRepos.sh`
+
+This automatically calls `colcon build` in `gazebo/ros_ws`, but anytime you change the uav_ugv_teaming ros package, you will have to rebuild by doing this again.
 
 The script setup.sh is provided for your convenience, which puts you in the Python VM and sources ROS2.
 
 `source setup.sh`
+
+# Running Gazebo
+
+Launch files are in `gazebo\launch`
+
+To launch the full simulation:
+
+`ros2 launch full_sim.launch.py`
+
+After it has stopped printing new messages (except for occasional status updates) you can then call one of the planning launch file:
+
+`ros2 launch offline_plan.launch.py`
+`ros2 launch online_plan.launch.py`
