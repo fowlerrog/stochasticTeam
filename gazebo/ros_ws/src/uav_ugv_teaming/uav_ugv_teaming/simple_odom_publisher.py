@@ -13,6 +13,11 @@ class SimpleOdomPublisher(Node):
     def __init__(self):
         super().__init__('simple_odom_publisher')
         
+        # Get namespace
+        self.namespace = self.get_namespace()
+        if self.namespace == '/':
+            self.namespace = ''
+
         # Robot parameters (TurtleBot4-like)
         self.wheel_base = 0.16  # meters between wheels
         
@@ -22,7 +27,15 @@ class SimpleOdomPublisher(Node):
         self.theta = 0.0
         self.vx = 0.0
         self.vth = 0.0
+
+        # TF frame names (with namespace)
+        self.odom_frame = f'{self.namespace}/odom' if self.namespace else 'odom'
+        self.base_link_frame = f'{self.namespace}/base_link' if self.namespace else 'base_link'
         
+        # Remove leading slash if present
+        self.odom_frame = self.odom_frame.lstrip('/')
+        self.base_link_frame = self.base_link_frame.lstrip('/')
+
         # Subscriber to cmd_vel
         self.cmd_vel_sub = self.create_subscription(
             Twist,
@@ -42,6 +55,7 @@ class SimpleOdomPublisher(Node):
         self.last_time = self.get_clock().now()
         
         self.get_logger().info('Simple Odometry Publisher started')
+        self.get_logger().info(f'TF frames: {self.odom_frame} -> {self.base_link_frame}')
     
     def cmd_vel_callback(self, msg):
         """Update velocity commands"""

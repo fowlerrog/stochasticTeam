@@ -10,6 +10,12 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
     # Declare launch arguments
+    namespace_arg = DeclareLaunchArgument(
+        'namespace',
+        default_value='',
+        description='Namespace for the robot'
+    )
+
     waypoints_arg = DeclareLaunchArgument(
         'waypoints',
         default_value="'[1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0]'",
@@ -34,6 +40,7 @@ def generate_launch_description():
         package='uav_ugv_teaming',
         executable='simple_odom_publisher',
         name='simple_odom_publisher',
+        namespace=LaunchConfiguration('namespace'),
         output='screen'
     )
     
@@ -42,6 +49,7 @@ def generate_launch_description():
         package='uav_ugv_teaming',
         executable='waypoint_navigator',
         name='waypoint_navigator',
+        namespace=LaunchConfiguration('namespace'),
         output='screen',
         parameters=[{
             'waypoints': LaunchConfiguration('waypoints'),
@@ -84,6 +92,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        namespace_arg,
         waypoints_arg,
         use_rviz_arg,
         odom_node,

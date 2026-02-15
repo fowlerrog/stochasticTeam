@@ -10,11 +10,15 @@ def generate_launch_description():
 
     rosflight_sim_share = get_package_share_directory("rosflight_sim")
     roscopter_sim_share = get_package_share_directory("roscopter_sim")
-    uav_ugv_teaming_share = get_package_share_directory("uav_ugv_teaming")
 
-    # Launch rosflight & roscopter upstream launch files
+    #
+    # 1. Launch stock upstream launch files
+    #
 
     rosflight_sim_launch = IncludeLaunchDescription(
+        # PythonLaunchDescriptionSource(
+        #     os.path.join(os.path.dirname(__file__), "wrapper_standalone.launch.py")
+        # )
         PythonLaunchDescriptionSource(
             os.path.join(rosflight_sim_share, "launch", "multirotor_standalone.launch.py")
         )
@@ -26,29 +30,10 @@ def generate_launch_description():
         )
     )
 
-    # Launch simple waypoint follower UGV
-    uav_ugv_teaming_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            os.path.join(uav_ugv_teaming_share, "launch", "simple_waypoint_nav.launch.py")
-        ),
-        launch_arguments={
-            'waypoints':"'[]'",
-            'use_rviz':'true',
-            'namespace':'ugv',
-        }.items()
-    )
+    #
+    # 2. Perform param load AFTER rosflight_io starts
+    #
 
-    # Publish rviz transform between UGV odom frame and UAV world frame
-    rviz_frame_link = ExecuteProcess(
-        cmd=[
-            "ros2", "run", "tf2_ros", "static_transform_publisher",
-            "0", "0", "0", "0", "0", "0",
-            "odom", "world"
-        ],
-        output="screen"
-    )
-
-    # Perform param load AFTER rosflight_io starts
     # We call the service using the `ros2 service call` CLI
     load_params_cmd = ExecuteProcess(
         cmd=[
@@ -83,8 +68,6 @@ def generate_launch_description():
     return LaunchDescription([
         rosflight_sim_launch,
         roscopter_sim_launch,
-        uav_ugv_teaming_launch,
-        rviz_frame_link,
         load_params,
         calibrate_imu
     ])
