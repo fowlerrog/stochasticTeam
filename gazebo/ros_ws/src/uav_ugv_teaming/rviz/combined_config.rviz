@@ -144,7 +144,7 @@ Visualization Manager:
       Visual Enabled: true
       Collision Enabled: false
       Value: true
-      Topic:
+      TF Prefix:
         Value: /ugv
 
   Enabled: true

@@ -30,6 +30,7 @@ setup(
         'console_scripts': [
             'simple_odom_publisher = uav_ugv_teaming.simple_odom_publisher:main',
             'waypoint_navigator = uav_ugv_teaming.waypoint_navigator:main',
+            'send_waypoint = uav_ugv_teaming.send_waypoint:main',
         ],
     },
 )

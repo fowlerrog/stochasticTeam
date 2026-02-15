@@ -4,8 +4,8 @@ waypoint_navigator.py - Simple waypoint navigation without obstacle avoidance
 """
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Twist
-from nav_msgs.msg import Odometry
+from geometry_msgs.msg import Twist, PoseStamped
+from nav_msgs.msg import Odometry, Path
 import math
 import ast
 
@@ -51,13 +51,49 @@ class WaypointNavigator(Node):
         self.cmd_vel_pub = self.create_publisher(Twist, 'cmd_vel', 10)
         self.odom_sub = self.create_subscription(Odometry, 'odom', self.odom_callback, 10)
         
+        # Subscribe to new waypoint topic (single waypoint)
+        self.waypoint_sub = self.create_subscription(
+            PoseStamped, 
+            'waypoint', 
+            self.waypoint_callback, 
+            10
+        )
+        
+        # Subscribe to path topic (multiple waypoints)
+        self.path_sub = self.create_subscription(
+            Path,
+            'waypoint_path',
+            self.path_callback,
+            10
+        )
+        
         # Timer for control loop
         self.timer = self.create_timer(0.1, self.control_loop)
         
         self.get_logger().info(f'Waypoint Navigator started with {len(self.waypoints)} waypoints')
         if self.waypoints:
             self.get_logger().info(f'First waypoint: ({self.waypoints[0][0]}, {self.waypoints[0][1]})')
+        self.get_logger().info('Listening for waypoints on topics: /waypoint and /waypoint_path')
+
+    def waypoint_callback(self, msg):
+        """Add a single waypoint from PoseStamped message"""
+        new_waypoint = (msg.pose.position.x, msg.pose.position.y)
+        self.waypoints.append(new_waypoint)
+        self.get_logger().info(f'Added waypoint: ({new_waypoint[0]:.2f}, {new_waypoint[1]:.2f}). Total: {len(self.waypoints)}')
     
+    def path_callback(self, msg):
+        """Replace all waypoints from Path message"""
+        self.waypoints.clear()
+        for pose in msg.poses:
+            waypoint = (pose.pose.position.x, pose.pose.position.y)
+            self.waypoints.append(waypoint)
+        
+        self.current_waypoint_idx = 0
+        self.get_logger().info(f'Received new path with {len(self.waypoints)} waypoints')
+        if self.waypoints:
+            self.get_logger().info(f'First waypoint: ({self.waypoints[0][0]:.2f}, {self.waypoints[0][1]:.2f})')
+    
+
     def odom_callback(self, msg):
         """Update robot pose from odometry"""
         self.robot_x = msg.pose.pose.position.x
