@@ -1,5 +1,6 @@
 catkin-pkg>=1.1.0
 empy>=4.0
+gurobipy>=12.0.0
 julia>=0.6.2
 lxml==6.0.2
 matplotlib>=3.7

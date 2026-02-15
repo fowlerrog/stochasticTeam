@@ -7,7 +7,6 @@ from math import log
 
 # project imports
 from .RunnerUtils import loadPlanResultsFromFolder
-from .EnvUtils import envFromParamsOrFile
 
 def plotPoints(points, filename=None, show=True):
 	"""Plot points with no path"""
@@ -24,30 +23,37 @@ def plotPoints(points, filename=None, show=True):
 	if show:
 		plt.show()
 
-def plotPath(points, filename=None, show=True):
+def plotPath(points, filename=None, show=True, startPoint=None, endPoint=None):
 	"""Plot points with path"""
 	# Extract x,y (uses first two coordinates if points are 3D)
 	xs = [p[0] for p in points]
 	ys = [p[1] for p in points]
 
 	# Plot the tour path with points
-	plt.plot(xs, ys, marker='o')
+	fig, ax = plt.subplots(figsize=(4, 4))
+	ax.plot(xs, ys, marker='o', markersize=8)
 
 	# Mark start and end (first and last in the tour order)
-	plt.scatter(xs[0], ys[0], marker='s', s=100, label='Start (closest)')
-	plt.scatter(xs[-1], ys[-1], marker='X', s=120, label='End (closest)')
+	ax.scatter(xs[0], ys[0], marker='s', s=100, label='Start (closest)')
+	ax.scatter(xs[-1], ys[-1], marker='X', s=120, label='End (closest)')
 
-	plt.title('TSP Tour with Fixed Start/End (reordered points)')
-	plt.axis('equal')
-	plt.grid(True)
-	plt.legend()
+	ax.set_title('TSP Tour with Fixed Start/End (reordered points)')
+	ax.axis('equal')
+	# ax.set_xticks([])
+	# ax.set_yticks([])
+	ax.grid(True)
+
+	if startPoint is not None:
+		ax.plot(startPoint[0], startPoint[1], 'x', color='g', markersize=16)
+	if endPoint is not None:
+		ax.plot(endPoint[0], endPoint[1], 'x', color='r', markersize=16)
 
 	if filename is not None:
 		plt.savefig(filename)
 	if show:
 		plt.show()
 
-def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=True):
+def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=True, fig=None, ax=None):
 	"""Plot points, clustered into tours"""
 	tourColorGroups = [0] * len(uavPoints)
 	for cix, tour in enumerate(uavTours):
@@ -55,7 +61,8 @@ def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=Tru
 			tourColorGroups[p] = cix
 
 	tourColors = plt.cm.get_cmap('tab20', len(uavTours))
-	fig, ax = plt.subplots(figsize=(8, 6))
+	if fig==None or ax==None:
+		fig, ax = plt.subplots(figsize=(4, 4))
 	# print(f"Mapping to points: {mapping_to_points}")
 	uavPoints = np.array(uavPoints)[:, :2]
 
@@ -64,17 +71,19 @@ def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=Tru
 		x,y = point
 		# print(x, y, tourColorGroups[i], tourColors(tourColorGroups[i]))
 		color = tourColors(tourColorGroups[i])
-		ax.plot(x, y, 'o', color=color, markersize=16)
+		ax.plot(x, y, 'o', color=color, markersize=8)
 		ax.text(x, y, f"{i}a", fontsize=16, color=color, verticalalignment='top')
 
 	# plot colored circles for ugv path (including start, end)
 	i = 0
-	while i < len(ugvPath) - 1:
+	while i < len(ugvPath):
 		x,y = ugvPointMap[ugvPath[i]]
-		color = 'g' if i == 0 else 'r' if i == len(ugvPath) - 2 else 'k'
-		ax.plot(x, y, 'x', color=color, markersize=16)
+		color = 'g' if i == 0 else 'r' if i == len(ugvPath) - 1 else 'k'
+		markersize = 16 if i == 0 or i == len(ugvPath) - 1 else 8
+		ax.plot(x, y, 'x', color=color, markersize=markersize)
+		# label (with repeated points)
 		labelNum = str(i)
-		while ugvPointMap[ugvPath[i]] == ugvPointMap[ugvPath[i+1]]:
+		while i < len(ugvPath) - 1 and ugvPointMap[ugvPath[i]] == ugvPointMap[ugvPath[i+1]]:
 			i += 1
 			labelNum += ',' + str(i)
 		ax.text(x, y, labelNum + 'g', fontsize=16, color=color, verticalalignment='bottom')
@@ -89,7 +98,7 @@ def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=Tru
 						arrowprops=dict(arrowstyle="-", color='black', lw=2))
 
 	# plot ugv path
-	for i in range(len(ugvPath)):
+	for i in range(len(ugvPath)-1):
 		x1, y1 = ugvPointMap[ugvPath[i]]
 		x2, y2 = ugvPointMap[ugvPath[(i + 1) % len(ugvPath)]]
 		if x1 == x2 and y1 == y2:
@@ -98,18 +107,20 @@ def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=Tru
 		ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
 					arrowprops=dict(arrowstyle="->", color='red', lw=2))
 
-	# ax.set_xlim(-100, 4000)
-	# ax.set_ylim(-100, 4000)
+	# ax.set_xticks([])
+	# ax.set_yticks([])
 	ax.grid(True)
 	ax.relim()
 	ax.autoscale_view()
-	ax.set_title("GTSP with Release & Collect (Full Tour incl. Dummy)")
+	ax.set_title("Full Mission Plan")
 	ax.set_aspect('equal')
 
 	if filename is not None:
 		plt.savefig(filename)
 	if show:
 		plt.show()
+
+	return fig, ax
 
 def plotOriginalTours(originalPoints, originalTours, startPoint=None, endPoint=None, filename=None, show=True):
 	colors = plt.cm.get_cmap('tab20', len(originalTours))
@@ -160,7 +171,9 @@ def plotPlanFromFolder(folderPath):
 
 	TSPFigureName = os.path.join(absFolderPath, 'TSP_path.png')
 	if 'uav_points' in plan:
-		plotPath(plan['uav_points'], filename=TSPFigureName, show=False)
+		plotPath(plan['uav_points'], filename=TSPFigureName, show=False,
+		   startPoint=plan['ugv_point_map'][plan['ugv_path'][0]],
+		   endPoint=plan['ugv_point_map'][plan['ugv_path'][-1]])
 	# else:
 	# 	# If no solution, just scatter the reordered points for reference
 	# 	plotPoints(points,
@@ -182,9 +195,9 @@ def plotSelfComparison(plannedValues, empiricalValues, labelString='', varName='
 	if fig is None or ax is None:
 		fig, ax = plt.subplots()
 
-	# get data limits
-	propLineMin = max(min(plannedValues), min(empiricalValues))
-	propLineMax = min(max(plannedValues), max(empiricalValues))
+	# get data limits excluding nans
+	propLineMin = np.nanmax([np.nanmin(plannedValues), np.nanmin(empiricalValues)])
+	propLineMax = np.nanmin([np.nanmax(plannedValues), np.nanmax(empiricalValues)])
 
 	# decide if log
 	if log:
@@ -233,9 +246,9 @@ def plotSolveTimes(yamlContents, xKey, yKey, fig=None, ax=None, labelString='', 
 				thisY.append(yData.pop(i))
 		dataDict[thisX] = {
 			'values' : thisY,
-			'min' : min(thisY),
-			'mean' : np.mean(thisY),
-			'max' : max(thisY)
+			'min' : np.nanmin(thisY),
+			'mean' : np.nanmean(thisY),
+			'max' : np.nanmax(thisY)
 		}
 
 	# plot line for each group
@@ -265,7 +278,7 @@ def plotSolveTimes(yamlContents, xKey, yKey, fig=None, ax=None, labelString='', 
 	exp, mult = np.polyfit(logX, logY, 1)
 
 	polyFit = lambda x : mult * x ** exp
-	xLimits = [min(xSorted), max(xSorted)]
+	xLimits = [np.nanmin(xSorted), np.nanmax(xSorted)]
 	yXMin = dataDict[xLimits[0]]['mean']
 	plt.loglog(
 		xLimits,
@@ -301,7 +314,4 @@ def plotSolveTimes(yamlContents, xKey, yKey, fig=None, ax=None, labelString='', 
 
 def evalNormalizedFunction(f, xRange, fOfXMin):
 	"""Evaluates f(xRange) normalized to f(min(xRange)) = fOfXMin"""
-	return [fOfXMin * f(x) / f(min(xRange)) for x in xRange]
-
-def plotMissionTimes():
-	pass
+	return [fOfXMin * f(x) / f(np.nanmin(xRange)) for x in xRange]

@@ -4,9 +4,12 @@ import sys
 from .RunnerUtils import loadYamlContents
 from .MultiAgentTypeEnvironment import *
 from .SingleAgentTypeEnvironment import *
+from .Constants import environmentSettingsFilename
 
-def envFromParamsOrFile(params, verbose=True):
-	if isinstance(params, str): # this is a filepath, not params
-		params = loadYamlContents(params, verbose=verbose)
+def envFromParams(params):
 	envClass = getattr(sys.modules[__name__], params['TYPE'])
 	return envClass(params)
+
+def envFromFile(filepath, verbose=True):
+	envParams = loadYamlContents(filepath, defaultFilename=environmentSettingsFilename, verbose=verbose)
+	return envFromParams(envParams)

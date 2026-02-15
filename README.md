@@ -108,3 +108,11 @@ After it has stopped printing new messages (except for occasional status updates
 
 `ros2 launch offline_plan.launch.py`
 `ros2 launch online_plan.launch.py`
+
+# Gurobi:
+
+In order to use the Gurobi optimizer, you must have a Gurobi license. Free academic licenses are available at https://www.gurobi.com/academia/academic-program-and-licenses/
+
+The gurobipy package installed as part of the python virtual environment does not include the licensing server that allows you to use the full academic license. It will only work on very small problems, unless you perform the full installation of gurobi on your system.
+
+Once gurobi is installed and you have a license, go to your account page -> look at your licenses -> install this license. There should be a `grbgetkey` command to retrieve it to your system. Once this has been run, the program should be able to find the license and you can run any gurobi-related scripts.

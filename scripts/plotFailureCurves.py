@@ -70,10 +70,10 @@ if __name__ == "__main__":
 	# Read result files
 	detResults = []
 	for detFolder in detFolderList:
-		detResults = detResults + getRunsInfo(detFolder, 'UAV_DELTA_TIME')
+		detResults = detResults + getRunsInfo(detFolder, 'PLANNER.UAV_DELTA_TIME')
 	stochResults = []
 	for stochFolder in stochFolderList:
-		stochResults = stochResults + getRunsInfo(stochFolder, 'FAILURE_RISK')
+		stochResults = stochResults + getRunsInfo(stochFolder, 'PLANNER.FAILURE_RISK')
 	print('Done loading')
 
 	# Process results dicts into lists
@@ -89,7 +89,7 @@ if __name__ == "__main__":
 		)
 		empiricalTourFailureRatesStoch.extend(run['total_failure'])
 		empiricalTourDeltasStoch.extend(run['delta_time'])
-		plannedPlanFailureRatesStoch.append(run['FAILURE_RISK'])
+		plannedPlanFailureRatesStoch.append(run['PLANNER.FAILURE_RISK'])
 		empiricalPlanFailureRatesStoch.append(1 - prod([1 - p for p in run['total_failure']]))
 		empiricalPlanDeltasStoch.append(np.mean(run['delta_time']))
 
@@ -105,7 +105,7 @@ if __name__ == "__main__":
 		)
 		empiricalTourFailureRatesDet.extend(run['total_failure'])
 		empiricalTourDeltasDet.extend(run['delta_time'])
-		plannedPlanDeltasDet.append(run['UAV_DELTA_TIME'])
+		plannedPlanDeltasDet.append(run['PLANNER.UAV_DELTA_TIME'])
 		empiricalPlanFailureRatesDet.append(1 - prod([1 - p for p in run['total_failure']]))
 		empiricalPlanDeltasDet.append(np.mean(run['delta_time']))
 

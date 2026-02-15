@@ -5,7 +5,7 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Run scripts/planPath.py runs/test/settings.yaml",
+			"name": "Run scripts/planPath.py runs/test/plan_settings.yaml",
 			"type": "debugpy",
 			"request": "launch",
 			"program": "${workspaceFolder}/scripts/planPath.py",
@@ -35,6 +35,30 @@
 			"program": "${workspaceFolder}/scripts/plotFailureCurves.py",
 			"console": "integratedTerminal",
 			"args": "${command:pickArgs}"
+		},
+		{
+			"name": "Run scripts/executePlan.py runs/test/execute_settings.yaml runs/test/plan_settings.yaml user/choice/folder/plan_path_results.yaml",
+			"type": "debugpy",
+			"request": "launch",
+			"program": "${workspaceFolder}/scripts/executePlan.py",
+			"console": "integratedTerminal",
+			"args": "runs/test/execute_settings.yaml runs/test/plan_settings.yaml ${command:pickArgs}"
+		},
+		{
+			"name": "Run scripts/plotMissionTimes.py user/choice/folder/plan_path_results.yaml",
+			"type": "debugpy",
+			"request": "launch",
+			"program": "${workspaceFolder}/scripts/plotMissionTimes.py",
+			"console": "integratedTerminal",
+			"args": "${command:pickArgs}"
+		},
+		{
+			"name": "Run scripts/runOnlinePlanner.py runs/test/execute_settings.yaml runs/test/plan_settings.yaml user/choice/folder/plan_path_results.yaml",
+			"type": "debugpy",
+			"request": "launch",
+			"program": "${workspaceFolder}/scripts/runOnlinePlanner.py",
+			"console": "integratedTerminal",
+			"args": "runs/test/execute_settings.yaml runs/test/plan_settings.yaml ${command:pickArgs}"
 		}
 	]
 }

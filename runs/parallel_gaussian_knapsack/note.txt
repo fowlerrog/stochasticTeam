@@ -1,0 +1,6 @@
+This results in this folder seem to suggest that tour refinement is not worth the <1% time savings.
+
+python ../../scripts/runFull.py ./stochastic_refined/plan_settings.yaml ./execute_settings.yaml
+python ../../scripts/runFull.py ./stochastic_unrefined/plan_settings.yaml ./execute_settings.yaml
+
+python ../../scripts/plotMissionTimes.py ./*/results_*

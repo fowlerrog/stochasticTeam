@@ -6,7 +6,7 @@ import pytest
 import scipy.stats
 
 # project imports
-from pathPlanning.EnvUtils import envFromParamsOrFile
+from pathPlanning.EnvUtils import envFromFile
 from pathPlanning.Constants import environmentSettingsFilename
 
 class TestEnvironment:
@@ -17,7 +17,7 @@ class TestEnvironment:
 		and whether estimating mean & variance works
 		"""
 		thisScriptFolder = os.path.dirname(os.path.abspath(__file__))
-		env = envFromParamsOrFile(os.path.join(thisScriptFolder, environmentSettingsFilename))
+		env = envFromFile(os.path.join(thisScriptFolder, environmentSettingsFilename))
 		assert env.estimateMean([0,5], [0,0], 'A') == 40 # mean 8 * length 5
 		assert env.estimateMean([1,5], [1,3], 'B') == 14 # mean 7 * length 2
 		assert env.estimateVariance([1,5], [1,3], 'A') == 1 # (stddev 0.5 * length 2) ^ 2
@@ -28,7 +28,7 @@ class TestEnvironment:
 		"""Tests whether gaussian evaluations are actually gaussian"""
 		# load env_settings.yaml
 		thisScriptFolder = os.path.dirname(os.path.abspath(__file__))
-		env = envFromParamsOrFile(os.path.join(thisScriptFolder, environmentSettingsFilename))
+		env = envFromFile(os.path.join(thisScriptFolder, environmentSettingsFilename))
 		# sample
 		numSamples = 10000
 		random.seed(randomSeed)

@@ -5,7 +5,6 @@ from multiprocessing import Pool
 from itertools import repeat
 
 # project imports
-sys.path.append('../src')
 from pathPlanning.Constants import executeSettingsFilename, planSettingsFilename, planPathResultsFilename
 from pathPlanning.ExecuteUtils import executePlanFromSettings
 
