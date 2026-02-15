@@ -98,7 +98,7 @@ Visualization Manager:
       Value: true
 
     - Class: rviz_default_plugins/TF
-      Enabled: true
+      Enabled: false
       Frame Timeout: 15
       Frames:
         All Enabled: false
@@ -134,8 +134,18 @@ Visualization Manager:
         Shaft Radius: 0.02
         Value: Arrow
       Topic:
-        Value: /odom
+        Value: /ugv/odom
       Value: true
+    - Class: rviz_default_plugins/RobotModel
+      Description Topic:
+        Value: /ugv/robot_description
+      Enabled: true
+      Name: RobotModel
+      Visual Enabled: true
+      Collision Enabled: false
+      Value: true
+      Topic:
+        Value: /ugv
 
   Enabled: true
   Global Options:

@@ -54,7 +54,7 @@ class SimpleOdomPublisher(Node):
         self.timer = self.create_timer(0.02, self.publish_odom)  # 50 Hz
         self.last_time = self.get_clock().now()
         
-        self.get_logger().info('Simple Odometry Publisher started')
+        self.get_logger().info(f'Simple Odometry Publisher started with namespace: {self.namespace}')
         self.get_logger().info(f'TF frames: {self.odom_frame} -> {self.base_link_frame}')
     
     def cmd_vel_callback(self, msg):
@@ -89,8 +89,8 @@ class SimpleOdomPublisher(Node):
         # Publish TF transform
         t = TransformStamped()
         t.header.stamp = current_time.to_msg()
-        t.header.frame_id = 'odom'
-        t.child_frame_id = 'base_link'
+        t.header.frame_id = self.odom_frame
+        t.child_frame_id = self.base_link_frame
         t.transform.translation.x = self.x
         t.transform.translation.y = self.y
         t.transform.translation.z = 0.0
@@ -101,13 +101,22 @@ class SimpleOdomPublisher(Node):
         t.transform.rotation.z = math.sin(self.theta / 2.0)
         t.transform.rotation.w = math.cos(self.theta / 2.0)
         
+        # Debug: Log occasionally
+        if hasattr(self, '_debug_counter'):
+            self._debug_counter += 1
+        else:
+            self._debug_counter = 0
+            
+        if self._debug_counter % 250 == 0:  # Every 5 seconds at 50Hz
+            self.get_logger().info(f'Publishing TF: {self.odom_frame} -> {self.base_link_frame} at ({self.x:.2f}, {self.y:.2f})')
+        
         self.tf_broadcaster.sendTransform(t)
         
         # Publish Odometry message
         odom = Odometry()
         odom.header.stamp = current_time.to_msg()
-        odom.header.frame_id = 'odom'
-        odom.child_frame_id = 'base_link'
+        odom.header.frame_id = self.odom_frame
+        odom.child_frame_id = self.base_link_frame
         
         # Position
         odom.pose.pose.position.x = self.x

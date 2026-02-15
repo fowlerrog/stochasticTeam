@@ -8,39 +8,26 @@ from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
 from ament_index_python.packages import get_package_share_directory
 
-def generate_launch_description():
-    # Declare launch arguments
-    namespace_arg = DeclareLaunchArgument(
-        'namespace',
-        default_value='',
-        description='Namespace for the robot'
-    )
+def launch_setup(context, *args, **kwargs):
+    # Get launch configuration values
+    namespace = LaunchConfiguration('namespace').perform(context)
+    fixed_frame = LaunchConfiguration('fixed_frame').perform(context)
+    waypoints = LaunchConfiguration('waypoints').perform(context)
 
-    waypoints_arg = DeclareLaunchArgument(
-        'waypoints',
-        default_value="'[1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0]'",
-        description='List of waypoints as [x1, y1, x2, y2, ...]'
-    )
-
-    use_rviz_arg = DeclareLaunchArgument(
-        'use_rviz',
-        default_value='true',
-        description='Launch RViz'
-    )
-    
-    # Path to RViz config
-    rviz_config_file = PathJoinSubstitution([
-        FindPackageShare('uav_ugv_teaming'),
-        'rviz',
-        'simple_waypoint_nav_config.rviz'
-    ])
+    # Build frame names
+    if namespace:
+        odom_frame = f'{namespace}/odom'
+        namespace_str = namespace
+    else:
+        odom_frame = 'odom'
+        namespace_str = ''
 
     # Odometry publisher node
     odom_node = Node(
         package='uav_ugv_teaming',
         executable='simple_odom_publisher',
         name='simple_odom_publisher',
-        namespace=LaunchConfiguration('namespace'),
+        namespace=namespace_str if namespace_str else None,
         output='screen'
     )
     
@@ -49,10 +36,10 @@ def generate_launch_description():
         package='uav_ugv_teaming',
         executable='waypoint_navigator',
         name='waypoint_navigator',
-        namespace=LaunchConfiguration('namespace'),
+        namespace=namespace_str if namespace_str else None,
         output='screen',
         parameters=[{
-            'waypoints': LaunchConfiguration('waypoints'),
+            'waypoints': waypoints,
             'linear_speed': 0.2,
             'angular_speed': 0.5,
             'distance_tolerance': 0.1
@@ -70,16 +57,69 @@ def generate_launch_description():
         ])
     ])
     
+    # Robot state publisher - publishes TF for robot links and mesh visualization
     robot_state_publisher = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
         name='robot_state_publisher',
+        namespace=namespace_str if namespace_str else None,
         output='screen',
         parameters=[{
             'robot_description': robot_description_content,
-            'use_sim_time': False
+            'use_sim_time': False,
+            'frame_prefix': f'{namespace_str}/' if namespace_str else ''
         }]
     )
+
+    # Static transform from world to odom (for multi-robot scenarios)
+    world_to_odom = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='world_to_odom_publisher',
+        namespace=LaunchConfiguration('namespace'),
+        arguments=['0', '0', '0', '0', '0', '0', fixed_frame, odom_frame],
+        output='screen'
+    )
+
+    return [
+        world_to_odom,
+        odom_node,
+        navigator_node,
+        robot_state_publisher,
+    ]
+
+def generate_launch_description():
+    # Declare launch arguments
+    namespace_arg = DeclareLaunchArgument(
+        'namespace',
+        default_value='',
+        description='Namespace for the robot'
+    )
+
+    fixed_frame_arg = DeclareLaunchArgument(
+        'fixed_frame',
+        default_value='world',
+        description='Fixed/world frame name (e.g., world, map, odom)'
+    )
+
+    waypoints_arg = DeclareLaunchArgument(
+        'waypoints',
+        default_value='[1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0]',
+        description='List of waypoints as [x1, y1, x2, y2, ...]'
+    )
+
+    use_rviz_arg = DeclareLaunchArgument(
+        'use_rviz',
+        default_value='true',
+        description='Launch RViz'
+    )
+    
+    # Path to RViz config
+    rviz_config_file = PathJoinSubstitution([
+        FindPackageShare('uav_ugv_teaming'),
+        'rviz',
+        'simple_waypoint_nav_config.rviz'
+    ])
 
     # RViz node
     rviz_node = Node(
@@ -93,10 +133,9 @@ def generate_launch_description():
 
     return LaunchDescription([
         namespace_arg,
+        fixed_frame_arg,
         waypoints_arg,
         use_rviz_arg,
-        odom_node,
-        navigator_node,
-        robot_state_publisher,
+        OpaqueFunction(function=launch_setup),
         rviz_node,
     ])

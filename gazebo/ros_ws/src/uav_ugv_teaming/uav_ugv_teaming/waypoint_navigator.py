@@ -31,13 +31,16 @@ class WaypointNavigator(Node):
         except (ValueError, SyntaxError):
             self.get_logger().error(f'Failed to parse waypoints: {waypoints_str}')
             waypoints_list = []
-        
+
         # Convert to list of tuples (x, y)
         self.waypoints = []
         if waypoints_list:
             for i in range(0, len(waypoints_list), 2):
                 if i + 1 < len(waypoints_list):
-                    self.waypoints.append((waypoints_list[i], waypoints_list[i+1]))
+                    try:
+                        self.waypoints.append((float(waypoints_list[i]), float(waypoints_list[i+1])))
+                    except:
+                        self.get_logger().error(f'Invalid waypoint: {(waypoints_list[i], waypoints_list[i+1])}')
         
         self.current_waypoint_idx = 0
         self.robot_x = 0.0

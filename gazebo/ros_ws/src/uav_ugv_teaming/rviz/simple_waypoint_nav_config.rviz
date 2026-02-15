@@ -59,7 +59,16 @@ Visualization Manager:
       Topic:
         Value: /odom
       Value: true
-      
+
+    - Class: rviz_default_plugins/RobotModel
+      Description Topic:
+        Value: /robot_description
+      Enabled: true
+      Name: RobotModel
+      Visual Enabled: true
+      Collision Enabled: false
+      Value: true
+
   Global Options:
     Background Color: 48; 48; 48
     Fixed Frame: odom
