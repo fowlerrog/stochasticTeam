@@ -6,6 +6,7 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist, PoseStamped
 from nav_msgs.msg import Odometry, Path
+from std_srvs.srv import Trigger
 import math
 import ast
 
@@ -15,7 +16,7 @@ class WaypointNavigator(Node):
         
         # Declare parameters
         self.declare_parameter('waypoints', '[]')
-        self.declare_parameter('linear_speed', 0.2)
+        self.declare_parameter('linear_speed', 10.0)
         self.declare_parameter('angular_speed', 0.5)
         self.declare_parameter('distance_tolerance', 0.1)
         
@@ -66,6 +67,13 @@ class WaypointNavigator(Node):
             self.path_callback,
             10
         )
+
+        # Subscribe to clear path service
+        self.clear_service = self.create_service(
+            Trigger,
+            'waypoint_clear',
+            self.clear_waypoints_callback
+        )
         
         # Timer for control loop
         self.timer = self.create_timer(0.1, self.control_loop)
@@ -93,6 +101,14 @@ class WaypointNavigator(Node):
         if self.waypoints:
             self.get_logger().info(f'First waypoint: ({self.waypoints[0][0]:.2f}, {self.waypoints[0][1]:.2f})')
     
+    def clear_waypoints_callback(self, request, response):
+        self.waypoints.clear()
+        self.current_waypoint_idx = 0
+        self.stop_robot()
+        self.get_logger().info('Cleared all waypoints')
+        response.success = True
+        response.message = 'Cleared all waypoints'
+        return response
 
     def odom_callback(self, msg):
         """Update robot pose from odometry"""

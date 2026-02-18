@@ -22,7 +22,7 @@ def main():
         with open(filename, 'r') as f:
             params = yaml.safe_load(f)
     except Exception:
-        node.get_logger().error(f"Failed to real yaml file {filename}")
+        node.get_logger().error(f"Failed to read yaml file {filename}")
         rclpy.shutdown()
         return
 
@@ -52,7 +52,7 @@ def main():
         rclpy.spin_once(node, timeout_sec=0.1)
 
     ugvPub.publish(ugvMessage)
-    node.get_logger().info(f"Sent path of {len(poses)} points to {ugvTopic}")
+    node.get_logger().info(f"Sent path of {len(poses)} points to {ugvTopic}:\n\t" + "\n\t".join(f"{i} : {p.pose.position}" for i,p in enumerate(poses)))
 
     # Send UAV points
     uavOrder = []
@@ -63,8 +63,8 @@ def main():
     waypointAdder = WaypointAdder()
     for n in uavOrder:
         x, y, z = uavPoints[n]
-        waypointAdder.add_waypoint(x, y, -z)
-    node.get_logger().info(f"Sent path of {len(uavOrder)} points to /path_planner/add_waypoint service")
+        waypointAdder.add_waypoint(x, -y, -z) # world -> NED
+    node.get_logger().info(f"Sent path of {len(uavOrder)} points to /path_planner/add_waypoint service\n\t" + "\n\t".join(f"{i} : {uavPoints[uavOrder[i]]}" for i in range(len(uavOrder))))
 
     rclpy.shutdown()
 

@@ -32,6 +32,7 @@ setup(
             'waypoint_navigator = uav_ugv_teaming.waypoint_navigator:main',
             'send_waypoint = uav_ugv_teaming.send_waypoint:main',
             'load_plan = uav_ugv_teaming.load_plan:main',
+            'plan_manager = uav_ugv_teaming.plan_manager:main',
         ],
     },
 )
