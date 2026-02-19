@@ -36,6 +36,8 @@ setup(
             'plan_manager = uav_ugv_teaming.plan_manager:main',
             'docking_manager = uav_ugv_teaming.docking_manager:main',
             'mesh_scaler = uav_ugv_teaming.mesh_scaler:main',
+            'gnss_replacer = uav_ugv_teaming.gnss_replacer:main',
+            'diagnostic_logger = uav_ugv_teaming.diagnostic_logger:main',
         ],
     },
 )

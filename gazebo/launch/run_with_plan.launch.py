@@ -101,6 +101,17 @@ def generate_launch_description():
         }]
     )
 
+    # # Launch truth->gnss replacer
+    # gnss_replacer = Node(
+    #     package='uav_ugv_teaming',
+    #     executable='gnss_replacer',
+    #     name='gnss_replacer',
+    #     output='screen',
+    #     # parameters=[{
+    #     #     'gnss_topic': '/gnss_truth'
+    #     # }]
+    # )
+
     # Perform param load AFTER rosflight_io starts
     # We call the service using the `ros2 service call` CLI
     load_rosflightio_params_cmd = ExecuteProcess(
@@ -131,19 +142,31 @@ def generate_launch_description():
         actions=[calibrate_imu_cmd]
     )
 
-    # # Also improve estimator GPS sigmas
-    # load_estimator_params_cmd = ExecuteProcess(
-    #     cmd=[
-    #         "ros2", "param", "load",
-    #         "/estimator",
-    #         os.path.join(uav_ugv_teaming_share, "params/good_gps_params.yaml")
-    #     ],
+    # # Increase trajectory follower integral coefficients
+    # traj_follower_cmd = ExecuteProcess(
+    #     cmd=["ros2", "service", "call",
+    #     "/trajectory_follower/set_parameters",
+    #     "rcl_interfaces/srv/SetParameters",
+    #     "{parameters: [{name: 'u_d_ki', value: {type: 3, double_value: 0.1}}, {name: 'u_n_ki', value: {type: 3, double_value: 0.02}}, {name: 'u_e_ki', value: {type: 3, double_value: 0.02}}]}"],
     #     output="screen"
     # )
-    # load_estimator_params = TimerAction(
+    # traj_follower = TimerAction(
     #     period=1.0,
-    #     actions=[load_estimator_params_cmd]
+    #     actions=[traj_follower_cmd]
     # )
+
+    # Move UAV to not collide with UGV
+    uav_pos_cmd = ExecuteProcess(
+        cmd=["ros2", "service", "call",
+        "/dynamics/set_sim_state",
+        "rosflight_msgs/srv/SetSimState",
+        "{state: {pose: {position: {x: 1, y: 1, z: 0}}}}"],
+        output="screen"
+    )
+    uav_pos = TimerAction(
+        period=0.1,
+        actions=[uav_pos_cmd]
+    )
 
     return LaunchDescription([
         param_file_arg,
@@ -154,7 +177,9 @@ def generate_launch_description():
         docking_manager,
         plan_manager,
         mesh_scaler,
+        # gnss_replacer,
         load_rosflightio_params,
         calibrate_imu,
-        # load_estimator_params,
+        # traj_follower,
+        uav_pos,
     ])

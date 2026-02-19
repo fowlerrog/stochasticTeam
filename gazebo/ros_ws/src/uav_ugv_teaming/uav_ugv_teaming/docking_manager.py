@@ -108,12 +108,12 @@ class DockingManager(Node):
             return
         
         # Calculate relative position
-        # dx = self.uav_truth_odom.p_n - self.ugv_odom.pose.pose.position.x
-        # dy = -self.uav_truth_odom.p_e - self.ugv_odom.pose.pose.position.y
-        # dz = -self.uav_truth_odom.p_d - self.ugv_odom.pose.pose.position.z - self.ugv_landing_height
-        dx = self.uav_odom_raw.p_n - self.ugv_odom.pose.pose.position.x
-        dy = -self.uav_odom_raw.p_e - self.ugv_odom.pose.pose.position.y
-        dz = -self.uav_odom_raw.p_d - self.ugv_odom.pose.pose.position.z - self.ugv_landing_height
+        dx = self.uav_truth_odom.p_n - self.ugv_odom.pose.pose.position.x
+        dy = -self.uav_truth_odom.p_e - self.ugv_odom.pose.pose.position.y
+        dz = -self.uav_truth_odom.p_d - (self.ugv_odom.pose.pose.position.z + self.ugv_landing_height)
+        # dx = self.uav_odom_raw.p_n - self.ugv_odom.pose.pose.position.x
+        # dy = -self.uav_odom_raw.p_e - self.ugv_odom.pose.pose.position.y
+        # dz = -self.uav_odom_raw.p_d - self.ugv_odom.pose.pose.position.z - self.ugv_landing_height
 
         dist = math.sqrt(dx**2 + dy**2 + dz**2)
         
@@ -153,17 +153,17 @@ class DockingManager(Node):
             modified_odom.twist.twist = self.ugv_odom.twist.twist
             
             # Convert to State message
-            corrected_state = self.odom_to_state(modified_odom, self.uav_odom_raw)
+            corrected_state = self.odom_to_state(modified_odom)
 
             # Publish TF showing docking
             # self.publish_docking_tf()
         else:
             # UAV is flying - use its own odometry
-            # corrected_state = self.uav_truth_odom
-            # corrected_state.initial_lat = self.uav_odom_raw.initial_lat
-            # corrected_state.initial_lon = self.uav_odom_raw.initial_lon
-            # corrected_state.initial_alt = self.uav_odom_raw.initial_alt
-            corrected_state = self.uav_odom_raw
+            corrected_state = self.uav_truth_odom
+            corrected_state.initial_lat = self.uav_odom_raw.initial_lat
+            corrected_state.initial_lon = self.uav_odom_raw.initial_lon
+            corrected_state.initial_alt = self.uav_odom_raw.initial_alt
+            # corrected_state = self.uav_odom_raw
 
         # Publish corrected odometry
         self.uav_odom_pub.publish(corrected_state)
@@ -188,10 +188,9 @@ class DockingManager(Node):
         """Public method to check docking state"""
         return self.is_docked
 
-    def odom_to_state(self, odom_msg, base_state):
+    def odom_to_state(self, odom_msg):
         """
         Convert nav_msgs/Odometry (ENU) to roscopter_msgs/State (NED)
-        Copies non-kinematic fields from base_state
         """
         state = State()
         
@@ -206,39 +205,110 @@ class DockingManager(Node):
         state.p_e = -odom_msg.pose.pose.position.y      # East = -NWU y (West→East)
         state.p_d = -odom_msg.pose.pose.position.z      # Down = -NWU z (Up→Down)
         
-        # Velocity: Convert NWU to NED body frame
-        # Assuming body frame velocities follow same convention
-        state.v_x = odom_msg.twist.twist.linear.x       # Body x velocity (forward/north)
-        state.v_y = -odom_msg.twist.twist.linear.y      # Body y velocity (right/east)
-        state.v_z = -odom_msg.twist.twist.linear.z      # Body z velocity (down)
-        
         # Angular rates (body frame)
         state.p = odom_msg.twist.twist.angular.x        # Roll rate
         state.q = -odom_msg.twist.twist.angular.y       # Pitch rate (flip)
         state.r = -odom_msg.twist.twist.angular.z       # Yaw rate (flip)
         
-        # Orientation: Convert quaternion NWU to NED
-        qx = odom_msg.pose.pose.orientation.x
-        qy = odom_msg.pose.pose.orientation.y
-        qz = odom_msg.pose.pose.orientation.z
-        qw = odom_msg.pose.pose.orientation.w
+        # # Orientation: Convert quaternion NWU to NED
+        # qx = odom_msg.pose.pose.orientation.x
+        # qy = odom_msg.pose.pose.orientation.y
+        # qz = odom_msg.pose.pose.orientation.z
+        # qw = odom_msg.pose.pose.orientation.w
         
-        # NWU to NED: negate y and z components
-        state.quat.w = qw
-        state.quat.x = qx
-        state.quat.y = -qy
-        state.quat.z = -qz
+        # # NWU to NED: negate y and z components
+        # state.quat.w = qw
+        # state.quat.x = qx
+        # state.quat.y = -qy
+        # state.quat.z = -qz
         
         # Extract Euler angles from quaternion (NED frame)
         state.phi, state.theta, state.psi = self.quaternion_to_euler_ned(state.quat)
         
-        # Copy fields from base_state that aren't in Odometry
-        state.b_x = base_state.b_x
-        state.b_y = base_state.b_y
-        state.b_z = base_state.b_z
-        state.initial_lat = base_state.initial_lat
-        state.initial_lon = base_state.initial_lon
-        state.initial_alt = base_state.initial_alt
+        # Convert inertial frame velocities to body frame
+        # Convert NWU to NED frame
+        v_n_inertial = odom_msg.twist.twist.linear.x
+        v_e_inertial = -odom_msg.twist.twist.linear.y  
+        v_d_inertial = -odom_msg.twist.twist.linear.z
+
+
+        # # Complex version with full 3d rotation
+        # # Use full rotation matrix (not just yaw)
+        # cos_psi = math.cos(state.psi)
+        # sin_psi = math.sin(state.psi)
+        # cos_theta = math.cos(state.theta)
+        # sin_theta = math.sin(state.theta)
+        # cos_phi = math.cos(state.phi)
+        # sin_phi = math.sin(state.phi)
+        
+        # # Full DCM rotation: NED to body
+        # # Body x (forward)
+        # state.v_x = (cos_theta * cos_psi) * v_n_inertial + \
+        #             (cos_theta * sin_psi) * v_e_inertial + \
+        #             (-sin_theta) * v_d_inertial
+        
+        # # Body y (right)
+        # state.v_y = (sin_phi * sin_theta * cos_psi - cos_phi * sin_psi) * v_n_inertial + \
+        #             (sin_phi * sin_theta * sin_psi + cos_phi * cos_psi) * v_e_inertial + \
+        #             (sin_phi * cos_theta) * v_d_inertial
+        
+        # # Body z (down)
+        # state.v_z = (cos_phi * sin_theta * cos_psi + sin_phi * sin_psi) * v_n_inertial + \
+        #             (cos_phi * sin_theta * sin_psi - sin_phi * cos_psi) * v_e_inertial + \
+        #             (cos_phi * cos_theta) * v_d_inertial
+        
+        # # Angular rates: Inertial to body frame
+        # omega_x_inertial = odom_msg.twist.twist.angular.x
+        # omega_y_inertial = -odom_msg.twist.twist.angular.y  # NWU to NED
+        # omega_z_inertial = -odom_msg.twist.twist.angular.z  # NWU to NED
+        
+        # # Same DCM for angular velocity
+        # state.p = (cos_theta * cos_psi) * omega_x_inertial + \
+        #         (cos_theta * sin_psi) * omega_y_inertial + \
+        #         (-sin_theta) * omega_z_inertial
+        
+        # state.q = (sin_phi * sin_theta * cos_psi - cos_phi * sin_psi) * omega_x_inertial + \
+        #         (sin_phi * sin_theta * sin_psi + cos_phi * cos_psi) * omega_y_inertial + \
+        #         (sin_phi * cos_theta) * omega_z_inertial
+        
+        # state.r = (cos_phi * sin_theta * cos_psi + sin_phi * sin_psi) * omega_x_inertial + \
+        #         (cos_phi * sin_theta * sin_psi - sin_phi * cos_psi) * omega_y_inertial + \
+        #         (cos_phi * cos_theta) * omega_z_inertial
+
+
+        # Simple version assuming UGV is perfectly level
+        # IMPORTANT: Force UAV to be level when docked
+        state.phi = 0.0
+        state.theta = 0.0
+        # Keep psi from UGV
+        
+        # Update quaternion to match level attitude
+        state.quat.w = math.cos(state.psi / 2.0)
+        state.quat.x = 0.0
+        state.quat.y = 0.0
+        state.quat.z = math.sin(state.psi / 2.0)
+        
+        # Body frame velocities (simplified for level attitude)
+        cos_psi = math.cos(state.psi)
+        sin_psi = math.sin(state.psi)
+        
+        state.v_x = cos_psi * v_n_inertial + sin_psi * v_e_inertial
+        state.v_y = -sin_psi * v_n_inertial + cos_psi * v_e_inertial
+        state.v_z = v_d_inertial  # Should be ~0 when docked
+        
+        # Angular rates (for level attitude, body ≈ inertial)
+        state.p = 0.0  # No roll rate when docked
+        state.q = 0.0  # No pitch rate when docked
+        state.r = -odom_msg.twist.twist.angular.z  # Only yaw rate (NWU to NED sign flip)
+
+
+        # Copy fields from other places that aren't in Odometry
+        state.b_x = self.uav_truth_odom.b_x
+        state.b_y = self.uav_truth_odom.b_y
+        state.b_z = self.uav_truth_odom.b_z
+        state.initial_lat = self.uav_odom_raw.initial_lat
+        state.initial_lon = self.uav_odom_raw.initial_lon
+        state.initial_alt = self.uav_odom_raw.initial_alt
         
         return state
     
