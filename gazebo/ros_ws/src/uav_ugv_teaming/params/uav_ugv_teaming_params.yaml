@@ -1,0 +1,9 @@
+/**:
+  ros__parameters:
+    asdf: 6
+
+/waypoint_navigator:
+  ros__parameters:
+    linear_speed: 0.2
+    angular_speed: 0.5
+    distance_tolerance: 0.1

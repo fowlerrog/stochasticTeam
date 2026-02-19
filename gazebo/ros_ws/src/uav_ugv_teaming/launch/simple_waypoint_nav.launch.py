@@ -14,6 +14,9 @@ def launch_setup(context, *args, **kwargs):
     fixed_frame = LaunchConfiguration('fixed_frame').perform(context)
     waypoints = LaunchConfiguration('waypoints').perform(context)
 
+    uav_ugv_share_dir = get_package_share_directory('uav_ugv_teaming')
+    param_file = os.path.join(uav_ugv_share_dir, 'params', 'uav_ugv_teaming_params.yaml')
+
     # Build frame names
     if namespace:
         odom_frame = f'{namespace}/odom'
@@ -38,12 +41,7 @@ def launch_setup(context, *args, **kwargs):
         name='waypoint_navigator',
         namespace=namespace_str if namespace_str else None,
         output='screen',
-        parameters=[{
-            'waypoints': waypoints,
-            'linear_speed': 0.2,
-            'angular_speed': 0.5,
-            'distance_tolerance': 0.1
-        }]
+        parameters=[{'waypoints': waypoints}, param_file]
     )
 
     # Robot state publisher (publishes TF for robot_description)

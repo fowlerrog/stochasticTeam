@@ -14,6 +14,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
         (os.path.join('share', package_name, 'rviz'), glob('rviz/*.rviz')),
+        (os.path.join('share', package_name, 'params'), glob('params/*.yaml')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -33,6 +34,8 @@ setup(
             'send_waypoint = uav_ugv_teaming.send_waypoint:main',
             'load_plan = uav_ugv_teaming.load_plan:main',
             'plan_manager = uav_ugv_teaming.plan_manager:main',
+            'docking_manager = uav_ugv_teaming.docking_manager:main',
+            'mesh_scaler = uav_ugv_teaming.mesh_scaler:main',
         ],
     },
 )

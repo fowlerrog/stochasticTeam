@@ -16,7 +16,7 @@ class WaypointNavigator(Node):
         
         # Declare parameters
         self.declare_parameter('waypoints', '[]')
-        self.declare_parameter('linear_speed', 10.0)
+        self.declare_parameter('linear_speed', 0.2)
         self.declare_parameter('angular_speed', 0.5)
         self.declare_parameter('distance_tolerance', 0.1)
         
