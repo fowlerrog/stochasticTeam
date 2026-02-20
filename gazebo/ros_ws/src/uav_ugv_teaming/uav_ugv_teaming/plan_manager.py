@@ -8,7 +8,7 @@ from geometry_msgs.msg import PoseStamped, Pose
 from roscopter_msgs.srv import AddWaypoint
 from roscopter_msgs.msg import Waypoint, State
 from rosflight_msgs.msg import Status
-from std_srvs.srv import Trigger
+from std_srvs.srv import Trigger, SetBool
 from nav_msgs.msg import Odometry
 import yaml
 from enum import Enum
@@ -16,21 +16,24 @@ from scipy.spatial.distance import euclidean
 from rcl_interfaces.srv import SetParameters
 from rcl_interfaces.msg import Parameter, ParameterType
 from std_msgs.msg import Bool
+import math
 
 class ExecutionStates(Enum):
-    VALID_PLAN = -4 # valid settings but no action
-    PRE_READYING = -3 # UAV being prepared for flight
-    READYING = -2 # UAV docking to UGV
-    READY = -1 # UAV docked
+    VALID_PLAN = -5 # valid settings but no action
+    PRE_READYING = -4 # UAV being prepared for flight
+    READYING_HORIZONTAL = -3 # UAV moving to UGV
+    READYING_LANDING = -2 # UAV landing on UGV
+    READY = -1 # UAV landed
     START = 0 # begin plan
     MOVING_TOGETHER_TO_RELEASE = 1
     PREPARING_UAV = 2
     WAITING_FOR_TAKEOFF = 3
     MOVING_APART = 4
-    WAITING_FOR_LANDING = 5
-    FINISHED = 6
-    WAITING_FOR_REPLAN_TOGETHER = 7
-    WAITING_FOR_REPLAN_APART = 8
+    WAITING_FOR_LANDING_HORIZONTAL = 5 # UAV moving to UGV
+    WAITING_FOR_LANDING_VERTICAL = 6 # UAV landing on UGV
+    FINISHED = 7
+    WAITING_FOR_REPLAN_TOGETHER = 8
+    WAITING_FOR_REPLAN_APART = 9
 
 class PlanManager(Node):
     def __init__(self):
@@ -38,43 +41,29 @@ class PlanManager(Node):
 
         self.get_logger().info('Plan Manager started')
 
-        # Declare parameters
-        self.declare_parameter('plan_filepath', '')
-        self.declare_parameter('uav_waypoint_add_service', '/path_planner/add_waypoint')
-        self.declare_parameter('uav_waypoint_clear_service', '/path_planner/clear_waypoints')
-        self.declare_parameter('uav_odom_topic', '/estimated_state')
-        self.declare_parameter('uav_status_topic', '/status')
-        self.declare_parameter('uav_arm_service', '/toggle_arm')
-        self.declare_parameter('uav_override_service', '/toggle_override')
-        self.declare_parameter('ugv_waypoint_add_topic', '/ugv/waypoint')
-        self.declare_parameter('ugv_waypoint_clear_service', '/ugv/waypoint_clear')
-        self.declare_parameter('ugv_odom_topic', '/ugv/odom')
-        self.declare_parameter('path_manager_set_params_service', '/path_manager/set_parameters')
-        self.declare_parameter('docking_manager_allow_docking_service', '/docking_manager/allow_docking')
-        self.declare_parameter('docking_manager_disallow_docking_service', '/docking_manager/disallow_docking')
-        self.declare_parameter('docking_manager_docked_topic', '/docking_manager/is_docked')
-        self.declare_parameter('coarse_distance_tolerance', 0.7) # for UAV waypoints, for example
-        self.declare_parameter('fine_distance_tolerance', 0.1) # for UGV waypoints
-        self.declare_parameter('ugv_landing_height', 0.5) # UGV landing offset
-
-        # Get parameters
-        self.plan_filepath = self.get_parameter('plan_filepath').value
-        self.uav_waypoint_add_service = self.get_parameter('uav_waypoint_add_service').value
-        self.uav_waypoint_clear_service = self.get_parameter('uav_waypoint_clear_service').value
-        self.uav_odom_topic = self.get_parameter('uav_odom_topic').value
-        self.uav_status_topic = self.get_parameter('uav_status_topic').value
-        self.uav_arm_service = self.get_parameter('uav_arm_service').value
-        self.uav_override_service = self.get_parameter('uav_override_service').value
-        self.ugv_waypoint_add_topic = self.get_parameter('ugv_waypoint_add_topic').value
-        self.ugv_waypoint_clear_service = self.get_parameter('ugv_waypoint_clear_service').value
-        self.ugv_odom_topic = self.get_parameter('ugv_odom_topic').value
-        self.path_manager_set_params_service = self.get_parameter('path_manager_set_params_service').value
-        self.docking_manager_allow_docking_service = self.get_parameter('docking_manager_allow_docking_service').value
-        self.docking_manager_disallow_docking_service = self.get_parameter('docking_manager_disallow_docking_service').value
-        self.docking_manager_docked_topic = self.get_parameter('docking_manager_docked_topic').value
-        self.coarse_distance_tolerance = self.get_parameter('coarse_distance_tolerance').value
-        self.fine_distance_tolerance = self.get_parameter('fine_distance_tolerance').value
-        self.ugv_landing_height = self.get_parameter('ugv_landing_height').value
+        # Declare and evaluate parameters
+        paramList = [
+            ('plan_filepath', ''),
+            ('uav_waypoint_add_service', '/path_planner/add_waypoint'),
+            ('uav_waypoint_clear_service', '/path_planner/clear_waypoints'),
+            ('uav_odom_topic', '/estimated_state'),
+            ('uav_status_topic', '/status'),
+            ('uav_arm_service', '/toggle_arm'),
+            ('uav_override_service', '/toggle_override'),
+            ('ugv_waypoint_add_topic', '/ugv/waypoint'),
+            ('ugv_waypoint_clear_service', '/ugv/waypoint_clear'),
+            ('ugv_odom_topic', '/ugv/odom'),
+            ('path_manager_set_params_service', '/path_manager/set_parameters'),
+            ('uav_ugv_in_contact_topic', '/collision_force_injector/in_contact'),
+            ('coarse_distance_tolerance', 0.7), # for UAV waypoints, for example
+            ('fine_distance_tolerance', 0.1), # for UGV waypoints
+            ('fine_velocity_tolerance', 0.1),
+            ('ugv_landing_height', 0.5), # UGV landing offset
+            ('activate_landing_service', '/landing_commader/toggle'),
+        ]
+        for name, defaultValue in paramList:
+            self.declare_parameter(name, defaultValue)
+            setattr(self, name, self.get_parameter(name).value)
 
         # Publishers and subscribers
         self.uav_waypoint_add_cli = self.create_client(AddWaypoint, self.uav_waypoint_add_service)
@@ -87,9 +76,8 @@ class PlanManager(Node):
         self.ugv_waypoint_clear_cli = self.create_client(Trigger, self.ugv_waypoint_clear_service)
         self.ugv_odom_sub = self.create_subscription(Odometry, self.ugv_odom_topic, self.ugv_odom_callback, 10)
         self.path_manager_set_params_cli = self.create_client(SetParameters, self.path_manager_set_params_service)
-        self.docking_manager_allow_docking_client = self.create_client(Trigger, self.docking_manager_allow_docking_service)
-        self.docking_manager_disallow_docking_client = self.create_client(Trigger, self.docking_manager_disallow_docking_service)
-        self.docking_manager_docked_sub = self.create_subscription(Bool, self.docking_manager_docked_topic, self.docking_manager_docked_callback, 10)
+        self.uav_ugv_in_contact_sub = self.create_subscription(Bool, self.uav_ugv_in_contact_topic, self.uav_ugv_in_contact_callback, 10)
+        self.activate_landing_cli = self.create_client(SetBool, self.activate_landing_service)
 
         # Subscribe to start service
         self.start_service = self.create_service(
@@ -108,11 +96,12 @@ class PlanManager(Node):
 
         # If we have a valid plan, initialize execution
         self.uav_position = None
+        self.uav_velocity = None
         self.ugv_position = None
         self.i_tour = 0
         self.j_tour = 0
         self.uav_status = None
-        self.is_docked = False
+        self.in_contact = False
         self.pending_futures = {} # {'name' : future} callbacks we are waiting on
         self.service_error = False # any service has returned an error
 
@@ -165,18 +154,31 @@ class PlanManager(Node):
         # Enter state machine
         if self.state == ExecutionStates.PRE_READYING:
             # Prepare UAV for first flight
+            self.set_hold_last()
             self.toggle_uav_arm(True)
-            self.state = ExecutionStates.READYING
-            self.get_logger().info(f"Entering READYING")
+            self.state = ExecutionStates.READYING_HORIZONTAL
+            self.get_logger().info(f"Entering READYING_HORIZONTAL")
 
-        elif self.state == ExecutionStates.READYING:
-            # Command initial docking
-            self.allow_docking(True)
-            uav_goal = [a + b for a,b in zip([self.ugv_position.x, self.ugv_position.y, self.ugv_position.z], [0, 0, self.ugv_landing_height])]
+        elif self.state == ExecutionStates.READYING_HORIZONTAL:
+            # Command initial hover
+            uav_goal = [a + b for a,b in zip([self.ugv_position.x, self.ugv_position.y, self.ugv_position.z], [0, 0, 5*self.ugv_landing_height])]
             self.send_uav_waypoint(uav_goal)
             self.toggle_uav_override(False)
-            self.state = ExecutionStates.READY
-            self.get_logger().info(f'Entering READY')
+            self.state = ExecutionStates.READYING_LANDING
+            self.get_logger().info(f'Entering READYING_LANDING')
+
+        elif self.state == ExecutionStates.READYING_LANDING:
+            uav_goal_xy = [self.ugv_position.x, self.ugv_position.y]
+            uav_at_position = self.get_agent_distance(uav_goal_xy, 'UAV', dim=2) < self.fine_distance_tolerance
+            uav_speed = math.sqrt(sum(v**2 for v in self.uav_velocity))
+            uav_slow = uav_speed < self.fine_velocity_tolerance
+
+            if uav_at_position and uav_slow:
+                # Command initial landing
+                # self.command_landing(True)
+                self.toggle_uav_override(True)
+                self.state = ExecutionStates.READY
+                self.get_logger().info(f'Entering READY')
 
         elif self.state == ExecutionStates.START:
             ugv_path = self.params['ugv_path']
@@ -185,7 +187,6 @@ class PlanManager(Node):
             self.send_ugv_waypoint(ugv_goal)
             self.state = ExecutionStates.MOVING_TOGETHER_TO_RELEASE
             self.get_logger().info(f'Entering MOVING_TOGETHER_TO_RELEASE @ iTour = {self.i_tour}')
-            self.set_hold_last()
 
         elif self.state == ExecutionStates.MOVING_TOGETHER_TO_RELEASE:
             ugv_goal = ugv_points[ugv_path[2*self.i_tour + 1]]
@@ -208,7 +209,6 @@ class PlanManager(Node):
             # command takeoff
             self.send_uav_waypoint(uav_points[uav_tours[self.i_tour][0]])
             self.toggle_uav_override(False)
-            self.allow_docking(False)
             self.state = ExecutionStates.WAITING_FOR_TAKEOFF
             self.get_logger().info(f"Entering WAITING_FOR_TAKEOFF @ iTour = {self.i_tour}")
 
@@ -236,15 +236,29 @@ class PlanManager(Node):
                 ugv_goal = ugv_points[ugv_path[2*self.i_tour + 2]]
                 ugv_at_position = self.get_agent_distance(ugv_goal, 'UGV') < self.fine_distance_tolerance
                 if ugv_at_position:
-                    uav_goal = [a + b for a,b in zip([self.ugv_position.x, self.ugv_position.y, self.ugv_position.z], [0, 0, self.ugv_landing_height])]
+                    uav_goal = [a + b for a,b in zip([self.ugv_position.x, self.ugv_position.y, self.ugv_position.z], [0, 0, 5*self.ugv_landing_height])]
                     self.send_uav_waypoint(uav_goal)
-                    self.state = ExecutionStates.WAITING_FOR_LANDING
-                    self.get_logger().info(f"Entering WAITING_FOR_LANDING @ iTour = {self.i_tour}")
+                    self.state = ExecutionStates.WAITING_FOR_LANDING_HORIZONTAL
+                    self.get_logger().info(f"Entering WAITING_FOR_LANDING_HORIZONTAL @ iTour = {self.i_tour}")
 
-        elif self.state == ExecutionStates.WAITING_FOR_LANDING:
-            if self.is_docked:
-                # landing complete
+        elif self.state == ExecutionStates.WAITING_FOR_LANDING_HORIZONTAL:
+            # Lining up vertically for landing
+            uav_goal_xy = [self.ugv_position.x, self.ugv_position.y]
+            uav_at_position = self.get_agent_distance(uav_goal_xy, 'UAV', dim=2) < self.fine_distance_tolerance
+            uav_speed = math.sqrt(sum(v**2 for v in self.uav_velocity))
+            uav_slow = uav_speed < self.fine_velocity_tolerance
+
+            if uav_at_position and uav_slow:
+                # self.command_landing(True)
                 self.toggle_uav_override(True)
+                self.state = ExecutionStates.WAITING_FOR_LANDING_VERTICAL
+                self.get_logger().info(f"Entering WAITING_FOR_LANDING_VERTICAL @ iTour = {self.i_tour}")
+
+        elif self.state == ExecutionStates.WAITING_FOR_LANDING_VERTICAL:
+            if self.in_contact:
+                # landing complete
+                # self.command_landing(False)
+                # self.toggle_uav_override(True)
                 self.i_tour += 1
                 self.j_tour = 0
 
@@ -271,14 +285,15 @@ class PlanManager(Node):
     def uav_odom_callback(self, msg):
         # Update UAV position
         self.uav_position = [msg.p_n, -msg.p_e, -msg.p_d] # NED -> world
+        self.uav_velocity = [msg.v_x, msg.v_y, msg.v_z] # body frame
 
     def ugv_odom_callback(self, msg):
         # Update UGV position
         self.ugv_position = msg.pose.pose.position
 
-    def docking_manager_docked_callback(self, msg):
-        # Update docked status
-        self.is_docked = msg.data
+    def uav_ugv_in_contact_callback(self, msg):
+        # Update contact status
+        self.in_contact = msg.data
 
     def start_callback(self, request, response):
         # Process start request
@@ -286,13 +301,13 @@ class PlanManager(Node):
             self.state = ExecutionStates.PRE_READYING
             msgString = 'Entering PRE_READYING'
         elif self.state == ExecutionStates.READY:
-            if self.is_docked:
+            if self.in_contact:
                 self.state = ExecutionStates.START
                 msgString = 'Entering START'
                 self.clear_uav_waypoints()
-                self.toggle_uav_override(True)
+                # self.toggle_uav_override(True)
             else:
-                msgString = 'Cannot enter START because UAV is not docked'
+                msgString = 'Cannot enter START because UAV is not landed'
         else:
             msgString = 'Nothing to start'
         self.get_logger().info(msgString)
@@ -300,16 +315,17 @@ class PlanManager(Node):
         response.message = msgString
         return response
 
-    def get_agent_distance(self, goal, agentType):
+    def get_agent_distance(self, goal, agentType, dim=None):
+        if dim is None:
+            dim = len(goal)
         if agentType == 'UAV':
             if self.uav_position is None:
                 return None
-            # self.get_logger().info(f'UAV distance {euclidean(goal, self.uav_position)} b/t {goal}, {self.uav_position}')
-            return euclidean(goal, self.uav_position)
+            return euclidean(goal[:dim], self.uav_position[:dim])
         elif agentType == 'UGV':
             if self.ugv_position is None:
                 return None
-            return euclidean(goal, [self.ugv_position.x, self.ugv_position.y])
+            return euclidean(goal[:dim], [self.ugv_position.x, self.ugv_position.y])
         self.get_logger().error(f'get_agent_distance: agentType {agentType} not recognized')
         return None
 
@@ -399,13 +415,11 @@ class PlanManager(Node):
 
         return True
 
-    def allow_docking(self, value=True):
-        # Send docking manager service
-        self.get_logger().info(f'Setting docking_manager.allow_docking to {value}')
-        if value:
-            self.call_service(self.docking_manager_allow_docking_service, self.docking_manager_allow_docking_client, Trigger.Request())
-        else:
-            self.call_service(self.docking_manager_disallow_docking_service, self.docking_manager_disallow_docking_client, Trigger.Request())
+    def command_landing(self, value):
+        request = SetBool.Request()
+        request.data = value
+        self.call_service(self.activate_landing_service, self.activate_landing_cli, request)
+
 
 def main(args=None):
     rclpy.init(args=args)

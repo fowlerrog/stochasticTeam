@@ -14,9 +14,7 @@ class DockingManager(Node):
         super().__init__('docking_manager')
         
         # Declare parameters
-        self.declare_parameter('uav_odom_topic', '/estimated_state')
         self.declare_parameter('uav_truth_odom_topic', '/sim/roscopter/state')
-        self.declare_parameter('uav_odom_output_topic', '/estimated_state_with_docking')
         self.declare_parameter('ugv_odom_topic', '/ugv/odom')
         self.declare_parameter('fine_distance_tolerance', 0.1)
         self.declare_parameter('ugv_landing_height', 0.5) # UGV landing offset
@@ -24,9 +22,7 @@ class DockingManager(Node):
         self.declare_parameter('ugv_base_link', '/ugv/base_link')
 
         # Get parameters
-        self.uav_odom_topic = self.get_parameter('uav_odom_topic').value
         self.uav_truth_odom_topic = self.get_parameter('uav_truth_odom_topic').value
-        self.uav_odom_output_topic = self.get_parameter('uav_odom_output_topic').value
         self.ugv_odom_topic = self.get_parameter('ugv_odom_topic').value
         self.fine_distance_tolerance = self.get_parameter('fine_distance_tolerance').value
         self.ugv_landing_height = self.get_parameter('ugv_landing_height').value

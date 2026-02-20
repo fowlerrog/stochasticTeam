@@ -1,7 +1,8 @@
 /**:
   ros__parameters:
     coarse_distance_tolerance: 0.7
-    fine_distance_tolerance: 0.1
+    fine_distance_tolerance: 0.2
+    fine_velocity_tolerance: 0.2
     ugv_landing_height: 0.5
     uav_base_link: /stl_frame
     ugv_base_link: /ugv/base_link

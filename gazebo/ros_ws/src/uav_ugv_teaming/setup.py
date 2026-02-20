@@ -38,6 +38,11 @@ setup(
             'mesh_scaler = uav_ugv_teaming.mesh_scaler:main',
             'gnss_replacer = uav_ugv_teaming.gnss_replacer:main',
             'diagnostic_logger = uav_ugv_teaming.diagnostic_logger:main',
+            'collision_force_injector = uav_ugv_teaming.collision_force_injector:main',
+            'state_override = uav_ugv_teaming.state_override:main',
+            'wrench_collector = uav_ugv_teaming.wrench_collector:main',
+            'landing_commander = uav_ugv_teaming.landing_commander:main',
+            'command_debugger = uav_ugv_teaming.command_debugger:main',
         ],
     },
 )

@@ -24,18 +24,19 @@ def generate_launch_description():
     )
     param_file = LaunchConfiguration('param_file')
 
-    execute_settings_file_arg = DeclareLaunchArgument(
-        "execute_settings_file",
+    plan_file_arg = DeclareLaunchArgument(
+        "plan_file",
         default_value="",
         description="Path to execute_settings.yaml"
     )
-    execute_settings_file = LaunchConfiguration('execute_settings_file')
+    plan_file = LaunchConfiguration('plan_file')
 
     # Launch rosflight & roscopter upstream launch files
 
     rosflight_sim_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(rosflight_sim_share, "launch", "multirotor_standalone.launch.py")
+            # os.path.join(rosflight_sim_share, "launch", "multirotor_standalone.launch.py")
+            'multirotor_standalone_modified.launch.py'
         ),
         launch_arguments={
             'rviz2_config_file': os.path.join(uav_ugv_teaming_share, "rviz", "combined_config_plan.rviz")
@@ -44,10 +45,11 @@ def generate_launch_description():
 
     roscopter_sim_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(roscopter_sim_share, "launch", "sim.launch.py")
+            # os.path.join(roscopter_sim_share, "launch", "sim.launch.py")
+            'sim_modified.launch.py'
         ),
         launch_arguments={
-            'state_topic': 'estimated_state_with_docking'
+            'state_topic': 'estimated_state_override'
         }.items()
     )
 
@@ -64,18 +66,6 @@ def generate_launch_description():
         }.items()
     )
 
-    # Launch docking manager
-    docking_manager = Node(
-        package='uav_ugv_teaming',
-        executable='docking_manager',
-        name='docking_manager',
-        output='screen',
-        parameters=[{
-            'uav_odom_output_topic': 'estimated_state_with_docking',
-            # 'uav_odom_topic': '/sim/roscopter/state'
-        }, param_file]
-    )
-
     # Launch plan manager
     plan_manager = Node(
         package='uav_ugv_teaming',
@@ -83,8 +73,8 @@ def generate_launch_description():
         name='plan_manager',
         output='screen',
         parameters=[{
-            'uav_odom_topic': 'estimated_state_with_docking',
-            'plan_filepath': execute_settings_file
+            'uav_odom_topic': 'estimated_state_override',
+            'plan_filepath': plan_file
         }, param_file]
     )
 
@@ -101,16 +91,41 @@ def generate_launch_description():
         }]
     )
 
-    # # Launch truth->gnss replacer
-    # gnss_replacer = Node(
-    #     package='uav_ugv_teaming',
-    #     executable='gnss_replacer',
-    #     name='gnss_replacer',
-    #     output='screen',
-    #     # parameters=[{
-    #     #     'gnss_topic': '/gnss_truth'
-    #     # }]
-    # )
+    # Launch collision force injector
+    collision_force_injector = Node(
+        package='uav_ugv_teaming',
+        executable='collision_force_injector',
+        name='collision_force_injector',
+        output='screen',
+        parameters=[param_file]
+    )
+
+    # Launch wrench collector
+    wrench_collector = Node(
+        package='uav_ugv_teaming',
+        executable='wrench_collector',
+        name='wrench_collector',
+        output='screen',
+    )
+
+    # Launch state override
+    state_override = Node(
+        package='uav_ugv_teaming',
+        executable='state_override',
+        name='state_override',
+        output='screen',
+    )
+
+    # Launch landing commander
+    landing_commander = Node(
+        package='uav_ugv_teaming',
+        executable='landing_commander',
+        name='landing_commander',
+        output='screen',
+        parameters=[{
+            'uav_odom_topic': 'estimated_state_override',
+        }]
+    )
 
     # Perform param load AFTER rosflight_io starts
     # We call the service using the `ros2 service call` CLI
@@ -142,19 +157,6 @@ def generate_launch_description():
         actions=[calibrate_imu_cmd]
     )
 
-    # # Increase trajectory follower integral coefficients
-    # traj_follower_cmd = ExecuteProcess(
-    #     cmd=["ros2", "service", "call",
-    #     "/trajectory_follower/set_parameters",
-    #     "rcl_interfaces/srv/SetParameters",
-    #     "{parameters: [{name: 'u_d_ki', value: {type: 3, double_value: 0.1}}, {name: 'u_n_ki', value: {type: 3, double_value: 0.02}}, {name: 'u_e_ki', value: {type: 3, double_value: 0.02}}]}"],
-    #     output="screen"
-    # )
-    # traj_follower = TimerAction(
-    #     period=1.0,
-    #     actions=[traj_follower_cmd]
-    # )
-
     # Move UAV to not collide with UGV
     uav_pos_cmd = ExecuteProcess(
         cmd=["ros2", "service", "call",
@@ -170,16 +172,17 @@ def generate_launch_description():
 
     return LaunchDescription([
         param_file_arg,
-        execute_settings_file_arg,
+        plan_file_arg,
         rosflight_sim_launch,
         roscopter_sim_launch,
         uav_ugv_teaming_launch,
-        docking_manager,
         plan_manager,
         mesh_scaler,
-        # gnss_replacer,
+        collision_force_injector,
+        wrench_collector,
+        state_override,
+        landing_commander,
         load_rosflightio_params,
         calibrate_imu,
-        # traj_follower,
         uav_pos,
     ])
