@@ -124,7 +124,7 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'uav_odom_topic': 'estimated_state_override',
-        }]
+        }, param_file]
     )
 
     # Perform param load AFTER rosflight_io starts

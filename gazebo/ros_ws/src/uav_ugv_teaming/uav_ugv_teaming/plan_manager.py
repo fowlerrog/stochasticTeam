@@ -16,14 +16,14 @@ from scipy.spatial.distance import euclidean
 from rcl_interfaces.srv import SetParameters
 from rcl_interfaces.msg import Parameter, ParameterType
 from std_msgs.msg import Bool
-import math
 
 class ExecutionStates(Enum):
-    VALID_PLAN = -5 # valid settings but no action
-    PRE_READYING = -4 # UAV being prepared for flight
-    READYING_HORIZONTAL = -3 # UAV moving to UGV
-    READYING_LANDING = -2 # UAV landing on UGV
-    READY = -1 # UAV landed
+    VALID_PLAN = -6 # valid settings but no action
+    PRE_READYING = -5 # UAV being prepared for flight
+    READYING_HORIZONTAL = -4 # UAV moving to UGV
+    READYING_LANDING = -3 # UAV landing on UGV
+    READYING_FINAL = -2 # UAV landed
+    READY = -1 # wait for command
     START = 0 # begin plan
     MOVING_TOGETHER_TO_RELEASE = 1
     PREPARING_UAV = 2
@@ -60,6 +60,7 @@ class PlanManager(Node):
             ('fine_velocity_tolerance', 0.1),
             ('ugv_landing_height', 0.5), # UGV landing offset
             ('activate_landing_service', '/landing_commader/toggle'),
+            ('wait_time', 2.0),
         ]
         for name, defaultValue in paramList:
             self.declare_parameter(name, defaultValue)
@@ -97,7 +98,10 @@ class PlanManager(Node):
         # If we have a valid plan, initialize execution
         self.uav_position = None
         self.uav_velocity = None
+        self.uav_goal = None
         self.ugv_position = None
+        self.ugv_velocity = None
+        self.ugv_goal = None
         self.i_tour = 0
         self.j_tour = 0
         self.uav_status = None
@@ -120,8 +124,12 @@ class PlanManager(Node):
             self.get_logger().info(f'Entering VALID_PLAN')
             self.state = ExecutionStates.VALID_PLAN
 
+        # Timer for mission waiting
+        self.waiting_for_timer = False
+        self.mission_timer = self.create_timer(self.wait_time, self.timer_callback, autostart=False)
+
         # Timer for control loop
-        self.timer = self.create_timer(0.5, self.control_loop)
+        self.timer = self.create_timer(0.1, self.control_loop)
 
     def control_loop(self):
         # Main control loop
@@ -130,7 +138,8 @@ class PlanManager(Node):
         if self.state == ExecutionStates.FINISHED or \
             self.state == ExecutionStates.READY or \
             self.uav_position is None or \
-            self.ugv_position is None:
+            self.ugv_position is None or \
+            self.waiting_for_timer:
             return
 
         # Check for and remove returned service calls
@@ -161,39 +170,36 @@ class PlanManager(Node):
 
         elif self.state == ExecutionStates.READYING_HORIZONTAL:
             # Command initial hover
-            uav_goal = [a + b for a,b in zip([self.ugv_position.x, self.ugv_position.y, self.ugv_position.z], [0, 0, 5*self.ugv_landing_height])]
-            self.send_uav_waypoint(uav_goal)
+            self.uav_goal = [a + b for a,b in zip([self.ugv_position.x, self.ugv_position.y, self.ugv_position.z], [0, 0, 2*self.ugv_landing_height])]
+            self.send_uav_waypoint(self.uav_goal)
             self.toggle_uav_override(False)
             self.state = ExecutionStates.READYING_LANDING
             self.get_logger().info(f'Entering READYING_LANDING')
 
         elif self.state == ExecutionStates.READYING_LANDING:
-            uav_goal_xy = [self.ugv_position.x, self.ugv_position.y]
-            uav_at_position = self.get_agent_distance(uav_goal_xy, 'UAV', dim=2) < self.fine_distance_tolerance
-            uav_speed = math.sqrt(sum(v**2 for v in self.uav_velocity))
-            uav_slow = uav_speed < self.fine_velocity_tolerance
-
-            if uav_at_position and uav_slow:
+            if self.uav_at_goal():
                 # Command initial landing
-                # self.command_landing(True)
-                self.toggle_uav_override(True)
+                self.command_landing(True)
+                self.state = ExecutionStates.READYING_FINAL
+                self.get_logger().info(f'Entering READYING_FINAL')
+
+        elif self.state == ExecutionStates.READYING_FINAL:
+            if self.in_contact and self.uav_status.control_mode == 1: # control disabled
+                self.clear_uav_waypoints()
                 self.state = ExecutionStates.READY
                 self.get_logger().info(f'Entering READY')
 
         elif self.state == ExecutionStates.START:
             ugv_path = self.params['ugv_path']
             ugv_points = self.params['ugv_point_map']
-            ugv_goal = ugv_points[ugv_path[2*self.i_tour + 1]]
-            self.send_ugv_waypoint(ugv_goal)
+            self.ugv_goal = ugv_points[ugv_path[2*self.i_tour + 1]]
+            self.send_ugv_waypoint(self.ugv_goal)
             self.state = ExecutionStates.MOVING_TOGETHER_TO_RELEASE
             self.get_logger().info(f'Entering MOVING_TOGETHER_TO_RELEASE @ iTour = {self.i_tour}')
 
         elif self.state == ExecutionStates.MOVING_TOGETHER_TO_RELEASE:
-            ugv_goal = ugv_points[ugv_path[2*self.i_tour + 1]]
-            ugv_at_position = self.get_agent_distance(ugv_goal, 'UGV') < self.fine_distance_tolerance
-
-            if ugv_at_position and self.uav_status is not None:
-                # check for final point
+            if self.ugv_at_goal():
+                # check for final UGV point
                 if self.i_tour == len(uav_tours):
                     self.state = ExecutionStates.FINISHED
                     self.get_logger().info(f"Entering FINISHED")
@@ -207,68 +213,58 @@ class PlanManager(Node):
 
         elif self.state == ExecutionStates.PREPARING_UAV:
             # command takeoff
-            self.send_uav_waypoint(uav_points[uav_tours[self.i_tour][0]])
+            self.uav_goal = uav_points[uav_tours[self.i_tour][0]]
+            self.send_uav_waypoint(self.uav_goal)
             self.toggle_uav_override(False)
             self.state = ExecutionStates.WAITING_FOR_TAKEOFF
             self.get_logger().info(f"Entering WAITING_FOR_TAKEOFF @ iTour = {self.i_tour}")
+            self.start_timer()
 
         elif self.state == ExecutionStates.WAITING_FOR_TAKEOFF:
-            uav_goal = uav_points[uav_tours[self.i_tour][0]]
-            uav_at_position = self.get_agent_distance(uav_goal, 'UAV') < self.coarse_distance_tolerance
-
-            if uav_at_position:
+            if self.uav_at_goal(fine=False, checkVel=False):
                 # takeoff complete
-                self.send_ugv_waypoint(ugv_points[ugv_path[2*self.i_tour + 2]])
+                self.ugv_goal = ugv_points[ugv_path[2*self.i_tour + 2]]
+                self.send_ugv_waypoint(self.ugv_goal)
                 self.state = ExecutionStates.MOVING_APART
                 self.get_logger().info(f"Entering MOVING_APART @ iTour = {self.i_tour}")
 
         elif self.state == ExecutionStates.MOVING_APART:
-            uav_goal = uav_points[uav_tours[self.i_tour][self.j_tour]]
-            uav_at_position = self.get_agent_distance(uav_goal, 'UAV') < self.coarse_distance_tolerance
-
-            if uav_at_position:
+            if self.uav_at_goal(fine=False, checkVel=False):
                 # check for next point
                 if self.j_tour < len(uav_tours[self.i_tour]) - 1:
-                    self.send_uav_waypoint(uav_points[uav_tours[self.i_tour][self.j_tour + 1]])
+                    self.uav_goal = uav_points[uav_tours[self.i_tour][self.j_tour + 1]]
+                    self.send_uav_waypoint(self.uav_goal)
                     self.j_tour += 1
 
                 # otherwise, last point and check for ugv position
-                ugv_goal = ugv_points[ugv_path[2*self.i_tour + 2]]
-                ugv_at_position = self.get_agent_distance(ugv_goal, 'UGV') < self.fine_distance_tolerance
-                if ugv_at_position:
-                    uav_goal = [a + b for a,b in zip([self.ugv_position.x, self.ugv_position.y, self.ugv_position.z], [0, 0, 5*self.ugv_landing_height])]
-                    self.send_uav_waypoint(uav_goal)
+                if self.ugv_at_goal():
+                    self.uav_goal = [a + b for a,b in zip([self.ugv_position.x, self.ugv_position.y, self.ugv_position.z], [0, 0, 2*self.ugv_landing_height])]
+                    self.send_uav_waypoint(self.uav_goal)
                     self.state = ExecutionStates.WAITING_FOR_LANDING_HORIZONTAL
                     self.get_logger().info(f"Entering WAITING_FOR_LANDING_HORIZONTAL @ iTour = {self.i_tour}")
 
         elif self.state == ExecutionStates.WAITING_FOR_LANDING_HORIZONTAL:
             # Lining up vertically for landing
-            uav_goal_xy = [self.ugv_position.x, self.ugv_position.y]
-            uav_at_position = self.get_agent_distance(uav_goal_xy, 'UAV', dim=2) < self.fine_distance_tolerance
-            uav_speed = math.sqrt(sum(v**2 for v in self.uav_velocity))
-            uav_slow = uav_speed < self.fine_velocity_tolerance
-
-            if uav_at_position and uav_slow:
-                # self.command_landing(True)
-                self.toggle_uav_override(True)
+            if self.uav_at_goal():
+                self.command_landing(True)
                 self.state = ExecutionStates.WAITING_FOR_LANDING_VERTICAL
                 self.get_logger().info(f"Entering WAITING_FOR_LANDING_VERTICAL @ iTour = {self.i_tour}")
 
         elif self.state == ExecutionStates.WAITING_FOR_LANDING_VERTICAL:
-            if self.in_contact:
-                # landing complete
-                # self.command_landing(False)
-                # self.toggle_uav_override(True)
+            if self.in_contact and self.uav_status.control_mode == 1: # control disabled
+                self.clear_uav_waypoints()
+
                 self.i_tour += 1
                 self.j_tour = 0
 
                 ugv_path = self.params['ugv_path']
                 ugv_points = self.params['ugv_point_map']
-                ugv_goal = ugv_points[ugv_path[2*self.i_tour + 1]]
-                self.send_ugv_waypoint(ugv_goal)
+                self.ugv_goal = ugv_points[ugv_path[2*self.i_tour + 1]]
+                self.send_ugv_waypoint(self.ugv_goal)
 
                 self.state = ExecutionStates.MOVING_TOGETHER_TO_RELEASE
                 self.get_logger().info(f"Entering MOVING_TOGETHER_TO_RELEASE @ iTour = {self.i_tour}")
+                self.start_timer()
 
     def replanner_callback(self, msg):
         # Receive updated plan
@@ -290,6 +286,7 @@ class PlanManager(Node):
     def ugv_odom_callback(self, msg):
         # Update UGV position
         self.ugv_position = msg.pose.pose.position
+        self.ugv_velocity = msg.twist.twist.linear
 
     def uav_ugv_in_contact_callback(self, msg):
         # Update contact status
@@ -304,8 +301,6 @@ class PlanManager(Node):
             if self.in_contact:
                 self.state = ExecutionStates.START
                 msgString = 'Entering START'
-                self.clear_uav_waypoints()
-                # self.toggle_uav_override(True)
             else:
                 msgString = 'Cannot enter START because UAV is not landed'
         else:
@@ -315,19 +310,26 @@ class PlanManager(Node):
         response.message = msgString
         return response
 
-    def get_agent_distance(self, goal, agentType, dim=None):
-        if dim is None:
-            dim = len(goal)
-        if agentType == 'UAV':
-            if self.uav_position is None:
-                return None
-            return euclidean(goal[:dim], self.uav_position[:dim])
-        elif agentType == 'UGV':
-            if self.ugv_position is None:
-                return None
-            return euclidean(goal[:dim], [self.ugv_position.x, self.ugv_position.y])
-        self.get_logger().error(f'get_agent_distance: agentType {agentType} not recognized')
-        return None
+    def start_timer(self):
+        self.waiting_for_timer = True
+        self.mission_timer.reset()
+        self.get_logger().info(f'Starting timer for {self.wait_time}s')
+
+    def timer_callback(self):
+        self.waiting_for_timer = False
+        self.mission_timer.cancel()
+
+    def uav_at_goal(self, fine=True, checkVel=True):
+        # is the UAV in xy radius and optionally stopped
+        distance_tolerance = self.fine_distance_tolerance if fine else self.coarse_distance_tolerance
+        return euclidean(self.uav_goal[:2], self.uav_position[:2]) < distance_tolerance and \
+            (not checkVel or sum(v**2 for v in self.uav_velocity) < self.fine_velocity_tolerance**2)
+
+    def ugv_at_goal(self, fine=True, checkVel=True):
+        # is the UGV in xy radius and optionally stopped
+        distance_tolerance = self.fine_distance_tolerance if fine else self.coarse_distance_tolerance
+        return euclidean(self.ugv_goal[:2], [self.ugv_position.x, self.ugv_position.y]) < distance_tolerance and \
+            (not checkVel or sum(v**2 for v in [self.ugv_velocity.x, self.ugv_velocity.y, self.ugv_velocity.z]) < self.fine_velocity_tolerance**2)
 
     def load_plan(self, plan_filepath):
         try:
@@ -374,7 +376,7 @@ class PlanManager(Node):
 
     def toggle_uav_override(self, value=False):
         # Toggle UAV control override if necessary
-        if (self.uav_status.control_mode > 0) != value:
+        if (self.uav_status.control_mode == 0) == value:
             self.get_logger().info(f'Setting UAV override to {value}')
             self.call_service(self.uav_override_service, self.uav_override_cli, Trigger.Request())
 
@@ -387,6 +389,7 @@ class PlanManager(Node):
         # Send UAV waypoint service
         request = AddWaypoint.Request()
         request.wp.w = [position[0], -position[1], -position[2]] # world -> NED
+        request.wp.hold_seconds = 1.0
         self.get_logger().info(f'Sending UAV waypoint [NED] {request.wp.w}')
         self.call_service(self.uav_waypoint_add_service, self.uav_waypoint_add_cli, request)
 

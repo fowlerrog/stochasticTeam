@@ -2,8 +2,8 @@
 import rclpy
 from rclpy.node import Node
 from roscopter_msgs.msg import State
-from rosflight_msgs.msg import Command
-from std_srvs.srv import SetBool
+from rosflight_msgs.msg import Command, Status
+from std_srvs.srv import SetBool, Trigger
 
 class LandingCommander(Node):
     def __init__(self):
@@ -11,11 +11,14 @@ class LandingCommander(Node):
         
         # Declare and evaluate parameters
         paramList = [
-            ('descent_rate', 0.1),  # m/s (positive = down)
             ('raw_command_topic', '/raw_command'),
             ('uav_odom_topic', '/estimated_state'),
             ('command_topic', '/command'),
             ('activate_landing_service', '/landing_commader/toggle'),
+            ('uav_override_service', '/toggle_override'),
+            ('landing_throttle_coefficient', 0.2),
+            ('ugv_landing_height', 0.3),
+            ('fine_distance_tolerance', 0.2)
         ]
         for name, defaultValue in paramList:
             self.declare_parameter(name, defaultValue)
@@ -34,8 +37,7 @@ class LandingCommander(Node):
             self.raw_command_topic,
             self.cmd_callback,
             10
-        )
-        
+        )        
         self.state_sub = self.create_subscription(
             State,
             self.uav_odom_topic,
@@ -56,12 +58,17 @@ class LandingCommander(Node):
             self.activate_landing_service,
             self.landing_service_callback
         )
-        
+
+        # Client to override UAV control
+        self.uav_override_cli = self.create_client(
+            Trigger, self.uav_override_service
+        )
+
         # Timer to publish at consistent rate
         self.timer = self.create_timer(0.0025, self.publish_command)  # 400 Hz
-        
+
         self.get_logger().info('Landing Commander started')
-        self.get_logger().info(f'  Descent rate: {self.descent_rate} m/s')
+        self.get_logger().info(f'  Landing Throttle coeff: {self.landing_throttle_coefficient}')
         self.get_logger().info( '  Service: /activate_landing (std_srvs/SetBool)')
         self.get_logger().info(f'  Input: {self.raw_command_topic}')
         self.get_logger().info(f'  Output: {self.command_topic}')
@@ -73,7 +80,7 @@ class LandingCommander(Node):
     def state_callback(self, msg):
         """Store current UAV state"""
         self.current_uav_state = msg
-    
+
     def landing_service_callback(self, request, response):
         """Toggle landing mode via service"""
         if request.data:
@@ -108,6 +115,7 @@ class LandingCommander(Node):
             self.landing_active = False
             self.landing_start_position = None
             self.landing_start_yaw = None
+            self.last_command = None
             
             response.success = True
             response.message = 'Landing deactivated - passing through commands'
@@ -117,7 +125,18 @@ class LandingCommander(Node):
     
     def publish_command(self):
         """Publish command - either passthrough or landing override"""
-        
+
+        # Check for landing first
+        if self.landing_active and \
+        self.current_uav_state is not None and \
+        abs(-self.current_uav_state.p_d - self.ugv_landing_height) < self.fine_distance_tolerance:
+            self.get_logger().info('Detected landing; disabling UAV')
+            while not self.uav_override_cli.wait_for_service(timeout_sec=1.0):
+                pass
+            self.uav_override_cli.call_async(Trigger.Request())
+            self.landing_active = False
+            return
+
         if not self.landing_active:
             # Passthrough mode - echo input to output
             if self.last_command is not None:
@@ -134,42 +153,14 @@ class LandingCommander(Node):
             cmd.header.frame_id = 'NED'
             
             cmd.mode = Command.MODE_ROLLRATE_PITCHRATE_YAWRATE_THROTTLE
-            cmd.cmd1 = 0.0
-            cmd.cmd2 = 0.0
-            cmd.cmd3 = 0.0
-            cmd.cmd4 = 0.0
-
-            # cmd.mode = Command.MODE_NPOS_EPOS_DVEL_YAW  # Mode 4
-            # cmd.mode = Command.MODE_NPOS_EPOS_DPOS_YAW # Mode 0
-            
-            # # Hold horizontal position where landing started
-            # cmd.cmd1 = float(self.landing_start_position['n'])  # North position
-            # cmd.cmd2 = float(self.landing_start_position['e'])  # East position
-            # # cmd.cmd3 = float(self.descent_rate)                 # Down velocity (positive = descend)
-            # cmd.cmd3 = 0.0 # ground position
-            # cmd.cmd4 = float(self.landing_start_yaw)            # Yaw
-
-            # cmd.mode = Command.MODE_NACC_EACC_DACC_YAWRATE # Mode 10
-            # cmd.cmd1 = 0.0
-            # cmd.cmd2 = 0.0
-            # cmd.cmd3 = 1.0
-            # cmd.cmd4 = 0.0
-
-            cmd.cmd_valid = True
+            cmd.u = [0.0] * 10
+            # cmd.u[2] = self.landing_throttle # set only throttle command [0-1]
+            # zero thrust at >= 3 m + ugv height, with linear ramp up to K at ugv height
+            cmd.u[2] = min(self.landing_throttle_coefficient, max(0,
+                self.landing_throttle_coefficient * (3 + self.current_uav_state.p_d - self.ugv_landing_height)
+            ))
             
             self.cmd_pub.publish(cmd)
-            
-            # Periodic status
-            if self.current_uav_state:
-                current_d = self.current_uav_state.p_d
-                altitude_agl = -current_d  # Approximate altitude
-                
-                if int(self.get_clock().now().nanoseconds / 1e9) % 2 == 0:
-                    self.get_logger().info(
-                        f'Landing: Alt≈{altitude_agl:.2f}m, '
-                        f'Descending at {self.descent_rate} m/s',
-                        throttle_duration_sec=2.0
-                    )
 
 def main():
     rclpy.init()
