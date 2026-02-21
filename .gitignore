@@ -32,3 +32,4 @@ gazebo/ros_ws/log
 gazebo/ros_ws/src/roscopter
 gazebo/ros_ws/src/rosflight_ros_pkgs
 gazebo/**/rosflight_memory
+gazebo/resources/jackal*

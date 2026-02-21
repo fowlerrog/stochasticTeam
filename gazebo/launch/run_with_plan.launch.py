@@ -62,7 +62,8 @@ def generate_launch_description():
             'waypoints':'[]',
             'use_rviz':'false',
             'namespace':'ugv',
-            'fixed_frame':'world'
+            'fixed_frame':'world',
+            'urdf_xacro':'../resources/jackal_description/urdf/jackal.urdf.xacro',
         }.items()
     )
 

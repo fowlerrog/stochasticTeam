@@ -7,12 +7,14 @@ from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
 from ament_index_python.packages import get_package_share_directory
+from launch_ros.parameter_descriptions import ParameterValue
 
 def launch_setup(context, *args, **kwargs):
     # Get launch configuration values
     namespace = LaunchConfiguration('namespace').perform(context)
     fixed_frame = LaunchConfiguration('fixed_frame').perform(context)
     waypoints = LaunchConfiguration('waypoints').perform(context)
+    urdf_xacro = LaunchConfiguration('urdf_xacro').perform(context)
 
     uav_ugv_share_dir = get_package_share_directory('uav_ugv_teaming')
     param_file = os.path.join(uav_ugv_share_dir, 'params', 'uav_ugv_teaming_params.yaml')
@@ -47,12 +49,7 @@ def launch_setup(context, *args, **kwargs):
     # Robot state publisher (publishes TF for robot_description)
     robot_description_content = Command([
         'xacro ',
-        PathJoinSubstitution([
-            FindPackageShare('turtlebot4_description'),
-            'urdf',
-            'standard',
-            'turtlebot4.urdf.xacro'
-        ])
+        urdf_xacro
     ])
     
     # Robot state publisher - publishes TF for robot links and mesh visualization
@@ -63,7 +60,7 @@ def launch_setup(context, *args, **kwargs):
         namespace=namespace_str if namespace_str else None,
         output='screen',
         parameters=[{
-            'robot_description': robot_description_content,
+            'robot_description': ParameterValue(robot_description_content, value_type=str),
             'use_sim_time': False,
             'frame_prefix': f'{namespace_str}/' if namespace_str else ''
         }]
@@ -111,7 +108,18 @@ def generate_launch_description():
         default_value='true',
         description='Launch RViz'
     )
-    
+
+    urdf_xacro_arg = DeclareLaunchArgument(
+        'urdf_xacro',
+        default_value=PathJoinSubstitution([
+            FindPackageShare('turtlebot4_description'),
+            'urdf',
+            'standard',
+            'turtlebot4.urdf.xacro'
+        ]),
+        description='Location of *.urdf.xacro UGV description file'
+    )
+
     # Path to RViz config
     rviz_config_file = PathJoinSubstitution([
         FindPackageShare('uav_ugv_teaming'),
@@ -134,6 +142,7 @@ def generate_launch_description():
         fixed_frame_arg,
         waypoints_arg,
         use_rviz_arg,
+        urdf_xacro_arg,
         OpaqueFunction(function=launch_setup),
         rviz_node,
     ])

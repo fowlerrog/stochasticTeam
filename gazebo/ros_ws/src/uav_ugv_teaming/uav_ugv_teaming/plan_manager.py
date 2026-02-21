@@ -26,14 +26,16 @@ class ExecutionStates(Enum):
     READY = -1 # wait for command
     START = 0 # begin plan
     MOVING_TOGETHER_TO_RELEASE = 1
-    PREPARING_UAV = 2
-    WAITING_FOR_TAKEOFF = 3
-    MOVING_APART = 4
-    WAITING_FOR_LANDING_HORIZONTAL = 5 # UAV moving to UGV
-    WAITING_FOR_LANDING_VERTICAL = 6 # UAV landing on UGV
-    FINISHED = 7
-    WAITING_FOR_REPLAN_TOGETHER = 8
-    WAITING_FOR_REPLAN_APART = 9
+    SENDING_UAV_WAYPOINT = 2
+    ENABLING_UAV = 3
+    WAITING_FOR_TAKEOFF = 4
+    MOVING_APART = 5
+    WAITING_FOR_LANDING_HORIZONTAL = 6 # UAV moving to UGV
+    WAITING_FOR_LANDING_VERTICAL = 7 # UAV landing on UGV
+    FINISHED = 8
+    WAITING_FOR_REPLAN_TOGETHER = 9
+    WAITING_FOR_REPLAN_APART = 10
+    EXTRA_WAIT = 11
 
 class PlanManager(Node):
     def __init__(self):
@@ -165,6 +167,7 @@ class PlanManager(Node):
             # Prepare UAV for first flight
             self.set_hold_last()
             self.toggle_uav_arm(True)
+            self.send_ugv_waypoint([0.0,0.0]) # shake the UGV a bit so it doesn't buck the UAV when it starts up
             self.state = ExecutionStates.READYING_HORIZONTAL
             self.get_logger().info(f"Entering READYING_HORIZONTAL")
 
@@ -206,15 +209,25 @@ class PlanManager(Node):
                     return
 
                 # prepare for takeoff
-                self.toggle_uav_arm(True)
                 self.clear_uav_waypoints()
-                self.state = ExecutionStates.PREPARING_UAV
-                self.get_logger().info(f"Entering PREPARING_UAV @ iTour = {self.i_tour}")
+                self.state = ExecutionStates.SENDING_UAV_WAYPOINT
+                self.get_logger().info(f"Entering SENDING_UAV_WAYPOINT @ iTour = {self.i_tour}")
 
-        elif self.state == ExecutionStates.PREPARING_UAV:
-            # command takeoff
+        elif self.state == ExecutionStates.SENDING_UAV_WAYPOINT:
+            # wait for UAV waypoints to clear before sending
             self.uav_goal = uav_points[uav_tours[self.i_tour][0]]
             self.send_uav_waypoint(self.uav_goal)
+            self.state = ExecutionStates.EXTRA_WAIT
+            self.get_logger().info(f"Entering EXTRA_WAIT @ iTour = {self.i_tour}")
+
+        elif self.state == ExecutionStates.EXTRA_WAIT:
+            # maybe this will fix the controller going to the last point, which is supposed to have been clear from the path
+            self.start_timer()
+            self.state = ExecutionStates.ENABLING_UAV
+            self.get_logger().info(f"Entering ENABLING_UAV @ iTour = {self.i_tour}")
+
+        elif self.state == ExecutionStates.ENABLING_UAV:
+            # command takeoff after UAV has received waypoint
             self.toggle_uav_override(False)
             self.state = ExecutionStates.WAITING_FOR_TAKEOFF
             self.get_logger().info(f"Entering WAITING_FOR_TAKEOFF @ iTour = {self.i_tour}")
@@ -249,6 +262,7 @@ class PlanManager(Node):
                 self.command_landing(True)
                 self.state = ExecutionStates.WAITING_FOR_LANDING_VERTICAL
                 self.get_logger().info(f"Entering WAITING_FOR_LANDING_VERTICAL @ iTour = {self.i_tour}")
+                self.start_timer() # wait before leaving with UAV
 
         elif self.state == ExecutionStates.WAITING_FOR_LANDING_VERTICAL:
             if self.in_contact and self.uav_status.control_mode == 1: # control disabled
@@ -264,7 +278,6 @@ class PlanManager(Node):
 
                 self.state = ExecutionStates.MOVING_TOGETHER_TO_RELEASE
                 self.get_logger().info(f"Entering MOVING_TOGETHER_TO_RELEASE @ iTour = {self.i_tour}")
-                self.start_timer()
 
     def replanner_callback(self, msg):
         # Receive updated plan
@@ -318,6 +331,7 @@ class PlanManager(Node):
     def timer_callback(self):
         self.waiting_for_timer = False
         self.mission_timer.cancel()
+        self.get_logger().info(f'Timer is up')
 
     def uav_at_goal(self, fine=True, checkVel=True):
         # is the UAV in xy radius and optionally stopped
