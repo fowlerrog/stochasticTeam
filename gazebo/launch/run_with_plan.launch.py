@@ -66,6 +66,14 @@ def generate_launch_description():
             'urdf_xacro':'../resources/jackal_description/urdf/jackal.urdf.xacro',
         }.items()
     )
+    # with spinning wheels
+    wheel_tf_publisher = Node(
+        package='uav_ugv_teaming',
+        executable='wheel_tf_publisher',
+        name='wheel_tf_publisher',
+        output='screen',
+        parameters=[param_file]
+    )
 
     # Launch plan manager
     plan_manager = Node(
@@ -177,6 +185,7 @@ def generate_launch_description():
         rosflight_sim_launch,
         roscopter_sim_launch,
         uav_ugv_teaming_launch,
+        wheel_tf_publisher,
         plan_manager,
         mesh_scaler,
         collision_force_injector,

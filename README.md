@@ -74,11 +74,11 @@ To exit the venv:
 
 `deactivate`
 
-# Gazebo/ROS2 Installation:
+# ROS2 Installation:
 
-Make sure you are inside the Python VM when using the Gazebo simulator. When installing the Gazebo simulator/ROS2, colcon does not seem to find packages or Python3 properly, so try building outside of the VM and running inside the VM.
+When installing the Gazebo simulator/ROS2, colcon does not seem to find packages or Python3 properly, so do not have the Python virtual environment active when building or running. Calls to the online planner are done by the Node independently entering and exiting the venv.
 
-The Gazebo simulation relies on external Gazebo model repositories, and on Gazebo and ROS2 itself. Install these packages for the first time:
+The simulation relies on external model repositories, and on Gazebo and ROS2 itself. Install these packages for the first time:
 
 `cd gazebo`
 
@@ -92,7 +92,11 @@ Then install and build the gazebo models, including our package:
 
 This automatically calls `colcon build` in `gazebo/ros_ws`, but anytime you change the uav_ugv_teaming ros package, you will have to rebuild by doing this again.
 
-The script setup.sh is provided for your convenience, which puts you in the Python VM and sources ROS2.
+You will also need the Jackal URDF and STL models:
+
+`./installJackalModels.sh`
+
+The script setup.sh is provided for your convenience which sources ROS2 and the local packages.
 
 `source setup.sh`
 
@@ -100,14 +104,17 @@ The script setup.sh is provided for your convenience, which puts you in the Pyth
 
 Launch files are in `gazebo\launch`
 
-To launch the full simulation:
+To launch the full simulation with no plan:
 
 `ros2 launch full_sim.launch.py`
 
-After it has stopped printing new messages (except for occasional status updates) you can then call one of the planning launch file:
+To launch the simulation with an offline plan, and optionally with an online planner:
 
-`ros2 launch offline_plan.launch.py`
-`ros2 launch online_plan.launch.py`
+`ros2 launch run_with_plan.launch.py`
+
+After it has stopped printing new messages (except for occasional status updates) you can then activate the plan manager. The first time it will just prepare for execution by landing the UAV on the UGV. Once this is done and it prints READY, another activation will actually begin plan execution. The command for this is:
+
+`ros2 service call /plan_manager/start std_srvs/srv/Trigger`
 
 # Gurobi:
 

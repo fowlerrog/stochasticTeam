@@ -39,6 +39,7 @@ setup(
             'state_override = uav_ugv_teaming.state_override:main',
             'wrench_collector = uav_ugv_teaming.wrench_collector:main',
             'landing_commander = uav_ugv_teaming.landing_commander:main',
+            'wheel_tf_publisher = uav_ugv_teaming.wheel_tf_publisher:main',
         ],
     },
 )
