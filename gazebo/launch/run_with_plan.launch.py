@@ -180,6 +180,15 @@ def generate_launch_description():
         }, param_file]
     )
 
+    # Random wind model
+    wind_injector = Node(
+        package='uav_ugv_teaming',
+        executable='wind_injector',
+        name='wind_injector',
+        output='screen',
+        parameters=[param_file],
+    )
+
     # Perform param load AFTER rosflight_io starts
     # We call the service using the `ros2 service call` CLI
     load_rosflightio_params_cmd = ExecuteProcess(
@@ -215,7 +224,7 @@ def generate_launch_description():
         cmd=["ros2", "service", "call",
         "/dynamics/set_sim_state",
         "rosflight_msgs/srv/SetSimState",
-        "{state: {pose: {position: {x: 1, y: 1, z: 0}}}}"],
+        "{state: {pose: {position: {x: 1, y: 1, z: 0.01}, orientation: {x: 0, y: 0, z: 0.707, w: 0.707}}}}"],
         output="screen"
     )
     uav_pos = TimerAction(
@@ -240,6 +249,7 @@ def generate_launch_description():
         trajectory_command_override,
         landing_commander,
         takeoff_commander,
+        wind_injector,
         load_rosflightio_params,
         calibrate_imu,
         uav_pos,

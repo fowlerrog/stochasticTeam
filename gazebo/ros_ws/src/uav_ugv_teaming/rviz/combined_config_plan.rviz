@@ -146,6 +146,18 @@ Visualization Manager:
       Value: true
       TF Prefix:
         Value: /ugv
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Wind Field
+      Namespaces:
+        wind_field: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /wind_visualization
+      Value: true
 
   Enabled: true
   Global Options:

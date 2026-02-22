@@ -81,7 +81,8 @@ def generate_launch_description():
         executable="standalone_dynamics",
         name='standalone_dynamics',
         output="screen",
-        parameters=[{"use_sim_time": use_sim_time}, dynamics_param_file]
+        parameters=[{"use_sim_time": use_sim_time}, dynamics_param_file],
+        remappings=[('/sim/truth_wind', '/sim/truth_wind_raw')]
     )
 
     return LaunchDescription(

@@ -17,3 +17,15 @@
     wheel_vertical_offset: 0.0375
     wheel_radius: 0.098
 
+/wind_injector:
+  ros__parameters:
+    seed: 42
+    wind_scale: 3.0       # Max wind speed (m/s)
+    spatial_scale: 0.02   # Noise frequency (1/m)
+    base_wind_north: 0.0  # Base wind N component
+    base_wind_east: 0.0   # Base wind E component
+    base_wind_down: 0.0   # Base wind D component
+    viz_rate: 1.0         # Hz for visualization
+    viz_grid_size: 50     # Grid points for visualization
+    viz_grid_spacing: 5.0 # Meters between grid points
+    viz_arrow_scale: 5.0  # Arrow scale, m/(m/s)
