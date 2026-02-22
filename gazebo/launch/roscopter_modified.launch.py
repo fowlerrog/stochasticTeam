@@ -37,8 +37,7 @@ def generate_launch_description():
             output='screen',
             parameters=[controller_param_file],
             remappings=[('estimated_state', state_remap),
-                # ('high_level_command', 'high_level_command_override') # THIS IS THE REASON THIS FILE EXISTS
-                ('command', 'raw_command')
+                ('command', 'raw_command_1') # THIS IS THE REASON THIS FILE EXISTS
             ]
         ),
         Node(
@@ -54,7 +53,9 @@ def generate_launch_description():
             name='trajectory_follower',
             output='screen',
             parameters=[controller_param_file],
-            remappings=[('estimated_state', state_remap)]
+            remappings=[('estimated_state', state_remap),
+                ('trajectory_command', 'trajectory_command_override'), # also this
+            ]
         ),
         Node(
             package='roscopter',

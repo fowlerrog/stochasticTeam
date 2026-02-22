@@ -5,7 +5,8 @@
     fine_velocity_tolerance: 0.1
     ugv_landing_height: 0.32
     landing_throttle_coefficient: 0.27
-    wait_time: 2.0
+    takeoff_throttle_coefficient: 0.4
+    wait_time: 3.0
     uav_base_link: /stl_frame
     ugv_base_link: /ugv/base_link
 

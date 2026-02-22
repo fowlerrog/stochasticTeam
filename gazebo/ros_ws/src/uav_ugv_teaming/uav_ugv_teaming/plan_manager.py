@@ -37,7 +37,6 @@ class ExecutionStates(Enum):
     WAITING_FOR_LANDING_HORIZONTAL = 8 # UAV moving to UGV
     WAITING_FOR_LANDING_VERTICAL = 9 # UAV landing on UGV
     FINISHED = 10
-    EXTRA_WAIT = 11 # kludge
 
 class PlanManager(Node):
     def __init__(self):
@@ -50,7 +49,9 @@ class PlanManager(Node):
             ('plan_filepath', ''),
             ('online_planner_filepath', ''),
             ('uav_waypoint_add_service', '/path_planner/add_waypoint'),
-            ('uav_waypoint_clear_service', '/path_planner/clear_waypoints'),
+            ('uav_waypoint_clear_service_1', '/path_planner/clear_waypoints'),
+            ('uav_waypoint_clear_service_2', '/path_manager/clear_waypoints'),
+            ('traj_override_service', '/trajectory_command_override/set_goal'),
             ('uav_odom_topic', '/estimated_state'),
             ('uav_status_topic', '/status'),
             ('uav_arm_service', '/toggle_arm'),
@@ -65,6 +66,7 @@ class PlanManager(Node):
             ('fine_velocity_tolerance', 0.1),
             ('ugv_landing_height', 0.5), # UGV landing offset
             ('activate_landing_service', '/landing_commader/toggle'),
+            ('activate_takeoff_service', '/takeoff_commader/toggle'),
             ('wait_time', 2.0),
             ('online_planner_service', '/call_venv_script'),
         ]
@@ -74,7 +76,9 @@ class PlanManager(Node):
 
         # Publishers and subscribers
         self.uav_waypoint_add_cli = self.create_client(AddWaypoint, self.uav_waypoint_add_service)
-        self.uav_waypoint_clear_cli = self.create_client(Trigger, self.uav_waypoint_clear_service)
+        self.uav_waypoint_clear_cli_1 = self.create_client(Trigger, self.uav_waypoint_clear_service_1)
+        self.uav_waypoint_clear_cli_2 = self.create_client(Trigger, self.uav_waypoint_clear_service_2)
+        self.traj_override_cli = self.create_client(AddWaypoint, self.traj_override_service)
         self.uav_odom_sub = self.create_subscription(State, self.uav_odom_topic, self.uav_odom_callback, 10)
         self.uav_status_sub = self.create_subscription(Status, self.uav_status_topic, self.uav_status_callback, 10)
         self.uav_arm_cli = self.create_client(Trigger, self.uav_arm_service)
@@ -85,6 +89,7 @@ class PlanManager(Node):
         self.path_manager_set_params_cli = self.create_client(SetParameters, self.path_manager_set_params_service)
         self.uav_ugv_in_contact_sub = self.create_subscription(Bool, self.uav_ugv_in_contact_topic, self.uav_ugv_in_contact_callback, 10)
         self.activate_landing_cli = self.create_client(SetBool, self.activate_landing_service)
+        self.activate_takeoff_cli = self.create_client(SetBool, self.activate_takeoff_service)
 
         # Subscribe to start service
         self.start_service = self.create_service(
@@ -241,21 +246,16 @@ class PlanManager(Node):
             # wait for UAV waypoints to clear before sending
             self.uav_goal = uav_points[uav_tours[self.i_tour][0]]
             self.send_uav_waypoint(self.uav_goal)
-            self.state = ExecutionStates.EXTRA_WAIT
-            self.get_logger().info(f"Entering EXTRA_WAIT @ iTour = {self.i_tour}")
-
-        elif self.state == ExecutionStates.EXTRA_WAIT:
-            # this will fix the controller going to the last point, which is supposed to have been cleared from the path
-            self.start_timer()
+            self.activate_trajectory_override(self.uav_goal)
             self.state = ExecutionStates.ENABLING_UAV
             self.get_logger().info(f"Entering ENABLING_UAV @ iTour = {self.i_tour}")
 
         elif self.state == ExecutionStates.ENABLING_UAV:
             # command takeoff after UAV has received waypoint
-            self.toggle_uav_override(False)
+            self.command_takeoff(True)
             self.state = ExecutionStates.WAITING_FOR_TAKEOFF
             self.get_logger().info(f"Entering WAITING_FOR_TAKEOFF @ iTour = {self.i_tour}")
-            self.start_timer()
+            self.start_timer() # wait before moving UGV or replanning
             self.uav_takeoff_time = self.get_clock().now()
 
         elif self.state == ExecutionStates.WAITING_FOR_TAKEOFF:
@@ -283,6 +283,7 @@ class PlanManager(Node):
                     self.send_uav_waypoint(self.uav_goal)
                     self.state = ExecutionStates.WAITING_FOR_LANDING_HORIZONTAL
                     self.get_logger().info(f"Entering WAITING_FOR_LANDING_HORIZONTAL @ iTour = {self.i_tour}")
+                    self.start_timer() # wait before dropping
             else: # Send next UAV point
                 self.uav_goal = uav_points[uav_tours[self.i_tour][self.j_tour]]
                 self.send_uav_waypoint(self.uav_goal)
@@ -293,7 +294,8 @@ class PlanManager(Node):
             # uav is at goal
             if self.uav_at_goal(fine=False, checkVel=False):
                 # Check for replan and increment j
-                if len(self.online_planner_params) > 0:
+                if len(self.online_planner_params) > 0 and \
+                self.j_tour < len(uav_tours[self.i_tour]) - 1: # no replanning at last air point - we'll do a replan right after landing
                     self.call_online_planner(False) # this updates the plan
                 self.state = ExecutionStates.WAITING_FOR_REPLAN_APART
                 self.get_logger().info(f'Entering WAITING_FOR_REPLAN_APART @ iTour, jTour = {self.i_tour}, {self.j_tour}')
@@ -439,9 +441,10 @@ class PlanManager(Node):
             self.call_service(self.uav_override_service, self.uav_override_cli, Trigger.Request())
 
     def clear_uav_waypoints(self):
-        # Clear existing UAV waypoints
+        # Clear existing UAV waypoints from all nodes
         self.get_logger().info(f'Clearing UAV waypoints')
-        self.call_service(self.uav_waypoint_clear_service, self.uav_waypoint_clear_cli, Trigger.Request())
+        self.call_service(self.uav_waypoint_clear_service_1, self.uav_waypoint_clear_cli_1, Trigger.Request())
+        self.call_service(self.uav_waypoint_clear_service_2, self.uav_waypoint_clear_cli_2, Trigger.Request())
 
     def send_uav_waypoint(self, position):
         # Send UAV waypoint service
@@ -481,6 +484,19 @@ class PlanManager(Node):
         request = SetBool.Request()
         request.data = value
         self.call_service(self.activate_landing_service, self.activate_landing_cli, request)
+
+    def command_takeoff(self, value):
+        # Tell takeoff commander to activate
+        request = SetBool.Request()
+        request.data = value
+        self.call_service(self.activate_takeoff_service, self.activate_takeoff_cli, request)
+
+    def activate_trajectory_override(self, position):
+        # Send the override UAV goal position
+        request = AddWaypoint.Request()
+        request.wp.w = [position[0], -position[1], -position[2]] # world -> NED
+        self.get_logger().info(f'Sending trajectory override [NED] {request.wp.w}')
+        self.call_service(self.traj_override_service, self.traj_override_cli, request)
 
     def call_online_planner(self, together):
         # Construct input dict for online replanner

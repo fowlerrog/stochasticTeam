@@ -120,6 +120,13 @@ class CollisionForceInjector(Node):
             ugv_vn_inertial = cos_ugv_yaw * ugv_vx_body - sin_ugv_yaw * ugv_vy_body
             ugv_ve_inertial = sin_ugv_yaw * ugv_vx_body + cos_ugv_yaw * ugv_vy_body
 
+            # Add in yaw rate cross lever arm
+            ugv_yaw_rate = -self.ugv_odom.twist.twist.angular.z
+            lever_arm_n = self.uav_state.p_n - self.ugv_odom.pose.pose.position.x
+            lever_arm_e = -self.uav_state.p_e - self.ugv_odom.pose.pose.position.y
+            ugv_vn_inertial += ugv_yaw_rate * lever_arm_e
+            ugv_ve_inertial += -ugv_yaw_rate * lever_arm_n
+
             # Now convert inertial NED to UAV body frame
             uav_vx_body = self.uav_state.v_x
             uav_vy_body = self.uav_state.v_y

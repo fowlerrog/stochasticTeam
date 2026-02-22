@@ -146,6 +146,14 @@ def generate_launch_description():
         output='screen',
     )
 
+    # Launch trajectory command override
+    trajectory_command_override = Node(
+        package='uav_ugv_teaming',
+        executable='trajectory_command_override',
+        name='trajectory_command_override',
+        output='screen',
+    )
+
     # Launch landing commander
     landing_commander = Node(
         package='uav_ugv_teaming',
@@ -154,6 +162,21 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'uav_odom_topic': 'estimated_state_override',
+            'raw_command_topic': 'raw_command_1',
+            'command_topic': 'raw_command_2',
+        }, param_file]
+    )
+
+    # Launch takeoff commander
+    takeoff_commander = Node(
+        package='uav_ugv_teaming',
+        executable='takeoff_commander',
+        name='takeoff_commander',
+        output='screen',
+        parameters=[{
+            'uav_odom_topic': 'estimated_state_override',
+            'raw_command_topic': 'raw_command_2',
+            'command_topic': 'command',
         }, param_file]
     )
 
@@ -214,7 +237,9 @@ def generate_launch_description():
         collision_force_injector,
         wrench_collector,
         state_override,
+        trajectory_command_override,
         landing_commander,
+        takeoff_commander,
         load_rosflightio_params,
         calibrate_imu,
         uav_pos,

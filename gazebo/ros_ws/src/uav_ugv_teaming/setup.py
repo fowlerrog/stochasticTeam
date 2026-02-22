@@ -40,6 +40,8 @@ setup(
             'state_override = uav_ugv_teaming.state_override:main',
             'wrench_collector = uav_ugv_teaming.wrench_collector:main',
             'landing_commander = uav_ugv_teaming.landing_commander:main',
+            'takeoff_commander = uav_ugv_teaming.takeoff_commander:main',
+            'trajectory_command_override = uav_ugv_teaming.trajectory_command_override:main',
             'wheel_tf_publisher = uav_ugv_teaming.wheel_tf_publisher:main',
             'venv_script_caller = uav_ugv_teaming.venv_script_caller:main',
         ],
