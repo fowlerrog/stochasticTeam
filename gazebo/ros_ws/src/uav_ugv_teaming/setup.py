@@ -45,6 +45,7 @@ setup(
             'wheel_tf_publisher = uav_ugv_teaming.wheel_tf_publisher:main',
             'venv_script_caller = uav_ugv_teaming.venv_script_caller:main',
             'wind_injector = uav_ugv_teaming.wind_injector:main',
+            'ground_plane_publisher = uav_ugv_teaming.ground_plane_publisher:main',
         ],
     },
 )

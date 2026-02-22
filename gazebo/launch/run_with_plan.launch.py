@@ -27,7 +27,7 @@ def generate_launch_description():
     plan_file_arg = DeclareLaunchArgument(
         "plan_file",
         default_value="",
-        description="Path to execute_settings.yaml"
+        description="Path to plan_path_results.yaml"
     )
     plan_file = LaunchConfiguration('plan_file')
 
@@ -189,6 +189,15 @@ def generate_launch_description():
         parameters=[param_file],
     )
 
+    # Ground texture
+    ground_plane_publisher = Node(
+        package='uav_ugv_teaming',
+        executable='ground_plane_publisher',
+        name='ground_plane_publisher',
+        output='screen',
+        parameters=[param_file]
+    )
+
     # Perform param load AFTER rosflight_io starts
     # We call the service using the `ros2 service call` CLI
     load_rosflightio_params_cmd = ExecuteProcess(
@@ -250,6 +259,7 @@ def generate_launch_description():
         landing_commander,
         takeoff_commander,
         wind_injector,
+        ground_plane_publisher,
         load_rosflightio_params,
         calibrate_imu,
         uav_pos,

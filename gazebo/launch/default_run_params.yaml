@@ -29,3 +29,7 @@
     viz_grid_size: 50     # Grid points for visualization
     viz_grid_spacing: 5.0 # Meters between grid points
     viz_arrow_scale: 5.0  # Arrow scale, m/(m/s)
+
+/ground_plane_publisher:
+  ros__parameters:
+    image_path: '../resources/textures/seamless-dirt-ground-texture.jpg'
