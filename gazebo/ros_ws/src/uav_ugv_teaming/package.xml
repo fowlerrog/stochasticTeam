@@ -3,9 +3,11 @@
 <package format="3">
   <name>uav_ugv_teaming</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>UAV-UGV cooperation under uncertainty</description>
   <maintainer email="fowler.ro@northeastern.edu">roger</maintainer>
   <license>Apache-2.0</license>
+
+  <depend>uav_ugv_teaming_msgs</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
@@ -18,6 +20,10 @@
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
+
+  <build_depend>rosidl_default_generators</build_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+  <member_of_group>rosidl_interface_packages</member_of_group>
 
   <export>
     <build_type>ament_python</build_type>

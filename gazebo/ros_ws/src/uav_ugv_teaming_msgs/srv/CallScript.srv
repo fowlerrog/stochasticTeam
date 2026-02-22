@@ -1,0 +1,10 @@
+# Request
+string[] args           # Arguments to pass to script
+string input_json       # Optional JSON string to pass via stdin
+float32 timeout         # Optional timeout override (0 = use default)
+---
+# Response
+bool success
+string stdout
+string stderr
+int32 returncode

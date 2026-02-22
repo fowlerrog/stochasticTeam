@@ -31,6 +31,13 @@ def generate_launch_description():
     )
     plan_file = LaunchConfiguration('plan_file')
 
+    online_planner_file_arg = DeclareLaunchArgument(
+        "online_planner_file",
+        default_value="",
+        description="Path to online_planner_settings.yaml"
+    )
+    online_planner_file = LaunchConfiguration('online_planner_file')
+
     # Launch rosflight & roscopter upstream launch files
 
     rosflight_sim_launch = IncludeLaunchDescription(
@@ -83,8 +90,22 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'uav_odom_topic': 'estimated_state_override',
-            'plan_filepath': plan_file
+            'plan_filepath': plan_file,
+            'online_planner_filepath': online_planner_file,
         }, param_file]
+    )
+
+    # Launch online replanner
+    venv_script_caller = Node(
+        package='uav_ugv_teaming',
+        executable='venv_script_caller',
+        name='venv_script_caller',
+        output='screen',
+        parameters=[{
+            'venv_path': '../../.venv',
+            'script_path': os.path.join(uav_ugv_teaming_share, "scripts", "standaloneOnlinePlanner.py"),
+            'timeout': 60.0 # seconds
+        }]
     )
 
     # Launch UAV mesh scaler
@@ -182,11 +203,13 @@ def generate_launch_description():
     return LaunchDescription([
         param_file_arg,
         plan_file_arg,
+        online_planner_file_arg,
         rosflight_sim_launch,
         roscopter_sim_launch,
         uav_ugv_teaming_launch,
         wheel_tf_publisher,
         plan_manager,
+        venv_script_caller,
         mesh_scaler,
         collision_force_injector,
         wrench_collector,

@@ -9,13 +9,15 @@ from roscopter_msgs.srv import AddWaypoint
 from roscopter_msgs.msg import Waypoint, State
 from rosflight_msgs.msg import Status
 from std_srvs.srv import Trigger, SetBool
-from nav_msgs.msg import Odometry
+from nav_msgs.msg import Odometry, Path
 import yaml
 from enum import Enum
 from scipy.spatial.distance import euclidean
 from rcl_interfaces.srv import SetParameters
 from rcl_interfaces.msg import Parameter, ParameterType
 from std_msgs.msg import Bool
+from uav_ugv_teaming_msgs.srv import CallScript
+import json
 
 class ExecutionStates(Enum):
     VALID_PLAN = -6 # valid settings but no action
@@ -25,17 +27,17 @@ class ExecutionStates(Enum):
     READYING_FINAL = -2 # UAV landed
     READY = -1 # wait for command
     START = 0 # begin plan
-    MOVING_TOGETHER_TO_RELEASE = 1
-    SENDING_UAV_WAYPOINT = 2
-    ENABLING_UAV = 3
-    WAITING_FOR_TAKEOFF = 4
-    MOVING_APART = 5
-    WAITING_FOR_LANDING_HORIZONTAL = 6 # UAV moving to UGV
-    WAITING_FOR_LANDING_VERTICAL = 7 # UAV landing on UGV
-    FINISHED = 8
-    WAITING_FOR_REPLAN_TOGETHER = 9
-    WAITING_FOR_REPLAN_APART = 10
-    EXTRA_WAIT = 11
+    WAITING_FOR_REPLAN_TOGETHER = 1
+    MOVING_TOGETHER_TO_RELEASE = 2
+    SENDING_UAV_WAYPOINT = 3
+    ENABLING_UAV = 4
+    WAITING_FOR_TAKEOFF = 5
+    WAITING_FOR_REPLAN_APART = 6
+    MOVING_APART = 7
+    WAITING_FOR_LANDING_HORIZONTAL = 8 # UAV moving to UGV
+    WAITING_FOR_LANDING_VERTICAL = 9 # UAV landing on UGV
+    FINISHED = 10
+    EXTRA_WAIT = 11 # kludge
 
 class PlanManager(Node):
     def __init__(self):
@@ -46,13 +48,14 @@ class PlanManager(Node):
         # Declare and evaluate parameters
         paramList = [
             ('plan_filepath', ''),
+            ('online_planner_filepath', ''),
             ('uav_waypoint_add_service', '/path_planner/add_waypoint'),
             ('uav_waypoint_clear_service', '/path_planner/clear_waypoints'),
             ('uav_odom_topic', '/estimated_state'),
             ('uav_status_topic', '/status'),
             ('uav_arm_service', '/toggle_arm'),
             ('uav_override_service', '/toggle_override'),
-            ('ugv_waypoint_add_topic', '/ugv/waypoint'),
+            ('ugv_waypoint_path_topic', '/ugv/waypoint_path'),
             ('ugv_waypoint_clear_service', '/ugv/waypoint_clear'),
             ('ugv_odom_topic', '/ugv/odom'),
             ('path_manager_set_params_service', '/path_manager/set_parameters'),
@@ -63,6 +66,7 @@ class PlanManager(Node):
             ('ugv_landing_height', 0.5), # UGV landing offset
             ('activate_landing_service', '/landing_commader/toggle'),
             ('wait_time', 2.0),
+            ('online_planner_service', '/call_venv_script'),
         ]
         for name, defaultValue in paramList:
             self.declare_parameter(name, defaultValue)
@@ -75,7 +79,7 @@ class PlanManager(Node):
         self.uav_status_sub = self.create_subscription(Status, self.uav_status_topic, self.uav_status_callback, 10)
         self.uav_arm_cli = self.create_client(Trigger, self.uav_arm_service)
         self.uav_override_cli = self.create_client(Trigger, self.uav_override_service)
-        self.ugv_waypoint_add_pub = self.create_publisher(PoseStamped, self.ugv_waypoint_add_topic, 10)
+        self.ugv_waypoint_path_pub = self.create_publisher(Path, self.ugv_waypoint_path_topic, 10)
         self.ugv_waypoint_clear_cli = self.create_client(Trigger, self.ugv_waypoint_clear_service)
         self.ugv_odom_sub = self.create_subscription(Odometry, self.ugv_odom_topic, self.ugv_odom_callback, 10)
         self.path_manager_set_params_cli = self.create_client(SetParameters, self.path_manager_set_params_service)
@@ -92,34 +96,46 @@ class PlanManager(Node):
         self.get_logger().info('Set up all publishers and subscribers')
 
         # Load plan
-        self.params = {}
+        self.plan_params = {}
         if len(self.plan_filepath) > 0:
             self.get_logger().info(f'Loading plan from {self.plan_filepath}')
-            self.load_plan(self.plan_filepath)
+            self.plan_params = self.load_yaml(self.plan_filepath)
+
+        # Set up online planner
+        self.online_planner_params = {}
+        if len(self.online_planner_filepath) > 0:
+            self.get_logger().info(f'Loading online planner parameters from {self.online_planner_filepath}')
+            self.online_planner_params = self.load_yaml(self.online_planner_filepath)
+            self.online_planner_cli = self.create_client(CallScript, 'call_venv_script')
 
         # If we have a valid plan, initialize execution
         self.uav_position = None
         self.uav_velocity = None
         self.uav_goal = None
+        self.uav_takeoff_time = None
+
         self.ugv_position = None
         self.ugv_velocity = None
         self.ugv_goal = None
+
         self.i_tour = 0
         self.j_tour = 0
+
         self.uav_status = None
         self.in_contact = False
+
         self.pending_futures = {} # {'name' : future} callbacks we are waiting on
         self.service_error = False # any service has returned an error
 
-        if len(self.params) == 0 or \
-        'uav_tours' not in self.params or \
-        len(self.params['uav_tours']) == 0 or \
-        'uav_points' not in self.params or \
-        len(self.params['uav_points']) == 0 or \
-        'ugv_path' not in self.params or \
-        len(self.params['ugv_path']) == 0 or \
-        'ugv_point_map' not in self.params or \
-        len(self.params['ugv_point_map']) == 0:
+        if len(self.plan_params) == 0 or \
+        'uav_tours' not in self.plan_params or \
+        len(self.plan_params['uav_tours']) == 0 or \
+        'uav_points' not in self.plan_params or \
+        len(self.plan_params['uav_points']) == 0 or \
+        'ugv_path' not in self.plan_params or \
+        len(self.plan_params['ugv_path']) == 0 or \
+        'ugv_point_map' not in self.plan_params or \
+        len(self.plan_params['ugv_point_map']) == 0:
             self.get_logger().info(f'Nothing to do')
             self.state = ExecutionStates.FINISHED
         else:
@@ -157,10 +173,10 @@ class PlanManager(Node):
         if len(self.pending_futures) > 0 or self.service_error:
             return
 
-        uav_tours = self.params['uav_tours']
-        uav_points = self.params['uav_points']
-        ugv_path = self.params['ugv_path']
-        ugv_points = self.params['ugv_point_map']
+        uav_tours = self.plan_params['uav_tours']
+        uav_points = self.plan_params['uav_points']
+        ugv_path = self.plan_params['ugv_path']
+        ugv_points = self.plan_params['ugv_point_map']
 
         # Enter state machine
         if self.state == ExecutionStates.PRE_READYING:
@@ -193,8 +209,16 @@ class PlanManager(Node):
                 self.get_logger().info(f'Entering READY')
 
         elif self.state == ExecutionStates.START:
-            ugv_path = self.params['ugv_path']
-            ugv_points = self.params['ugv_point_map']
+            # Check for replan
+            if len(self.online_planner_params) > 0:
+                self.call_online_planner(True) # this updates the plan
+            self.state = ExecutionStates.WAITING_FOR_REPLAN_TOGETHER
+            self.get_logger().info(f'Entering WAITING_FOR_REPLAN_TOGETHER @ iTour = {self.i_tour}')
+
+        elif self.state == ExecutionStates.WAITING_FOR_REPLAN_TOGETHER:
+            # Activates as soon as we're not waiting for a replan
+            ugv_path = self.plan_params['ugv_path']
+            ugv_points = self.plan_params['ugv_point_map']
             self.ugv_goal = ugv_points[ugv_path[2*self.i_tour + 1]]
             self.send_ugv_waypoint(self.ugv_goal)
             self.state = ExecutionStates.MOVING_TOGETHER_TO_RELEASE
@@ -221,7 +245,7 @@ class PlanManager(Node):
             self.get_logger().info(f"Entering EXTRA_WAIT @ iTour = {self.i_tour}")
 
         elif self.state == ExecutionStates.EXTRA_WAIT:
-            # maybe this will fix the controller going to the last point, which is supposed to have been clear from the path
+            # this will fix the controller going to the last point, which is supposed to have been cleared from the path
             self.start_timer()
             self.state = ExecutionStates.ENABLING_UAV
             self.get_logger().info(f"Entering ENABLING_UAV @ iTour = {self.i_tour}")
@@ -232,29 +256,48 @@ class PlanManager(Node):
             self.state = ExecutionStates.WAITING_FOR_TAKEOFF
             self.get_logger().info(f"Entering WAITING_FOR_TAKEOFF @ iTour = {self.i_tour}")
             self.start_timer()
+            self.uav_takeoff_time = self.get_clock().now()
 
         elif self.state == ExecutionStates.WAITING_FOR_TAKEOFF:
+            # takeoff complete
             if self.uav_at_goal(fine=False, checkVel=False):
-                # takeoff complete
-                self.ugv_goal = ugv_points[ugv_path[2*self.i_tour + 2]]
-                self.send_ugv_waypoint(self.ugv_goal)
-                self.state = ExecutionStates.MOVING_APART
-                self.get_logger().info(f"Entering MOVING_APART @ iTour = {self.i_tour}")
+                # Check for replan
+                if len(self.online_planner_params) > 0:
+                    self.call_online_planner(False) # this updates the plan
+                self.state = ExecutionStates.WAITING_FOR_REPLAN_APART
+                self.get_logger().info(f'Entering WAITING_FOR_REPLAN_APART @ iTour, jTour = {self.i_tour}, {self.j_tour}')
+                self.j_tour += 1
 
-        elif self.state == ExecutionStates.MOVING_APART:
-            if self.uav_at_goal(fine=False, checkVel=False):
-                # check for next point
-                if self.j_tour < len(uav_tours[self.i_tour]) - 1:
-                    self.uav_goal = uav_points[uav_tours[self.i_tour][self.j_tour + 1]]
-                    self.send_uav_waypoint(self.uav_goal)
-                    self.j_tour += 1
+        elif self.state == ExecutionStates.WAITING_FOR_REPLAN_APART:
+            # Activates as soon as we're not waiting for a replan
+            # Send or update UGV goal
+            potential_ugv_goal = ugv_points[ugv_path[2*self.i_tour + 2]]
+            if euclidean(self.ugv_goal, potential_ugv_goal) > self.fine_distance_tolerance:
+                self.send_ugv_waypoint(potential_ugv_goal) # replace existing waypoint (blocking)
+                self.ugv_goal = potential_ugv_goal
 
-                # otherwise, last point and check for ugv position
+            # If this is the last UAV point in the tour, wait for the UGV to arrive
+            if self.j_tour == len(uav_tours[self.i_tour]):
                 if self.ugv_at_goal():
                     self.uav_goal = [a + b for a,b in zip([self.ugv_position.x, self.ugv_position.y, self.ugv_position.z], [0, 0, 2*self.ugv_landing_height])]
                     self.send_uav_waypoint(self.uav_goal)
                     self.state = ExecutionStates.WAITING_FOR_LANDING_HORIZONTAL
                     self.get_logger().info(f"Entering WAITING_FOR_LANDING_HORIZONTAL @ iTour = {self.i_tour}")
+            else: # Send next UAV point
+                self.uav_goal = uav_points[uav_tours[self.i_tour][self.j_tour]]
+                self.send_uav_waypoint(self.uav_goal)
+                self.state = ExecutionStates.MOVING_APART
+                self.get_logger().info(f"Entering MOVING_APART @ iTour, jTour = {self.i_tour}, {self.j_tour}")
+
+        elif self.state == ExecutionStates.MOVING_APART:
+            # uav is at goal
+            if self.uav_at_goal(fine=False, checkVel=False):
+                # Check for replan and increment j
+                if len(self.online_planner_params) > 0:
+                    self.call_online_planner(False) # this updates the plan
+                self.state = ExecutionStates.WAITING_FOR_REPLAN_APART
+                self.get_logger().info(f'Entering WAITING_FOR_REPLAN_APART @ iTour, jTour = {self.i_tour}, {self.j_tour}')
+                self.j_tour += 1
 
         elif self.state == ExecutionStates.WAITING_FOR_LANDING_HORIZONTAL:
             # Lining up vertically for landing
@@ -267,17 +310,16 @@ class PlanManager(Node):
         elif self.state == ExecutionStates.WAITING_FOR_LANDING_VERTICAL:
             if self.in_contact and self.uav_status.control_mode == 1: # control disabled
                 self.clear_uav_waypoints()
+                self.uav_takeoff_time = None # reset flight time
 
                 self.i_tour += 1
                 self.j_tour = 0
 
-                ugv_path = self.params['ugv_path']
-                ugv_points = self.params['ugv_point_map']
-                self.ugv_goal = ugv_points[ugv_path[2*self.i_tour + 1]]
-                self.send_ugv_waypoint(self.ugv_goal)
-
-                self.state = ExecutionStates.MOVING_TOGETHER_TO_RELEASE
-                self.get_logger().info(f"Entering MOVING_TOGETHER_TO_RELEASE @ iTour = {self.i_tour}")
+                # Check for replan
+                if len(self.online_planner_params) > 0:
+                    self.call_online_planner(True) # this updates the plan
+                self.state = ExecutionStates.WAITING_FOR_REPLAN_TOGETHER
+                self.get_logger().info(f"Entering WAITING_FOR_REPLAN_TOGETHER @ iTour = {self.i_tour}")
 
     def replanner_callback(self, msg):
         # Receive updated plan
@@ -345,16 +387,18 @@ class PlanManager(Node):
         return euclidean(self.ugv_goal[:2], [self.ugv_position.x, self.ugv_position.y]) < distance_tolerance and \
             (not checkVel or sum(v**2 for v in [self.ugv_velocity.x, self.ugv_velocity.y, self.ugv_velocity.z]) < self.fine_velocity_tolerance**2)
 
-    def load_plan(self, plan_filepath):
+    def load_yaml(self, filepath):
         try:
-            with open(plan_filepath, 'r') as f:
-                self.params = yaml.safe_load(f)
+            with open(filepath, 'r') as f:
+                return yaml.safe_load(f)
         except Exception:
-            node.get_logger().error(f"Failed to read yaml file {plan_filepath}")
+            node.get_logger().error(f"Failed to read yaml file {filepath}")
 
     def handle_service_response(self, name, response):
         # Handle service responses
-        if response is not None and \
+        if isinstance(response, CallScript.Response): # replanning callback
+            self.external_script_callback(response)
+        elif response is not None and \
         (not hasattr(response, 'success') or response.success):
             self.get_logger().info(f'{name} succeeded: {response.message if hasattr(response, 'message') else '(NO MESSAGE)'}')
         else:
@@ -414,21 +458,22 @@ class PlanManager(Node):
 
     def send_ugv_waypoint(self, position):
         # Construct a UGV waypoint message
-        msg = PoseStamped()
+        msg = Path()
         msg.header.frame_id = 'world'
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.pose.position.x = position[0]
-        msg.pose.position.y = position[1]
-        msg.pose.position.z = 0.0
-        msg.pose.orientation.w = 1.0
+        waypoint = PoseStamped()
+        waypoint.pose.position.x = position[0]
+        waypoint.pose.position.y = position[1]
+        waypoint.pose.position.z = 0.0
+        msg.poses = [waypoint]
         
         # Wait for subscriber
-        self.get_logger().info(f'Waiting for subscriber on {self.ugv_waypoint_add_topic}...')
-        while self.ugv_waypoint_add_pub.get_subscription_count() == 0:
+        self.get_logger().info(f'Waiting for subscriber on {self.ugv_waypoint_path_topic}...')
+        while self.ugv_waypoint_path_pub.get_subscription_count() == 0:
             rclpy.spin_once(self, timeout_sec=0.1)
         
-        self.ugv_waypoint_add_pub.publish(msg)
-        self.get_logger().info(f"Sent waypoint: {position} to {self.ugv_waypoint_add_topic}")
+        self.ugv_waypoint_path_pub.publish(msg)
+        self.get_logger().info(f"Sent waypoint: {position} to {self.ugv_waypoint_path_topic}")
 
         return True
 
@@ -436,6 +481,73 @@ class PlanManager(Node):
         request = SetBool.Request()
         request.data = value
         self.call_service(self.activate_landing_service, self.activate_landing_cli, request)
+
+    def call_online_planner(self, together):
+        # Construct input dict for online replanner
+        if self.uav_takeoff_time is None:
+            flightTime = 0
+        else:
+            flightTime = (self.get_clock().now() - self.uav_takeoff_time).to_msg().sec
+
+        data = {
+            'plannerParams': self.online_planner_params,
+            'planParams': self.plan_params,
+            'iTour': self.i_tour,
+            'jTour': self.j_tour,
+            'ugvIndex': 2 * self.i_tour + (0 if together else 1),
+            'uavPos': self.uav_position,
+            'ugvPos': [self.ugv_position.x, self.ugv_position.y],
+            'flightTime': flightTime
+        }
+
+        # Call script service
+        self.call_external_script('', data)
+
+    def call_external_script(self, args, input_data=None, timeout=0.0):
+        """
+        Call external script with arguments
+        
+        Args:
+            args: list of string arguments
+            input_data: dict to send as JSON (optional)
+            timeout: timeout in seconds (0 = use default)
+        
+        Returns:
+            CallScript.Response or None if failed
+        """
+        request = CallScript.Request()
+        request.args = args
+        request.input_json = json.dumps(input_data) if input_data else ''
+        request.timeout = timeout
+
+        self.get_logger().info(f'Calling script with args: {args}')
+        self.call_service(self.online_planner_service, self.online_planner_cli, request)
+
+    def external_script_callback(self, response):
+        # Call service (blocking)
+        if response is not None:
+            if response.success:
+                self.get_logger().info(f'Script succeeded!')
+                self.get_logger().info(f'Output: {response.stdout}')
+            else:
+                self.get_logger().error(f'Script failed: {response.stderr}')
+                return
+        else:
+            self.get_logger().error('Service call failed')
+            return None # continue with plan, i guess
+
+        # Process response
+        responseLines = [line.strip() for line in response.stdout.split("\n")]
+        dictString = None
+        for line in responseLines[::-1]:
+            if len(line) > 0:
+                dictString = line # take the last non-empty line
+                break
+        self.get_logger().info(f'Reading results dict: {dictString}')
+        responseDict = json.loads(dictString)
+        self.plan_params['uav_tours'] = responseDict['uavTours']
+        self.plan_params['ugv_path'] = responseDict['ugvOrder']
+        self.plan_params['ugv_point_map'] = responseDict['ugvPoints']
 
 
 def main(args=None):

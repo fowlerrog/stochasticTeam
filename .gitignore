@@ -33,3 +33,6 @@ gazebo/ros_ws/src/roscopter
 gazebo/ros_ws/src/rosflight_ros_pkgs
 gazebo/**/rosflight_memory
 gazebo/resources/jackal*
+gazebo/runs/**/results*
+gazebo/runs/**/*_results.yaml
+gazebo/runs/**/*.png

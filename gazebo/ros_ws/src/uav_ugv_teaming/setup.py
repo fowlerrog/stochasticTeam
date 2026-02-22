@@ -15,6 +15,7 @@ setup(
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
         (os.path.join('share', package_name, 'rviz'), glob('rviz/*.rviz')),
         (os.path.join('share', package_name, 'params'), glob('params/*.yaml')),
+        (os.path.join('share', package_name, 'scripts'), glob('scripts/*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -40,6 +41,7 @@ setup(
             'wrench_collector = uav_ugv_teaming.wrench_collector:main',
             'landing_commander = uav_ugv_teaming.landing_commander:main',
             'wheel_tf_publisher = uav_ugv_teaming.wheel_tf_publisher:main',
+            'venv_script_caller = uav_ugv_teaming.venv_script_caller:main',
         ],
     },
 )
