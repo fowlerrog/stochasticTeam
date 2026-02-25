@@ -29,6 +29,8 @@ if __name__ == '__main__':
 	print(pathSettingsFile)
 	planSettingsFolder = toDir(pathSettingsFile)
 	print(planSettingsFolder)
+	if len(planSettingsFolder) == 0:
+		planSettingsFolder = '.'
 	resultsFolders = [f for f in getChildFolders(planSettingsFolder) if 'results_' in os.path.split(f)[1]]
 	print(resultsFolders)
 
