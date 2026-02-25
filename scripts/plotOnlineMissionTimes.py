@@ -3,10 +3,11 @@ import sys
 import matplotlib.pyplot as plt
 import os
 from scipy.spatial.distance import euclidean
+import numpy as np
 
 # project imports
 from pathPlanning.ExecuteUtils import calculatePlannedMission
-from pathPlanning.RunnerUtils import loadYamlContents, fillIndependentVariablesFromString
+from pathPlanning.RunnerUtils import loadYamlContents, fillIndependentVariablesFromString, sigFigs
 from pathPlanning.Constants import planSettingsFilename, planPathResultsFilename, executeResultsFilename
 from pathPlanning.OurPlanner import safeExp
 from pathPlanning.PlotUtils import plotSelfComparison
@@ -25,6 +26,7 @@ if __name__ == '__main__':
 	realSuccessfulTimes = [] # mean execution times of successful plans
 	realSuccessRates = [] # mean success rates
 	planChangeRates = [] # how many runs did we have any replans, out of total runs
+	planN = [] # number of points
 
 	for f in folderNames:
 		# look for path settings one folder above (this is brittle)
@@ -33,6 +35,7 @@ if __name__ == '__main__':
 
 		# choose independent plan variables
 		thisPlanSettingsData = fillIndependentVariablesFromString(planSettingsData, f)
+		planN.append(thisPlanSettingsData['POINTS']['NUM_POINTS'])
 
 		# load plan results
 		planResultsData = loadYamlContents(f, planPathResultsFilename)
@@ -46,6 +49,7 @@ if __name__ == '__main__':
 			print(f'Skipping empty or nonexistent {os.path.join(f, executeResultsFilename)}')
 			plannedTimes.pop()
 			plannedSuccessRates.pop()
+			planN.pop()
 			continue
 
 		totalRealTime = 0
@@ -74,6 +78,14 @@ if __name__ == '__main__':
 			realSuccessfulTimes.append(float('NaN')) # all failures, no mean successful time
 		realSuccessRates.append((numRuns - numFailures) / numRuns)
 		planChangeRates.append(numReplans / numRuns)
+
+	# print
+	nSigFigs = 4
+	uniqueN = [planN[i] for i in range(len(planN)) if planN[i] not in planN[:i]]
+	for n in uniqueN:
+		thisSuccesses = [realSuccessRates[i] for i in range(len(planN)) if planN[i] == n]
+		thisSuccessfulTimes = [realSuccessfulTimes[i] for i in range(len(planN)) if planN[i] == n]
+		print(f'n = {n} -> mu sigma: success rate {sigFigs(np.mean(thisSuccesses), nSigFigs)} {sigFigs(np.std(thisSuccesses), nSigFigs)} | mission time {sigFigs(np.mean(thisSuccessfulTimes), nSigFigs)} {sigFigs(np.std(thisSuccessfulTimes), nSigFigs)}')
 
 	# plot
 	plotSelfComparison(plannedTimes, realSuccessfulTimes, 'Mission Time [s]')

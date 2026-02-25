@@ -1,6 +1,6 @@
 
 from math import sqrt
-from random import gauss
+from random import gauss, uniform
 from scipy.spatial.distance import euclidean
 
 class SingleAgentTypeEnvironment(object):
@@ -68,3 +68,24 @@ class GaussianEnvironment(SingleAgentTypeEnvironment):
 			min(3, max(-3, gauss(0, 1))) \
 			* self.weightStdDev + self.weight) \
 			* euclidean(p1, p2)
+
+class UniformEnvironment(SingleAgentTypeEnvironment):
+	"""
+	Environment that evaluates a uniform distribution multiplied by distance
+	"""
+
+	def __init__(self, params):
+		super().__init__(params)
+		self.weightMin = params['WEIGHT_MIN']
+		self.weightMax = params['WEIGHT_MAX']
+		self.weightMean = 0.5 * (self.weightMax + self.weightMin)
+		self.weightVar = (self.weightMax - self.weightMin)**2 / 12
+
+	def estimateMean(self, p1, p2):
+		return euclidean(p1, p2) * self.weightMean
+
+	def estimateVariance(self, p1, p2):
+		return euclidean(p1, p2)**2 * self.weightVar
+
+	def evaluate(self, p1, p2):
+		return uniform(self.weightMin, self.weightMax) * euclidean(p1, p2)

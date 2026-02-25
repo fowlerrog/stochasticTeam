@@ -6,24 +6,36 @@ import numpy as np
 from math import log
 
 # project imports
-from .RunnerUtils import loadPlanResultsFromFolder
+from .RunnerUtils import loadPlanResultsFromFolder, sigFigs
 
-def plotPoints(points, filename=None, show=True):
+def plotPoints(points, filename=None, show=True, startPoint=None, endPoint=None, simple=False):
 	"""Plot points with no path"""
-	plt.figure()
 	xs = [p[0] for p in points]
 	ys = [p[1] for p in points]
-	plt.scatter(xs, ys, marker='o')
-	plt.title('Reordered Points (no tour found)')
-	plt.axis('equal')
-	plt.grid(True)
 
+	fig, ax = plt.subplots(figsize=(4, 4))
+	ax.plot(xs, ys, 'o', markersize=8, color='gray')
+
+	plt.axis('equal')
+	if simple:
+		ax.set_xticks([])
+		ax.set_yticks([])
+	else:
+		plt.title('P_uav')
+		plt.grid(True)
+
+	if startPoint is not None:
+		ax.plot(startPoint[0], startPoint[1], '^', color='blue', markersize=16)
+	if endPoint is not None:
+		ax.plot(endPoint[0], endPoint[1], 'v', color='blue', markersize=16)
+
+	plt.tight_layout()
 	if filename is not None:
 		plt.savefig(filename)
 	if show:
 		plt.show()
 
-def plotPath(points, filename=None, show=True, startPoint=None, endPoint=None):
+def plotPath(points, filename=None, show=True, startPoint=None, endPoint=None, simple=False):
 	"""Plot points with path"""
 	# Extract x,y (uses first two coordinates if points are 3D)
 	xs = [p[0] for p in points]
@@ -31,36 +43,45 @@ def plotPath(points, filename=None, show=True, startPoint=None, endPoint=None):
 
 	# Plot the tour path with points
 	fig, ax = plt.subplots(figsize=(4, 4))
-	ax.plot(xs, ys, marker='o', markersize=8)
+	ax.plot(xs, ys, color='blue', marker='o', markersize=8)
+	for i in range(len(points) - 1):
+		ax.annotate("", xy=(xs[i+1], ys[i+1]), xytext=(xs[i], ys[i]),
+					arrowprops=dict(arrowstyle="->", color='blue', lw=2))
 
 	# Mark start and end (first and last in the tour order)
-	ax.scatter(xs[0], ys[0], marker='s', s=100, label='Start (closest)')
-	ax.scatter(xs[-1], ys[-1], marker='X', s=120, label='End (closest)')
+	# ax.scatter(xs[0], ys[0], marker='s', s=100, label='Start (closest)')
+	# ax.scatter(xs[-1], ys[-1], marker='X', s=120, label='End (closest)')
 
-	ax.set_title('TSP Tour with Fixed Start/End (reordered points)')
 	ax.axis('equal')
-	# ax.set_xticks([])
-	# ax.set_yticks([])
-	ax.grid(True)
+	if simple:
+		ax.set_xticks([])
+		ax.set_yticks([])
+	else:
+		ax.set_title('TSP Tour with Fixed Start/End (reordered points)')
+		ax.grid(True)
 
 	if startPoint is not None:
-		ax.plot(startPoint[0], startPoint[1], 'x', color='g', markersize=16)
+		ax.plot(startPoint[0], startPoint[1], '^', color='blue', markersize=16)
 	if endPoint is not None:
-		ax.plot(endPoint[0], endPoint[1], 'x', color='r', markersize=16)
+		ax.plot(endPoint[0], endPoint[1], 'v', color='blue', markersize=16)
 
+	plt.tight_layout()
 	if filename is not None:
 		plt.savefig(filename)
 	if show:
 		plt.show()
 
-def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=True, fig=None, ax=None):
+def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=True, fig=None, ax=None, simple=False):
 	"""Plot points, clustered into tours"""
 	tourColorGroups = [0] * len(uavPoints)
 	for cix, tour in enumerate(uavTours):
 		for p in tour:
 			tourColorGroups[p] = cix
 
-	tourColors = plt.cm.get_cmap('tab20', len(uavTours))
+	if simple:
+		tourColors = lambda i: 'blue'
+	else:
+		tourColors = plt.cm.get_cmap('tab20', len(uavTours))
 	if fig==None or ax==None:
 		fig, ax = plt.subplots(figsize=(4, 4))
 	# print(f"Mapping to points: {mapping_to_points}")
@@ -72,21 +93,28 @@ def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=Tru
 		# print(x, y, tourColorGroups[i], tourColors(tourColorGroups[i]))
 		color = tourColors(tourColorGroups[i])
 		ax.plot(x, y, 'o', color=color, markersize=8)
-		ax.text(x, y, f"{i}a", fontsize=16, color=color, verticalalignment='top')
+		if not simple:
+			ax.text(x, y, f"{i}a", fontsize=16, color=color, verticalalignment='top')
 
 	# plot colored circles for ugv path (including start, end)
 	i = 0
 	while i < len(ugvPath):
 		x,y = ugvPointMap[ugvPath[i]]
-		color = 'g' if i == 0 else 'r' if i == len(ugvPath) - 1 else 'k'
-		markersize = 16 if i == 0 or i == len(ugvPath) - 1 else 8
-		ax.plot(x, y, 'x', color=color, markersize=markersize)
-		# label (with repeated points)
-		labelNum = str(i)
-		while i < len(ugvPath) - 1 and ugvPointMap[ugvPath[i]] == ugvPointMap[ugvPath[i+1]]:
-			i += 1
-			labelNum += ',' + str(i)
-		ax.text(x, y, labelNum + 'g', fontsize=16, color=color, verticalalignment='bottom')
+		shape = '^' if i == 0 else 'v' if i == len(ugvPath) - 1 else 'o'
+		if simple:
+			color = 'blue'
+			markersize = 16 if i == 0 or i == len(ugvPath) - 1 else 0
+			ax.plot(x, y, shape, color=color, markersize=markersize)
+		else:
+			color = 'g' if i == 0 else 'r' if i == len(ugvPath) - 1 else 'k'
+			markersize = 16 if i == 0 or i == len(ugvPath) - 1 else 8
+			ax.plot(x, y, shape, color=color, markersize=markersize)
+			# label (with repeated points)
+			labelNum = str(i)
+			while i < len(ugvPath) - 1 and ugvPointMap[ugvPath[i]] == ugvPointMap[ugvPath[i+1]]:
+				i += 1
+				labelNum += ',' + str(i)
+			ax.text(x, y, labelNum + 'g', fontsize=16, color=color, verticalalignment='bottom')
 		i += 1
 
 	# plot uav path
@@ -95,7 +123,7 @@ def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=Tru
 			x1, y1 = uavPoints[tour[i]]
 			x2, y2 = uavPoints[tour[i + 1]]
 			ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
-						arrowprops=dict(arrowstyle="-", color='black', lw=2))
+						arrowprops=dict(arrowstyle="->", color='blue', lw=2))
 
 	# plot ugv path
 	for i in range(len(ugvPath)-1):
@@ -103,18 +131,21 @@ def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=Tru
 		x2, y2 = ugvPointMap[ugvPath[(i + 1) % len(ugvPath)]]
 		if x1 == x2 and y1 == y2:
 			continue
-		print(f"Drawing edge from {ugvPath[i]} to {ugvPath[(i + 1) % len(ugvPath)]}: ({x1}, {y1}) to ({x2}, {y2})")
+		# print(f"Drawing edge from {ugvPath[i]} to {ugvPath[(i + 1) % len(ugvPath)]}: ({x1}, {y1}) to ({x2}, {y2})")
 		ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
-					arrowprops=dict(arrowstyle="->", color='red', lw=2))
+					arrowprops=dict(arrowstyle="->", color='gray', lw=2))
 
-	# ax.set_xticks([])
-	# ax.set_yticks([])
-	ax.grid(True)
 	ax.relim()
 	ax.autoscale_view()
-	ax.set_title("Full Mission Plan")
 	ax.set_aspect('equal')
+	if simple:
+		ax.set_xticks([])
+		ax.set_yticks([])
+	else:
+		ax.grid(True)
+		ax.set_title("Full Mission Plan")
 
+	plt.tight_layout()
 	if filename is not None:
 		plt.savefig(filename)
 	if show:
@@ -161,7 +192,7 @@ def plotOriginalTours(originalPoints, originalTours, startPoint=None, endPoint=N
 	if show:
 		plt.show()
 
-def plotPlanFromFolder(folderPath):
+def plotPlanFromFolder(folderPath, simple=False):
 	"""Generates plots for a TSP path from a results folder"""
 	absFolderPath = os.path.abspath(folderPath)
 
@@ -169,15 +200,17 @@ def plotPlanFromFolder(folderPath):
 	if plan is None:
 		return
 
+	plotPoints(plan['uav_points'],
+		startPoint=plan['ugv_point_map'][plan['ugv_path'][0]],
+		endPoint=plan['ugv_point_map'][plan['ugv_path'][-1]],
+		show=False, simple=simple)
+
 	TSPFigureName = os.path.join(absFolderPath, 'TSP_path.png')
 	if 'uav_points' in plan:
 		plotPath(plan['uav_points'], filename=TSPFigureName, show=False,
 		   startPoint=plan['ugv_point_map'][plan['ugv_path'][0]],
-		   endPoint=plan['ugv_point_map'][plan['ugv_path'][-1]])
-	# else:
-	# 	# If no solution, just scatter the reordered points for reference
-	# 	plotPoints(points,
-	# 				filename=TSPFigureName)
+		   endPoint=plan['ugv_point_map'][plan['ugv_path'][-1]],
+		   simple=simple)
 
 	toursFigureName = os.path.join(absFolderPath, 'uav_tours.png')
 	plotTours(plan['uav_tours'],
@@ -185,7 +218,8 @@ def plotPlanFromFolder(folderPath):
 				plan["ugv_point_map"],
 				plan["ugv_path"],
 				toursFigureName,
-				False)
+				False,
+				simple=simple)
 
 	plt.show()
 
@@ -248,8 +282,15 @@ def plotSolveTimes(yamlContents, xKey, yKey, fig=None, ax=None, labelString='', 
 			'values' : thisY,
 			'min' : np.nanmin(thisY),
 			'mean' : np.nanmean(thisY),
-			'max' : np.nanmax(thisY)
+			'max' : np.nanmax(thisY),
+			'std' : np.nanstd(thisY),
 		}
+
+	# print data
+	print('Statistics:')
+	for k in sorted(dataDict.keys()):
+		v = dataDict[k]
+		print(f"n={k}: min {v['min']:.2f} mean {v['mean']:.2f} max {v['max']:.2f} -> mu sigma {sigFigs(v['mean'],2)} +- {sigFigs(v['std'],2)}")
 
 	# plot line for each group
 	xSorted = sorted(dataDict.keys())

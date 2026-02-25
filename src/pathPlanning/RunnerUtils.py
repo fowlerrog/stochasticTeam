@@ -46,6 +46,10 @@ def formatList(l, fString):
 	"""Formats a list into a string"""
 	return '[' + ', '.join(fString%e for e in l) + ']'
 
+def sigFigs(i, n):
+	"""Rounds a float to a given number of significat figures"""
+	return '{:g}'.format(float('{:.{p}g}'.format(i, p=n)))
+
 def loadYamlContents(settingsFile, defaultFilename = '', verbose=True):
 	"""
 	Returns the contents of a yaml file, if it exists
