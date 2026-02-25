@@ -36,3 +36,4 @@ gazebo/resources/jackal*
 gazebo/runs/**/results*
 gazebo/runs/**/*_results.yaml
 gazebo/runs/**/*.png
+gazebo/**/runPlans

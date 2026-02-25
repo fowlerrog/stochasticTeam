@@ -3,7 +3,9 @@
 if __name__ == '__main__':
     import sys
     import json
+    import os
     from pathPlanning.PlannerUtils import plannerFromParams
+    from pathPlanning.RunnerUtils import writeYaml
 
     # Read JSON from stdin, assumed to be:
     # {
@@ -14,7 +16,8 @@ if __name__ == '__main__':
     # 'ugvIndex': UGV index in path,
     # 'uavPos': UAV position (3D),
     # 'ugvPos': UGV position (2D),
-    # 'flightTime': current UAV flight time
+    # 'flightTime': current UAV flight time,
+    # 'planSaveFolder': folder in which to save resulting plan to file,
     # }
     data = json.load(sys.stdin)
 
@@ -31,6 +34,16 @@ if __name__ == '__main__':
         data['uavPos'], data['ugvPos'],
         data['flightTime']
     )
+
+    # Print to file
+    if 'planSaveFolder' in data and data['planSaveFolder']:
+        writeYaml(
+            data['planParams'] | {'uav_tours' : thisUavTours, 'ugv_path' : thisUgvOrder, 'ugv_point_map' : thisUgvPoints},
+            os.path.join(data['planSaveFolder'],
+                f"plan_path_results_iTour_{data['iTour']}_jTour_{data['jTour']}_ugvIndex_{data['ugvIndex']}.yaml"
+            ),
+            maxDecimals=4
+        )
 
     # Output result (captured by the node)
     print(json.dumps({

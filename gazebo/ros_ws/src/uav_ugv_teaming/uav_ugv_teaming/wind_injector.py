@@ -77,6 +77,7 @@ class WindInjector(Node):
             ('base_wind_north', 0.0),  # Base wind N component
             ('base_wind_east', 0.0),  # Base wind E component
             ('base_wind_down', 0.0),  # Base wind D component
+            ('min_height', 2.0),        # Minimum height to apply wind
             ('viz_rate', 20.0),  # Hz for visualization
             ('viz_grid_size', 50),  # Grid points for visualization
             ('viz_grid_spacing', 2.0),  # Meters between grid points
@@ -147,6 +148,9 @@ class WindInjector(Node):
         
         Returns: (wind_north, wind_east, wind_down) in m/s
         """
+        if down > -self.min_height:
+            return 0.0, 0.0, 0.0
+
         # Scale position for noise lookup
         x = north * self.spatial_scale
         y = east * self.spatial_scale

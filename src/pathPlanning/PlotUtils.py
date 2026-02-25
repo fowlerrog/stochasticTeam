@@ -162,19 +162,19 @@ def plotOriginalTours(originalPoints, originalTours, startPoint=None, endPoint=N
 	if show:
 		plt.show()
 
-def plotPlanFromFolder(folderPath):
+def plotPlanFromPlanResults(filePath):
 	"""Generates plots for a TSP path from a results folder"""
-	absFolderPath = toDir(folderPath)
+	absFolderPath = toDir(filePath)
 
-	plan = loadYamlContents(absFolderPath, planPathResultsFilename)
+	plan = loadYamlContents(filePath, planPathResultsFilename)
 	if plan is None:
 		return
 
-	TSPFigureName = os.path.join(absFolderPath, 'TSP_path.png')
-	if 'uav_points' in plan:
-		plotPath(plan['uav_points'], filename=TSPFigureName, show=False,
-		   startPoint=plan['ugv_point_map'][plan['ugv_path'][0]],
-		   endPoint=plan['ugv_point_map'][plan['ugv_path'][-1]])
+	# TSPFigureName = os.path.join(absFolderPath, 'TSP_path.png')
+	# if 'uav_points' in plan:
+	# 	plotPath(plan['uav_points'], filename=TSPFigureName, show=False,
+	# 	   startPoint=plan['ugv_point_map'][plan['ugv_path'][0]],
+	# 	   endPoint=plan['ugv_point_map'][plan['ugv_path'][-1]])
 	# else:
 	# 	# If no solution, just scatter the reordered points for reference
 	# 	plotPoints(points,

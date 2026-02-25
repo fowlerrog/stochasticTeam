@@ -3,7 +3,7 @@ import sys
 import traceback
 
 # project imports
-from pathPlanning.PlotUtils import plotPlanFromFolder
+from pathPlanning.PlotUtils import plotPlanFromPlanResults
 
 if __name__ == '__main__':
 	# print help message if necessary
@@ -14,6 +14,6 @@ if __name__ == '__main__':
 	# for each provided settings file, run plotter
 	for s in sys.argv[1:]:
 		try:
-			plotPlanFromFolder(s)
+			plotPlanFromPlanResults(s)
 		except Exception:
 			print(traceback.format_exc())

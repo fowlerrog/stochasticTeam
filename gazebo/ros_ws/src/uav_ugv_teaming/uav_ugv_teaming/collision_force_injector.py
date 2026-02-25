@@ -12,34 +12,33 @@ class CollisionForceInjector(Node):
     def __init__(self):
         super().__init__('collision_force_injector')
         
-        # Declare parameters
-        self.declare_parameter('ugv_landing_height', 0.3) # cylindrical size of UGV
-        self.declare_parameter('ugv_landing_radius', 0.3)
-
-        # Get parameters
-        self.ugv_landing_height = self.get_parameter('ugv_landing_height').value
-        self.ugv_landing_radius = self.get_parameter('ugv_landing_radius').value
+        # Declare and evaluate parameters
+        paramList = [
+            # cylindrical size of UGV
+            ('ugv_landing_height', 0.3),
+            ('ugv_landing_radius', 0.3),
+            # Collision parameters - vertical
+            ('collision_stiffness', 2000.0),  # N/m (spring constant for vertical)
+            ('collision_damping', 1000.0),  # N·s/m (damper for vertical)
+            ('min_force', -10.0), # maximum downward force we can apply
+            # Friction parameters - horizontal
+            ('friction_coef_static', 0.8),  # Static friction
+            ('friction_coef_kinetic', 0.6),  # Kinetic friction
+            ('friction_transition_speed', 0.5),  # m/s
+            # Attitude stabilization parameters (torques to level out)
+            ('roll_stiffness', 100.0),  # N·m/rad (torque per radian of roll)
+            ('roll_damping', 30.0),  # N·m·s/rad (torque damping)
+            ('pitch_stiffness', 100.0),  # N·m/rad
+            ('pitch_damping', 30.0),  # N·m·s/rad
+            ('yaw_damping', 15.0),  # N·m·s/rad (only damping for yaw, no restoring)
+        ]
+        for name, defaultValue in paramList:
+            self.declare_parameter(name, defaultValue)
+            setattr(self, name, self.get_parameter(name).value)
 
         # Robot states
         self.uav_state = None
         self.ugv_odom = None
-        
-        # Collision parameters - vertical
-        self.collision_stiffness = 2000.0  # N/m (spring constant for vertical)
-        self.collision_damping = 1000.0  # N·s/m (damper for vertical)
-        self.min_force = -10.0 # maximum downward force we can apply
-        
-        # Friction parameters - horizontal
-        self.friction_coef_static = 0.8  # Static friction
-        self.friction_coef_kinetic = 0.6  # Kinetic friction
-        self.friction_transition_speed = 0.5  # m/s
-        
-        # Attitude stabilization parameters (torques to level out)
-        self.roll_stiffness = 100.0  # N·m/rad (torque per radian of roll)
-        self.roll_damping = 30.0  # N·m·s/rad (torque damping)
-        self.pitch_stiffness = 100.0  # N·m/rad
-        self.pitch_damping = 30.0  # N·m·s/rad
-        self.yaw_damping = 15.0  # N·m·s/rad (only damping for yaw, no restoring)
         
         # Subscribers
         self.create_subscription(State, '/sim/roscopter/state',#'/estimated_state', 

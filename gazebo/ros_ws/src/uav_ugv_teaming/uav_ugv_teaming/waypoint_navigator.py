@@ -14,23 +14,23 @@ class WaypointNavigator(Node):
     def __init__(self):
         super().__init__('waypoint_navigator')
         
-        # Declare parameters
-        self.declare_parameter('waypoints', '[]')
-        self.declare_parameter('linear_speed', 0.2)
-        self.declare_parameter('angular_speed', 0.5)
-        self.declare_parameter('distance_tolerance', 0.1)
-        
-        # Get parameters
-        waypoints_str = self.get_parameter('waypoints').value
-        self.linear_speed = self.get_parameter('linear_speed').value
-        self.angular_speed = self.get_parameter('angular_speed').value
-        self.distance_tolerance = self.get_parameter('distance_tolerance').value
+        # Declare and evaluate parameters
+        paramList = [
+            ('waypoints', '[]'),
+            ('linear_speed', 0.2),
+            ('angular_speed', 0.5),
+            ('distance_tolerance', 0.1),
+            ('linear_accel', 0.3),
+        ]
+        for name, defaultValue in paramList:
+            self.declare_parameter(name, defaultValue)
+            setattr(self, name, self.get_parameter(name).value)
         
         # Parse waypoints string into list
         try:
-            waypoints_list = ast.literal_eval(waypoints_str)
+            waypoints_list = ast.literal_eval(self.waypoints)
         except (ValueError, SyntaxError):
-            self.get_logger().error(f'Failed to parse waypoints: {waypoints_str}')
+            self.get_logger().error(f'Failed to parse waypoints: {self.waypoints}')
             waypoints_list = []
 
         # Convert to list of tuples (x, y)
@@ -47,6 +47,8 @@ class WaypointNavigator(Node):
         self.robot_x = 0.0
         self.robot_y = 0.0
         self.robot_theta = 0.0
+        self.last_speed = 0.0
+        self.last_time = self.get_clock().now()
         
         # Publishers and subscribers
         self.cmd_vel_pub = self.create_publisher(Twist, 'cmd_vel', 10)
@@ -122,9 +124,11 @@ class WaypointNavigator(Node):
     
     def control_loop(self):
         """Main control loop for waypoint navigation"""
+        now = self.get_clock().now()
         if not self.waypoints or self.current_waypoint_idx >= len(self.waypoints):
             # No waypoints or finished all waypoints
             self.stop_robot()
+            self.last_time = now
             return
         
         # Get current target waypoint
@@ -151,6 +155,7 @@ class WaypointNavigator(Node):
             if self.current_waypoint_idx >= len(self.waypoints):
                 self.get_logger().info('All waypoints reached!')
                 self.stop_robot()
+                self.last_time = now
             return
         
         # Simple proportional controller
@@ -159,16 +164,32 @@ class WaypointNavigator(Node):
             # Turn in place
             cmd.angular.z = self.angular_speed if angle_diff > 0 else -self.angular_speed
             cmd.linear.x = 0.0
+            self.last_speed = 0.0
         else:
             # Move forward
-            cmd.linear.x = min(self.linear_speed, distance)
+            dt = (now - self.last_time).to_msg().nanosec * 1e-9
+            # Check for braking distance
+            if distance + self.distance_tolerance <= 0.5 * self.last_speed**2 / self.linear_accel:
+                self.last_speed = max([
+                    0, # stop
+                    self.last_speed - self.linear_accel * dt, # max brake
+                    math.sqrt(2 * distance * self.linear_accel) # vel to constantly max brake
+                ])
+            else: # move as fast as possible
+                self.last_speed = min(
+                    self.linear_speed, # max speed
+                    self.last_speed + self.linear_accel * dt # max accel
+                )
+            cmd.linear.x = min(self.last_speed, distance) # graceful final braking
             cmd.angular.z = 2.0 * angle_diff  # Proportional control for fine adjustment
         
         self.cmd_vel_pub.publish(cmd)
+        self.last_time = now
     
     def stop_robot(self):
         """Stop the robot"""
         cmd = Twist()
+        self.last_speed = 0.0
         self.cmd_vel_pub.publish(cmd)
 
 

@@ -614,8 +614,8 @@ class OurPlannerStochastic(OurPlanner):
         self.logSuccessLimit = math.log(1 - self.params['FAILURE_RISK'])
         self.KNAPSACK_WEIGHT_SUBDIVISIONS = 100
 
-    def printResultsToYaml(self, maxDecimals=4):
-        return super().printResultsToYaml(maxDecimals)
+    def printResultsToYaml(self, absSavePath=None, maxDecimals=4):
+        return super().printResultsToYaml(absSavePath=absSavePath, maxDecimals=maxDecimals)
 
     def createCostMatrix(self, points, agentType=''):
         """Create mean AND variance matrices"""

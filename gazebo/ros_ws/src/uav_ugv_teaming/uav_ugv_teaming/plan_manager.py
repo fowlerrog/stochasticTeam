@@ -69,6 +69,7 @@ class PlanManager(Node):
             ('activate_takeoff_service', '/takeoff_commader/toggle'),
             ('wait_time', 2.0),
             ('online_planner_service', '/call_venv_script'),
+            ('plan_save_folder', ''),
         ]
         for name, defaultValue in paramList:
             self.declare_parameter(name, defaultValue)
@@ -312,6 +313,7 @@ class PlanManager(Node):
         elif self.state == ExecutionStates.WAITING_FOR_LANDING_VERTICAL:
             if self.in_contact and self.uav_status.control_mode == 1: # control disabled
                 self.clear_uav_waypoints()
+                self.get_logger().info(f'Flight time was {(self.get_clock().now() - self.uav_takeoff_time).to_msg().sec}')
                 self.uav_takeoff_time = None # reset flight time
 
                 self.i_tour += 1
@@ -513,7 +515,8 @@ class PlanManager(Node):
             'ugvIndex': 2 * self.i_tour + (0 if together else 1),
             'uavPos': self.uav_position,
             'ugvPos': [self.ugv_position.x, self.ugv_position.y],
-            'flightTime': flightTime
+            'flightTime': flightTime,
+            'planSaveFolder': self.plan_save_folder,
         }
 
         # Call script service

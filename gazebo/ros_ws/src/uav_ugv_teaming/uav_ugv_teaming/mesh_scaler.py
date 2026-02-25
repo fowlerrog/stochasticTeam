@@ -6,16 +6,17 @@ from visualization_msgs.msg import Marker
 class MeshScaler(Node):
     def __init__(self):
         super().__init__('mesh_scaler')
-        
-        # Declare parameters
-        self.declare_parameter('input_topic', '/rviz/mesh')
-        self.declare_parameter('output_topic', '/rviz/mesh_scaled')
-        self.declare_parameter('scale', 1.0)
 
-        # Get parameters
-        self.input_topic = self.get_parameter('input_topic').value
-        self.output_topic = self.get_parameter('output_topic').value
-        self.scale = self.get_parameter('scale').value
+        # Declare and evaluate parameters
+        paramList = [
+            ('input_topic', '/rviz/mesh'),
+            ('output_topic', '/rviz/mesh_scaled'),
+            ('scale', 1.0),
+            ('color', [1.0, 0.25, 0.7, 1.0]),
+        ]
+        for name, defaultValue in paramList:
+            self.declare_parameter(name, defaultValue)
+            setattr(self, name, self.get_parameter(name).value)
                 
         # Subscriber
         self.sub = self.create_subscription(
@@ -33,6 +34,10 @@ class MeshScaler(Node):
         msg.scale.x = self.scale
         msg.scale.y = self.scale
         msg.scale.z = self.scale
+        msg.color.r = self.color[0]
+        msg.color.g = self.color[1]
+        msg.color.b = self.color[2]
+        msg.color.a = self.color[3]
         self.pub.publish(msg)
 
 def main():

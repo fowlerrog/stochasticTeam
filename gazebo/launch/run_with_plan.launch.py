@@ -241,6 +241,20 @@ def generate_launch_description():
         actions=[uav_pos_cmd]
     )
 
+    # Set UAV speed
+    uav_vel_cmd = ExecuteProcess(
+        cmd=["ros2", "param", "set",
+        "/path_manager",
+        "max_velocity",
+        "1.0"
+        ],
+        output="screen"
+    )
+    uav_vel = TimerAction(
+        period=0.1,
+        actions=[uav_vel_cmd]
+    )
+
     return LaunchDescription([
         param_file_arg,
         plan_file_arg,
@@ -263,4 +277,5 @@ def generate_launch_description():
         load_rosflightio_params,
         calibrate_imu,
         uav_pos,
+        uav_vel,
     ])
