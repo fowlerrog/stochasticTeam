@@ -80,6 +80,7 @@ class TrajectoryCommandOverride(Node):
             self.get_logger().info(response.message)
             
         else:
+            self.active = False # deactivate
             response.success = False
             response.message = 'Received bad goal, not activating'
             self.get_logger().info(response.message)

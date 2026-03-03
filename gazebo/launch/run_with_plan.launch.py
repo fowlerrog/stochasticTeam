@@ -246,7 +246,7 @@ def generate_launch_description():
         cmd=["ros2", "param", "set",
         "/path_manager",
         "max_velocity",
-        "1.0"
+        "2.0"
         ],
         output="screen"
     )

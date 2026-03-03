@@ -2,6 +2,7 @@
   ros__parameters:
     coarse_distance_tolerance: 1.0
     fine_distance_tolerance: 0.2
+    fine_height_tolerance: 0.2
     fine_velocity_tolerance: 0.1
     ugv_landing_height: 0.32
     ugv_landing_radius: 0.3
@@ -31,6 +32,7 @@
   ros__parameters:
     wait_time: 3.0
     plan_save_folder: './runPlans'
+    landing_approach_height: 2.0
 
 /wheel_tf_publisher:
   ros__parameters:
@@ -42,7 +44,7 @@
 /wind_injector:
   ros__parameters:
     seed: 42
-    wind_scale: 3.0       # Max wind speed (m/s)
+    wind_scale: 1.0       # Max wind speed (m/s)
     spatial_scale: 0.02   # Noise frequency (1/m)
     base_wind_north: 0.0  # Base wind N component
     base_wind_east: 0.0   # Base wind E component
