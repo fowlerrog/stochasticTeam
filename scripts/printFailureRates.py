@@ -34,14 +34,14 @@ def sigfigs(i, n):
 if __name__ == '__main__':
 	# print help message if necessary
 	if len(sys.argv) < 2 or any([s == '--help' or s == '-h' for s in sys.argv[1:]]):
-		print('Usage: python printMissionTimes.py /path/to/results/parent/folder/')
+		print('Usage: python printFailureRates.py /path/to/results/parent/folder/')
 		exit()
 
 	folderName = toDir(sys.argv[1])
 
 	# independent variables
-	# indVarNames = ['PLANNER.FAILURE_RISK', 'POINTS.NUM_POINTS']
-	indVarNames = ['POINTS.NUM_POINTS']
+	indVarNames = ['PLANNER.FAILURE_RISK', 'POINTS.NUM_POINTS']
+	# indVarNames = ['POINTS.NUM_POINTS']
 
 	# get info
 	data = getRunsInfo(folderName, indVarNames)
