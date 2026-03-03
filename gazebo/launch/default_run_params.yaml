@@ -1,0 +1,63 @@
+/**:
+  ros__parameters:
+    coarse_distance_tolerance: 1.0
+    fine_distance_tolerance: 0.2
+    fine_height_tolerance: 0.2
+    fine_velocity_tolerance: 0.1
+    ugv_landing_height: 0.32
+    ugv_landing_radius: 0.3
+    landing_throttle_coefficient: 0.27
+    takeoff_throttle_coefficient: 0.4
+    uav_base_link: /stl_frame
+    ugv_base_link: /ugv/base_link
+
+/collision_force_injector:
+  ros__parameters:
+    # Collision parameters - vertical
+    collision_stiffness: 2000.0  # N/m (spring constant for vertical)
+    collision_damping: 1000.0  # N·s/m (damper for vertical)
+    min_force: -10.0 # maximum downward force we can apply
+    # Friction parameters - horizontal
+    friction_coef_static: 0.9  # Static friction
+    friction_coef_kinetic: 0.6  # Kinetic friction
+    friction_transition_speed: 0.5  # m/s
+    # Attitude stabilization parameters (torques to level out)
+    roll_stiffness: 100.0  # N·m/rad (torque per radian of roll)
+    roll_damping: 30.0  # N·m·s/rad (torque damping)
+    pitch_stiffness: 100.0  # N·m/rad
+    pitch_damping: 30.0  # N·m·s/rad
+    yaw_damping: 15.0  # N·m·s/rad (only damping for yaw, no restoring)
+
+/plan_manager:
+  ros__parameters:
+    wait_time: 3.0
+    plan_save_folder: './runPlans'
+    landing_approach_height: 2.0
+
+/wheel_tf_publisher:
+  ros__parameters:
+    wheel_base: 0.375 # jackal numbers
+    wheel_track: 0.25
+    wheel_vertical_offset: 0.0375
+    wheel_radius: 0.098
+
+/wind_injector:
+  ros__parameters:
+    seed: 42
+    wind_scale: 1.0       # Max wind speed (m/s)
+    spatial_scale: 0.02   # Noise frequency (1/m)
+    base_wind_north: 0.0  # Base wind N component
+    base_wind_east: 0.0   # Base wind E component
+    base_wind_down: 0.0   # Base wind D component
+    min_height: 2.0       # Minimum height to apply wind
+    viz_rate: 1.0         # Hz for visualization
+    viz_grid_size: 50     # Grid points for visualization
+    viz_grid_spacing: 5.0 # Meters between grid points
+    viz_arrow_scale: 5.0  # Arrow scale, m/(m/s)
+
+/ground_plane_publisher:
+  ros__parameters:
+    image_path: '../resources/textures/seamless-dirt-ground-texture.jpg'
+    resolution: 0.05
+    origin_x: -20.0
+    origin_y: -20.0

@@ -1,0 +1,20 @@
+TYPE: OurOnlinePlanner
+HORIZON_TOURS: 2
+ENVIRONMENT:
+  TYPE: SplitEnvironment
+  AGENT_ENVIRONMENTS:
+    UAV:
+      TYPE: GaussianEnvironment
+      WEIGHT: 1
+      WEIGHT_STD_DEV: 0.1
+    UGV:
+      TYPE: GaussianEnvironment
+      WEIGHT: 5
+      WEIGHT_STD_DEV: 0.5
+TSP_LOCAL_SEARCH: false
+FAILURE_RISK: 0.1
+REFINE_TOURS: false
+PARALLEL_DP: false
+TAKEOFF_LANDING_TIME: 10.0
+UAV_BATTERY_TIME: 60.0
+CHARGE_RATE: 1

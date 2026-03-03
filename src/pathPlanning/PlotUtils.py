@@ -6,7 +6,8 @@ import numpy as np
 from math import log
 
 # project imports
-from .RunnerUtils import loadPlanResultsFromFolder, sigFigs
+from .Constants import planPathResultsFilename
+from .RunnerUtils import toDir, loadYamlContents, sigFigs
 
 def plotPoints(points, filename=None, show=True, startPoint=None, endPoint=None, simple=False):
 	"""Plot points with no path"""
@@ -192,11 +193,11 @@ def plotOriginalTours(originalPoints, originalTours, startPoint=None, endPoint=N
 	if show:
 		plt.show()
 
-def plotPlanFromFolder(folderPath, simple=False):
+def plotPlanFromPlanResults(filePath, simple=False):
 	"""Generates plots for a TSP path from a results folder"""
-	absFolderPath = os.path.abspath(folderPath)
+	absFolderPath = toDir(filePath)
 
-	plan = loadPlanResultsFromFolder(absFolderPath)
+	plan = loadYamlContents(filePath, planPathResultsFilename)
 	if plan is None:
 		return
 

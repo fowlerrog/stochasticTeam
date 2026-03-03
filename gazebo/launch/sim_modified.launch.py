@@ -1,0 +1,37 @@
+from launch import LaunchDescription
+from launch_ros.actions import Node
+from ament_index_python.packages import get_package_share_directory
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import IncludeLaunchDescription
+import os
+
+# COPIED FROM gazebo/ros_ws/src/roscopter/roscopter_sim/launch/sim.launch.py
+
+def generate_launch_description():
+    roscopter_dir = get_package_share_directory('roscopter')
+
+    base_launch_include = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            # os.path.join(
+            #     roscopter_dir,
+            #     'launch',
+            #     'roscopter.launch.py'
+            # )
+            'roscopter_modified.launch.py' # THIS IS THE REASON THIS FILE EXISTS
+        )
+    )
+
+    return LaunchDescription([
+        base_launch_include,
+        Node(
+            package='roscopter_gcs',
+            executable='rviz_waypoint_publisher',
+            output='screen',
+        ),
+        Node(
+            package='roscopter_sim',
+            executable='sim_state_transcriber',
+            output='screen',
+            name='roscopter_truth'
+        ),
+    ])

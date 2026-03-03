@@ -71,7 +71,8 @@ class OurOnlinePlanner(OurPlannerStochastic):
 		self.together = together
 
 		# check if a replan is meaningful
-		if iTour >= len(uavTours) - 1 and jTour >= len(uavTours[iTour]) - 2:
+		if iTour >= len(uavTours) or \
+			(iTour == len(uavTours) - 1 and jTour >= len(uavTours[iTour]) - 2):
 			self.solveTime = 0
 			return uavTours, ugvOrder, ugvPoints, True
 

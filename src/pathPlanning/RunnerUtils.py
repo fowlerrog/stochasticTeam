@@ -98,16 +98,6 @@ def writeYaml(dataDict, savePath, maxDecimals=1):
 		print('Writing to %s'%savePath)
 		yaml.dump(roundIterable(dataDict, maxDecimals), f, default_flow_style=None)
 
-def loadPlanResultsFromFolder(folderPath):
-	"""Loads planning results from a yaml in a result folder"""
-
-	absFile = os.path.abspath(os.path.join(folderPath, planPathResultsFilename))
-	print('Loading planning results from', absFile)
-
-	# load run parameters from yaml
-	params = loadYamlContents(folderPath, planPathResultsFilename)
-	return params
-
 def toDir(path):
 	"""Converts a folder or file path to a folder path"""
 	return os.path.abspath(path) if os.path.isdir(path) else os.path.dirname(path)
