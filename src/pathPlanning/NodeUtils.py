@@ -4,7 +4,7 @@ from random import uniform
 from scipy.spatial.distance import euclidean
 from pprint import pprint
 
-def generatePoints(params):
+def generatePoints(params, verbose=True):
     """Generates a list of tuple points, with a params dict"""
 
     if params['TYPE'] == 'Uniform':
@@ -12,10 +12,11 @@ def generatePoints(params):
               params['NUM_POINTS'],
               xRange=(0, params['SPACE_SIZE']),
               yRange=(0, params['SPACE_SIZE']),
-              fixedZ=params['FIXED_Z']
+              fixedZ=params['FIXED_Z'],
+              verbose=verbose
          )
 
-def generateUniformPoints(n, xRange=(0, 1), yRange=(0, 1), fixedZ=0, decimals=2):
+def generateUniformPoints(n, xRange=(0, 1), yRange=(0, 1), fixedZ=0, decimals=2, verbose=True):
     """
     Randomly generates n points in a rectangle xRange by yRange, with a fixed z coordinate
     n = int
@@ -32,8 +33,9 @@ def generateUniformPoints(n, xRange=(0, 1), yRange=(0, 1), fixedZ=0, decimals=2)
         )
         for _ in range(n)
     ]
-    print(f"Generated points:")
-    pprint({i: p for i, p in enumerate(points)})
+    if verbose:
+        print(f"Generated points:")
+        pprint({i: p for i, p in enumerate(points)})
     return points
 
 def createDistanceMatrix(points):

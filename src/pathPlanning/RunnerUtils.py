@@ -7,9 +7,6 @@ from itertools import product
 from collections.abc import Iterable
 from copy import deepcopy
 
-# project imports
-from .Constants import planPathResultsFilename
-
 def appendDict(d1, d2):
 	"""Appends the values in d2 to the values of d1, for matching keys"""
 	for k in d2.keys():
@@ -100,7 +97,7 @@ def writeYaml(dataDict, savePath, maxDecimals=1):
 
 def toDir(path):
 	"""Converts a folder or file path to a folder path"""
-	return os.path.abspath(path) if os.path.isdir(path) else os.path.dirname(path)
+	return os.path.abspath(path) if os.path.isdir(path) else os.path.dirname(os.path.abspath(path))
 
 def getChildFolders(parentFolder):
 	results = []
@@ -204,3 +201,13 @@ def getIndependentValueCombos(params):
 		paramList.append(thisRunParams)
 
 	return indVarComboList, paramList
+
+def removeVariableFromFolderName(folderName, varToRemove):
+	"""
+	Removes a variable name and its value from a string
+	assuming the value contains no underscores
+	f('asdf_1_hhhh_2_tttt_5', 'hhhh') => 'asdf_1__tttt_5'
+	"""
+	startIndex = folderName.index(varToRemove) # start of var name
+	endIndex = folderName[startIndex + len(varToRemove) + 1:].index('_') if '_' in folderName[startIndex + len(varToRemove) + 1:] else len(folderName) # underscore after var value, if there is one
+	return folderName[:startIndex] + folderName[startIndex + len(varToRemove) + 1 + endIndex + 1:]

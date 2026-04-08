@@ -8,7 +8,7 @@ from multiprocessing import Pool
 
 # project imports
 from pathPlanning.Constants import planPathResultsFilename, planSettingsFilename, executeResultsFilename
-from pathPlanning.RunnerUtils import loadYamlContents, toDir, getVarFromString, fillIndependentVariablesFromString
+from pathPlanning.RunnerUtils import loadYamlContents, toDir, getVarFromString, fillIndependentVariablesFromString, removeVariableFromFolderName
 from pathPlanning.ExecuteUtils import calculatePlannedMission
 
 def harvestMissionTimeInfo(s):
@@ -116,11 +116,6 @@ if __name__ == '__main__':
 	plt.legend()
 
 	# group data together by common folder name contents
-	def removeVariableFromFolderName(folderName, varToRemove):
-		startIndex = folderName.index(varToRemove) # start of var name
-		endIndex = folderName[startIndex + len(varToRemove) + 1:].index('_') if '_' in folderName[startIndex + len(varToRemove) + 1:] else len(folderName) # underscore after var value, if there is one
-		return folderName[:startIndex] + folderName[startIndex + len(varToRemove) + 1 + endIndex + 1:]
-
 	varName = 'PLANNER.REFINE_TOURS'
 	stochGroupRefineTrimmed = [removeVariableFromFolderName(f, varName) for f in stochGroupRefine[2]]
 	stochGroupNoRefineTrimmed = [removeVariableFromFolderName(f, varName) for f in stochGroupNoRefine[2]]

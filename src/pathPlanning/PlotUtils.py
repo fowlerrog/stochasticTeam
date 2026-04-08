@@ -201,17 +201,17 @@ def plotPlanFromPlanResults(filePath, simple=False):
 	if plan is None:
 		return
 
-	plotPoints(plan['uav_points'],
-		startPoint=plan['ugv_point_map'][plan['ugv_path'][0]],
-		endPoint=plan['ugv_point_map'][plan['ugv_path'][-1]],
-		show=False, simple=simple)
+	# plotPoints(plan['uav_points'],
+	# 	startPoint=plan['ugv_point_map'][plan['ugv_path'][0]],
+	# 	endPoint=plan['ugv_point_map'][plan['ugv_path'][-1]],
+	# 	show=False, simple=simple)
 
-	TSPFigureName = os.path.join(absFolderPath, 'TSP_path.png')
-	if 'uav_points' in plan:
-		plotPath(plan['uav_points'], filename=TSPFigureName, show=False,
-		   startPoint=plan['ugv_point_map'][plan['ugv_path'][0]],
-		   endPoint=plan['ugv_point_map'][plan['ugv_path'][-1]],
-		   simple=simple)
+	# TSPFigureName = os.path.join(absFolderPath, 'TSP_path.png')
+	# if 'uav_points' in plan:
+	# 	plotPath(plan['uav_points'], filename=TSPFigureName, show=False,
+	# 	   startPoint=plan['ugv_point_map'][plan['ugv_path'][0]],
+	# 	   endPoint=plan['ugv_point_map'][plan['ugv_path'][-1]],
+	# 	   simple=simple)
 
 	toursFigureName = os.path.join(absFolderPath, 'uav_tours.png')
 	plotTours(plan['uav_tours'],

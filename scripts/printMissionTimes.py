@@ -22,13 +22,13 @@ if __name__ == '__main__':
 	for f in folderNames:
 		# look for path settings one folder above (this is brittle)
 		planFolder = os.path.split(f)[0]
-		planSettingsData = loadYamlContents(planFolder, planSettingsFilename)
+		planSettingsData = loadYamlContents(planFolder, planSettingsFilename, verbose=False)
 
 		# choose independent plan variables
 		thisPlanSettingsData = fillIndependentVariablesFromString(planSettingsData, f)
 
 		# load plan results
-		planResultsData = loadYamlContents(f, planPathResultsFilename)
+		planResultsData = loadYamlContents(f, planPathResultsFilename, verbose=False)
 		plannedTime, plannedLogSuccessRate = calculatePlannedMission(thisPlanSettingsData, planResultsData)
 		plannedTimes.append(plannedTime)
 		numPoints.append(len(planResultsData['uav_points']))

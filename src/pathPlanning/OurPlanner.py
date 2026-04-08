@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from scipy.stats import norm
 from scipy.spatial.distance import euclidean
 from math import sqrt, prod
-from multiprocessing import Manager, Pool, get_context
+from multiprocessing import Manager, get_context
 from contextlib import nullcontext
 from ortools.algorithms.python import knapsack_solver
 

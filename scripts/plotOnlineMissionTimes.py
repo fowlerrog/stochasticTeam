@@ -31,20 +31,20 @@ if __name__ == '__main__':
 	for f in folderNames:
 		# look for path settings one folder above (this is brittle)
 		planFolder = os.path.split(f)[0]
-		planSettingsData = loadYamlContents(planFolder, planSettingsFilename)
+		planSettingsData = loadYamlContents(planFolder, planSettingsFilename, verbose=False)
 
 		# choose independent plan variables
 		thisPlanSettingsData = fillIndependentVariablesFromString(planSettingsData, f)
 		planN.append(thisPlanSettingsData['POINTS']['NUM_POINTS'])
 
 		# load plan results
-		planResultsData = loadYamlContents(f, planPathResultsFilename)
+		planResultsData = loadYamlContents(f, planPathResultsFilename, verbose=False)
 		plannedTime, plannedLogSuccessRate = calculatePlannedMission(thisPlanSettingsData, planResultsData)
 		plannedTimes.append(plannedTime)
 		plannedSuccessRates.append(safeExp(plannedLogSuccessRate))
 
 		# load execute results
-		executeResults = loadYamlContents(f, executeResultsFilename)
+		executeResults = loadYamlContents(f, executeResultsFilename, verbose=False)
 		if len(executeResults) == 0:
 			print(f'Skipping empty or nonexistent {os.path.join(f, executeResultsFilename)}')
 			plannedTimes.pop()
@@ -85,7 +85,7 @@ if __name__ == '__main__':
 	for n in uniqueN:
 		thisSuccesses = [realSuccessRates[i] for i in range(len(planN)) if planN[i] == n]
 		thisSuccessfulTimes = [realSuccessfulTimes[i] for i in range(len(planN)) if planN[i] == n]
-		print(f'n = {n} -> mu sigma: success rate {sigFigs(np.mean(thisSuccesses), nSigFigs)} {sigFigs(np.std(thisSuccesses), nSigFigs)} | mission time {sigFigs(np.mean(thisSuccessfulTimes), nSigFigs)} {sigFigs(np.std(thisSuccessfulTimes), nSigFigs)}')
+		print(f'n = {n} -> mu sigma: failure rate {sigFigs(1.0 - np.nanmean(thisSuccesses), nSigFigs)} {sigFigs(np.nanstd(thisSuccesses), nSigFigs)} | mission time {sigFigs(np.nanmean(thisSuccessfulTimes), nSigFigs)} {sigFigs(np.nanstd(thisSuccessfulTimes), nSigFigs)}')
 
 	# plot
 	plotSelfComparison(plannedTimes, realSuccessfulTimes, 'Mission Time [s]')

@@ -2,7 +2,6 @@
 # python imports
 import math
 import numpy as np
-import traceback
 
 # project imports
 from .OurPlanner import OurPlannerStochastic, Cost, safeExp
