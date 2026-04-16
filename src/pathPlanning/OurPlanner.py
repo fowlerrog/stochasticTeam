@@ -184,7 +184,7 @@ class OurPlanner(Planner):
             tourCosts = {
                 k : [self.baseCost('UAV')]*len(tours)              # agentType : [tour1cost, ...]
                 for k in next(iter( tourCollectCosts[0].values() )).keys()    # for each agent type
-            }
+            } if len(tourCollectCosts) > 0 else {}
             tourConstraintValues = {
                 k : [0]*len(tours)         # agentType : [tour1value, ...]
                 for k in tourCosts.keys()   # for each agent type
@@ -234,6 +234,11 @@ class OurPlanner(Planner):
         Solves a TSP across uavPoints in mean cost
         without regard to limits
         """
+
+        if len(uavPoints) == 0:
+            return uavPoints, []
+        elif len(uavPoints) == 1:
+            return uavPoints, [0]
 
         # Find the closest points to START_POINT and END_POINT
         # TODO these should be cost function calls
@@ -674,6 +679,11 @@ class OurPlannerStochastic(OurPlanner):
         Note also that in case of symmetry e.g. Pr(success | r,c) = Pr(success | c,r) we choose c > r to minimize UGV transit time between tours
         """
 
+        # empty tour check
+        if tourStartIndex == tourEndIndex:
+            return self.evaluateConstraintFloat(self.baseCost('UAV')) + self.evaluateConstraintFloat(self.baseCost('UGV')), (tourStartIndex, tourEndIndex)
+
+        # possible tour indices
         baseTour = np.arange(tourStartIndex, tourEndIndex)
 
         tourLength = tourEndIndex - tourStartIndex # length of tour = N
@@ -717,6 +727,10 @@ class OurPlannerStochastic(OurPlanner):
         Break TSP solution into feasible uav tours
         and optionally refine by computing a TSP on each
         """
+
+        if len(tspPlan) == 0:
+            return []
+
         # Construct tour cost per leg
         #   we only have to keep a running total of UAV because UGV just goes from release to collect
         tourCosts = [Cost(0,0)] + [ # this represents point 0 -> point 0

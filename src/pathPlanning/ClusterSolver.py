@@ -1,11 +1,13 @@
 # python imports
 import numpy as np
 from random import choice
+import time
 
 # project imports
 from .EnvUtils import envFromParams
 from .NodeUtils import createDistanceMatrix, createFunctionMatrix, createSubmatrix
 from .TspUtils import solveTspWithFixedStartEnd
+from .RunnerUtils import sigFigs
 
 class ClusterSolver(object):
 	"""
@@ -35,6 +37,9 @@ class ClusterSolver(object):
 		distributes list of points between clusters
 		"""
 		assert len(starts) == len(ends), 'Must have same number of team start and end points'
+		print(f'Distributing {len(points)} points between {len(starts)} teams')
+
+		startTime = time.perf_counter()
 
 		if len(points[0]) > len(starts[0]): # trim or extend dimensions
 			starts = [[*s, *[0 * len(points[0]) - len(s)]] for s in starts]
@@ -77,13 +82,26 @@ class ClusterSolver(object):
 			tspLengths[muStar] = tempTspLengths[muStar]
 			remainingPoints.remove(pIndex)
 
-		# convert from indices to points, and return
-		return [ [
-				points[i] if i < numPoints else
+		# convert from indices to points
+		clusterPoints = [ 
+			[	points[i] if i < numPoints else
 				starts[i - numPoints] if i < numPoints + numTeams else
 				ends[i - numPoints - numTeams]
 			for i in c ]
 		for c in clusters ]
+
+		# save solution and time info
+		endTime = time.perf_counter()
+		self.timeInfo = {
+			"CLUSTER_TIME": endTime - startTime
+		}
+		self.solution = {
+			"clusters": clusterPoints,
+			"tsp_lengths": tspLengths
+		}
+		print("\n".join([f'\tTeam {i} : {len(clusterPoints[i])} points : {sigFigs(tspLengths[i], 2)} path length' for i in range(len(clusterPoints))]))
+
+		return clusterPoints
 
 	def choosePoint(self, points, clusters, costMatrix):
 		"""Chooses a point from points"""

@@ -9,13 +9,14 @@ from math import log
 from .Constants import planPathResultsFilename
 from .RunnerUtils import toDir, loadYamlContents, sigFigs
 
-def plotPoints(points, filename=None, show=True, startPoint=None, endPoint=None, simple=False):
+def plotPoints(points, filename=None, show=True, startPoint=None, endPoint=None, simple=False, pointColor='gray', startEndColor='blue', fig=None, ax=None):
 	"""Plot points with no path"""
 	xs = [p[0] for p in points]
 	ys = [p[1] for p in points]
 
-	fig, ax = plt.subplots(figsize=(4, 4))
-	ax.plot(xs, ys, 'o', markersize=8, color='gray')
+	if fig is None or ax is None:
+		fig, ax = plt.subplots(figsize=(4, 4))
+	ax.plot(xs, ys, 'o', markersize=8, color=pointColor)
 
 	plt.axis('equal')
 	if simple:
@@ -26,9 +27,9 @@ def plotPoints(points, filename=None, show=True, startPoint=None, endPoint=None,
 		plt.grid(True)
 
 	if startPoint is not None:
-		ax.plot(startPoint[0], startPoint[1], '^', color='blue', markersize=16)
+		ax.plot(startPoint[0], startPoint[1], '^', color=startEndColor, markersize=16)
 	if endPoint is not None:
-		ax.plot(endPoint[0], endPoint[1], 'v', color='blue', markersize=16)
+		ax.plot(endPoint[0], endPoint[1], 'v', color=startEndColor, markersize=16)
 
 	plt.tight_layout()
 	if filename is not None:
@@ -36,18 +37,21 @@ def plotPoints(points, filename=None, show=True, startPoint=None, endPoint=None,
 	if show:
 		plt.show()
 
-def plotPath(points, filename=None, show=True, startPoint=None, endPoint=None, simple=False):
+	return fig, ax
+
+def plotPath(points, filename=None, show=True, startPoint=None, endPoint=None, simple=False, pointColor='blue', startEndColor='blue', fig=None, ax=None):
 	"""Plot points with path"""
 	# Extract x,y (uses first two coordinates if points are 3D)
 	xs = [p[0] for p in points]
 	ys = [p[1] for p in points]
 
 	# Plot the tour path with points
-	fig, ax = plt.subplots(figsize=(4, 4))
-	ax.plot(xs, ys, color='blue', marker='o', markersize=8)
+	if fig is None or ax is None:
+		fig, ax = plt.subplots(figsize=(4, 4))
+	ax.plot(xs, ys, color=pointColor, marker='o', markersize=8)
 	for i in range(len(points) - 1):
 		ax.annotate("", xy=(xs[i+1], ys[i+1]), xytext=(xs[i], ys[i]),
-					arrowprops=dict(arrowstyle="->", color='blue', lw=2))
+					arrowprops=dict(arrowstyle="->", color=pointColor, lw=2))
 
 	# Mark start and end (first and last in the tour order)
 	# ax.scatter(xs[0], ys[0], marker='s', s=100, label='Start (closest)')
@@ -62,9 +66,9 @@ def plotPath(points, filename=None, show=True, startPoint=None, endPoint=None, s
 		ax.grid(True)
 
 	if startPoint is not None:
-		ax.plot(startPoint[0], startPoint[1], '^', color='blue', markersize=16)
+		ax.plot(startPoint[0], startPoint[1], '^', color=startEndColor, markersize=16)
 	if endPoint is not None:
-		ax.plot(endPoint[0], endPoint[1], 'v', color='blue', markersize=16)
+		ax.plot(endPoint[0], endPoint[1], 'v', color=startEndColor, markersize=16)
 
 	plt.tight_layout()
 	if filename is not None:
@@ -72,7 +76,9 @@ def plotPath(points, filename=None, show=True, startPoint=None, endPoint=None, s
 	if show:
 		plt.show()
 
-def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=True, fig=None, ax=None, simple=False):
+	return fig, ax
+
+def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=True, fig=None, ax=None, simple=False, pointColor='blue', ugvColor='gray', startEndColor=None):
 	"""Plot points, clustered into tours"""
 	tourColorGroups = [0] * len(uavPoints)
 	for cix, tour in enumerate(uavTours):
@@ -80,10 +86,10 @@ def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=Tru
 			tourColorGroups[p] = cix
 
 	if simple:
-		tourColors = lambda i: 'blue'
+		tourColors = lambda i: pointColor
 	else:
 		tourColors = plt.cm.get_cmap('tab20', len(uavTours))
-	if fig==None or ax==None:
+	if fig is None or ax is None:
 		fig, ax = plt.subplots(figsize=(4, 4))
 	# print(f"Mapping to points: {mapping_to_points}")
 	uavPoints = np.array(uavPoints)[:, :2]
@@ -103,7 +109,7 @@ def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=Tru
 		x,y = ugvPointMap[ugvPath[i]]
 		shape = '^' if i == 0 else 'v' if i == len(ugvPath) - 1 else 'o'
 		if simple:
-			color = 'blue'
+			color = startEndColor if startEndColor is not None and i == 0 or i == len(ugvPath) - 1 else pointColor
 			markersize = 16 if i == 0 or i == len(ugvPath) - 1 else 0
 			ax.plot(x, y, shape, color=color, markersize=markersize)
 		else:
@@ -124,7 +130,7 @@ def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=Tru
 			x1, y1 = uavPoints[tour[i]]
 			x2, y2 = uavPoints[tour[i + 1]]
 			ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
-						arrowprops=dict(arrowstyle="->", color='blue', lw=2))
+						arrowprops=dict(arrowstyle="->", color=pointColor, lw=2))
 
 	# plot ugv path
 	for i in range(len(ugvPath)-1):
@@ -134,7 +140,7 @@ def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=Tru
 			continue
 		# print(f"Drawing edge from {ugvPath[i]} to {ugvPath[(i + 1) % len(ugvPath)]}: ({x1}, {y1}) to ({x2}, {y2})")
 		ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
-					arrowprops=dict(arrowstyle="->", color='gray', lw=2))
+					arrowprops=dict(arrowstyle="->", color=ugvColor, lw=2))
 
 	ax.relim()
 	ax.autoscale_view()
@@ -193,7 +199,7 @@ def plotOriginalTours(originalPoints, originalTours, startPoint=None, endPoint=N
 	if show:
 		plt.show()
 
-def plotPlanFromPlanResults(filePath, simple=False):
+def plotPlanFromPlanResults(filePath, full=False, simple=False):
 	"""Generates plots for a TSP path from a results folder"""
 	absFolderPath = toDir(filePath)
 
@@ -201,17 +207,18 @@ def plotPlanFromPlanResults(filePath, simple=False):
 	if plan is None:
 		return
 
-	# plotPoints(plan['uav_points'],
-	# 	startPoint=plan['ugv_point_map'][plan['ugv_path'][0]],
-	# 	endPoint=plan['ugv_point_map'][plan['ugv_path'][-1]],
-	# 	show=False, simple=simple)
+	if full:
+		plotPoints(plan['uav_points'],
+			startPoint=plan['ugv_point_map'][plan['ugv_path'][0]],
+			endPoint=plan['ugv_point_map'][plan['ugv_path'][-1]],
+			show=False, simple=simple)
 
-	# TSPFigureName = os.path.join(absFolderPath, 'TSP_path.png')
-	# if 'uav_points' in plan:
-	# 	plotPath(plan['uav_points'], filename=TSPFigureName, show=False,
-	# 	   startPoint=plan['ugv_point_map'][plan['ugv_path'][0]],
-	# 	   endPoint=plan['ugv_point_map'][plan['ugv_path'][-1]],
-	# 	   simple=simple)
+		TSPFigureName = os.path.join(absFolderPath, 'TSP_path.png')
+		if 'uav_points' in plan:
+			plotPath(plan['uav_points'], filename=TSPFigureName, show=False,
+				startPoint=plan['ugv_point_map'][plan['ugv_path'][0]],
+				endPoint=plan['ugv_point_map'][plan['ugv_path'][-1]],
+				simple=simple)
 
 	toursFigureName = os.path.join(absFolderPath, 'uav_tours.png')
 	plotTours(plan['uav_tours'],
@@ -223,6 +230,84 @@ def plotPlanFromPlanResults(filePath, simple=False):
 				simple=simple)
 
 	plt.show()
+
+def plotMultiTeamPlanFromPlanResults(filePaths, full=False, simple=False):
+	"""Generates plots for a TSP path with multiple teams, from multiple results folders"""
+
+	# store figures and axes for reuse
+	figs = [None] * 4
+	axs = [None] * 4
+
+	# define team colors
+	numTeams = len(filePaths)
+	colors = colorblindPalette()
+	teamColors = [colors[i % len(colors)] for i in range(numTeams)]
+	grayness = 0.3
+	teamUgvColors = [(*(rgb * 0.5 * (1 - grayness) + 0.5 for rgb in c[:3]), c[3]) for c in teamColors] # muted
+
+	for i in range(numTeams):
+		# load each file
+		filePath = filePaths[i]
+		absFolderPath = toDir(filePath)
+		plan = loadYamlContents(filePath, planPathResultsFilename)
+		if plan is None:
+			continue
+
+		# plot points and TSP if desired
+		if full:
+			figs[0], axs[0] = plotPoints(plan['uav_points'],
+				startPoint=plan['ugv_point_map'][plan['ugv_path'][0]],
+				endPoint=plan['ugv_point_map'][plan['ugv_path'][-1]],
+				show=False, simple=simple,
+				fig=figs[0], ax=axs[0],
+				pointColor='gray', startEndColor='k')
+
+			figs[3], axs[3] = plotPoints(plan['uav_points'],
+				startPoint=plan['ugv_point_map'][plan['ugv_path'][0]],
+				endPoint=plan['ugv_point_map'][plan['ugv_path'][-1]],
+				show=False, simple=simple,
+				fig=figs[3], ax=axs[3],
+				pointColor=teamColors[i], startEndColor='k')
+
+			TSPFigureName = os.path.join(absFolderPath, 'multi_TSP_path.png') if i == len(filePaths) - 1 else None
+			if 'uav_points' in plan:
+				figs[1], axs[1] = plotPath(plan['uav_points'], filename=TSPFigureName, show=False,
+					startPoint=plan['ugv_point_map'][plan['ugv_path'][0]],
+					endPoint=plan['ugv_point_map'][plan['ugv_path'][-1]],
+					simple=simple,
+					fig=figs[1], ax=axs[1],
+					pointColor=teamColors[i], startEndColor='k')
+
+		toursFigureName = os.path.join(absFolderPath, 'multi_uav_tours.png') if i == len(filePaths) - 1 else None
+		figs[2], axs[2] = plotTours(plan['uav_tours'],
+					plan['uav_points'],
+					plan["ugv_point_map"],
+					plan["ugv_path"],
+					toursFigureName,
+					False,
+					simple=simple,
+					fig=figs[2], ax=axs[2],
+					pointColor=teamColors[i], ugvColor=teamUgvColors[i], startEndColor='k')
+
+	plt.show()
+
+def colorblindPalette():
+	colors = [
+		'#1f77b4',  # blue
+		'#ff7f0e',  # orange
+		'#2ca02c',  # green
+		'#d62728',  # red
+		'#9467bd',  # purple
+		'#8c564b',  # brown
+		'#e377c2',  # pink
+		'#7f7f7f',  # gray
+		'#bcbd22',  # olive
+		'#17becf'   # cyan
+	]
+	return [
+		(*(int('0x' + c[2*rgb+1 : 2*rgb+3], 16) / 255.0 for rgb in range(3)), 1.0)
+		for c in colors
+	]
 
 def plotSelfComparison(plannedValues, empiricalValues, labelString='', varName='', log=False, fig=None, ax=None):
 	"""Plots planned values against empirical values"""

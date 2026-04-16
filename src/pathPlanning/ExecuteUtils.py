@@ -345,7 +345,7 @@ def stepOnlineExecution(onlinePlanner, env, uavPoints,
 			collectPoint = thisUgvPoints[thisUgvOrder[ugvIndex+1]]
 
 			# check whether this tour is now done
-			finishedTour = jTour >= len(thisUavTours[iTour]) - 2
+			finishedTour = jTour >= len(thisUavTours[iTour]) - 1
 
 			# normal part of UAV movement to next air point
 			if not finishedTour:

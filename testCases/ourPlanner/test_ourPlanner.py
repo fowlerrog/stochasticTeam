@@ -238,5 +238,30 @@ class TestOurPlanner:
 
 				assert np.all(np.abs(planner.costVarMatrix[agentType] - costVarMatrix) < costTol)
 
+	@pytest.mark.parametrize("randomSeed", range(5))
+	@pytest.mark.parametrize("numPoints", range(3))
+	def test_small(self, randomSeed, numPoints):
+		"""
+		Tests whether OurPlanner can handle very small numbers of points
+		"""
+		thisScriptFolder = os.path.dirname(os.path.abspath(__file__))
+		distTol = 1e-3 # two points match within this distance
+
+		# Load plan settings
+		params = loadYamlContents(os.path.join(thisScriptFolder, planSettingsFilename))
+		params['PLANNER']['TYPE'] = 'OurPlannerStochastic'
+
+		# Generate points
+		random.seed(randomSeed)
+		points = generatePoints(params['POINTS'] | {'NUM_POINTS' : numPoints})
+
+		# Run planner
+		planner = plannerFromParams(params['PLANNER'])
+		planner.solve(points, startPoint = params['START_POINT'], endPoint = params['END_POINT'])
+
+		# Verify result is produced
+		solution = planner.standardizeSolution()
+		assert len(solution) > 0
+
 	# TODO test case with wind
 	# TODO test case against actual costs and probabilities

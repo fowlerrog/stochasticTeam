@@ -1,5 +1,3 @@
-INDEPENDENT_VARIABLES: [SEED]
-
-SEED: [0, 1]
-NUM_RUNS: 10
-ENVIRONMENT: $env_settings.yaml
+SEED: 0
+NUM_RUNS: 1000
+ENVIRONMENT: $env_settings_uniform.yaml

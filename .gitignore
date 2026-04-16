@@ -16,14 +16,14 @@ runs/**/GTSP_input.gtsp
 runs/**/GTSP_output.txt
 runs/**/*.png
 runs/**/*_results.yaml
-runs/**/results*
+runs/**/results_*
 
 # test case artifacts
 testCases/**/GTSP_input.gtsp
 testCases/**/GTSP_output.txt
 testCases/**/*.png
 testCases/**/*_results.yaml
-testCases/**/results*
+testCases/**/results_*
 
 # gazebo sim artifacts
 gazebo/ros_ws/install
