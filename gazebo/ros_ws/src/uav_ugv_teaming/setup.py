@@ -46,6 +46,8 @@ setup(
             'venv_script_caller = uav_ugv_teaming.venv_script_caller:main',
             'wind_injector = uav_ugv_teaming.wind_injector:main',
             'ground_plane_publisher = uav_ugv_teaming.ground_plane_publisher:main',
+            'odom_offset = uav_ugv_teaming.odom_offset:main',
+            'marker_offset = uav_ugv_teaming.marker_offset:main',
         ],
     },
 )

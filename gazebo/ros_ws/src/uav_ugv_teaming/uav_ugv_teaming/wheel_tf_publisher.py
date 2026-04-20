@@ -12,12 +12,13 @@ class WheelTFPublisher(Node):
 
         # Declare and evaluate parameters
         paramList = [
-            ('ugv_odom_topic', '/ugv/odom'),
+            ('ugv_namespace', 'ugv'), # UGV namespace for topic and base_link
+            ('ugv_odom_topic', 'odom'),
+            ('ugv_base_link', 'base_link'),
             ('wheel_base', 0.4),  # Distance between left/right wheels [m]
             ('wheel_track', 0.5),  # Distance between front/rear wheels [m]
             ('wheel_radius', 0.1), # Wheel radius [m]
             ('wheel_vertical_offset', -0.1), # Wheel center above base_link [m]
-            ('ugv_base_link', '/ugv/base_link') 
         ]
         for name, defaultValue in paramList:
             self.declare_parameter(name, defaultValue)
@@ -46,7 +47,7 @@ class WheelTFPublisher(Node):
         # Subscribe to odometry
         self.odom_sub = self.create_subscription(
             Odometry,
-            self.ugv_odom_topic,
+            f'/{self.ugv_namespace}/{self.ugv_odom_topic}',
             self.odom_callback,
             10
         )
@@ -99,8 +100,8 @@ class WheelTFPublisher(Node):
         for wheel_name, (x, y) in self.wheel_positions.items():
             t = TransformStamped()
             t.header.stamp = current_time.to_msg()
-            t.header.frame_id = self.ugv_base_link
-            t.child_frame_id = f'ugv/{wheel_name}_wheel_link'
+            t.header.frame_id = f'{self.ugv_namespace}/{self.ugv_base_link}'
+            t.child_frame_id = f'{self.ugv_namespace}/{wheel_name}_wheel_link'
             
             # Position relative to base_link
             t.transform.translation.x = x
