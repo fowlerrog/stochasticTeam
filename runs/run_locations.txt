@@ -28,3 +28,6 @@ runs/terra_comparison are stoch planner results
 knapsack comparisons are in nonparallel_gaussian_knapsack
 
 multiteam are in multiteam_uniform
+
+ROS paper runs are in gazebo/launch/paper_case_high_speed_low_wind_v2 and _v2_extra_seeds
+

@@ -109,7 +109,7 @@ def plotTours(uavTours, uavPoints, ugvPointMap, ugvPath, filename=None, show=Tru
 		x,y = ugvPointMap[ugvPath[i]]
 		shape = '^' if i == 0 else 'v' if i == len(ugvPath) - 1 else 'o'
 		if simple:
-			color = startEndColor if startEndColor is not None and i == 0 or i == len(ugvPath) - 1 else pointColor
+			color = startEndColor if startEndColor is not None and (i == 0 or i == len(ugvPath) - 1) else pointColor
 			markersize = 16 if i == 0 or i == len(ugvPath) - 1 else 0
 			ax.plot(x, y, shape, color=color, markersize=markersize)
 		else:
