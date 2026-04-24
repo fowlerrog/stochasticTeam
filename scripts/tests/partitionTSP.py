@@ -39,12 +39,14 @@ def plotPaths(TSPs, startPoints, endPoints):
 #	by greedily adding points to one of several TSPs
 #	to minimize max(dist) over all TSPs
 if __name__ == '__main__':
-	numPoints = 25
+	numPoints = 100
 	numTeams = 4
 	size = 4000
 	seed = 2
 	nSigFigs = 2
 	heuristic = 'FARTHEST'
+	strategy = 'PATH_CHEAPEST_ARC'
+	# strategy = 'CHRISTOFIDES'
 	# startPoints = [ [size//2,size//2,0] for _ in range(numTeams) ]
 	# endPoints = [ [size//2, size//2, 0] for _ in range(numTeams) ]
 	startPoints = [[0.,0.,0.] for _ in range(numTeams)]
@@ -88,11 +90,11 @@ if __name__ == '__main__':
 	# for i in range(numTeams):
 	# 	print(pointGroups[i])
 
-	clusterSolver = ClusterSolver({'HEURISTIC':heuristic})
+	clusterSolver = ClusterSolver({'HEURISTIC':heuristic, 'STRATEGY':strategy})
 	pointGroups = clusterSolver.solveClusterProblem(points, startPoints, endPoints)
 
 	for i in range(len(pointGroups)):
-		newOrdering = solveTspWithFixedStartEnd(createDistanceMatrix(pointGroups[i]), 0, len(pointGroups[i])-1)
+		newOrdering = solveTspWithFixedStartEnd(createDistanceMatrix(pointGroups[i]), 0, len(pointGroups[i])-1, strategy=strategy)
 		pointGroups[i] = [pointGroups[i][j] for j in newOrdering]
 	tspLengths = [totalLength(c) for c in pointGroups]
 
@@ -100,3 +102,7 @@ if __name__ == '__main__':
 	print(' '.join(str(sigFigs(t, nSigFigs)) for t in tspLengths))
 
 	plotPaths(pointGroups, startPoints, endPoints)
+
+	# print('Final paths')
+	# for i in range(numTeams):
+	# 	print(pointGroups[i])

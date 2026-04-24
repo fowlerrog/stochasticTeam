@@ -59,6 +59,6 @@ if __name__ == '__main__':
 		try:
 			print('Writing to', outFile)
 			with open(outFile, 'w') as f:
-				yaml.dump(newData, f, default_flow_style=None)
+				yaml.safe_dump(newData, f, default_flow_style=None)
 		except Exception:
 			print(traceback.format_exc())

@@ -50,6 +50,7 @@ class ClusterSolver(object):
 
 		masterPoints = points + starts + ends
 		costMatrix = self.createCostMatrix(masterPoints, agentType='UAV')
+		tspStrategy = self.params['STRATEGY'] if 'STRATEGY' in self.params else None
 
 		# initialize each TSP's length
 		numPoints = len(points)
@@ -67,7 +68,7 @@ class ClusterSolver(object):
 			tempTspLengths = []
 			for c in clusters:
 				costSubMatrix = createSubmatrix(costMatrix, c[:-1] + [pIndex, c[-1]])
-				tspSolution = solveTspWithFixedStartEnd(costSubMatrix, 0, len(c))
+				tspSolution = solveTspWithFixedStartEnd(costSubMatrix, 0, len(c), strategy=tspStrategy)
 				tempTspLengths.append(self.totalLength(costSubMatrix, tspSolution))
 
 			# choose a cluster

@@ -32,11 +32,11 @@ def roundIterable(d, maxDecimals=1):
 	elif isinstance(d, dict):
 		return {k:roundIterable(v, maxDecimals) for k,v in d.items()}
 	elif isinstance(d, list):
-		return [roundIterable(e, maxDecimals) for e in d]
+		return list(roundIterable(e, maxDecimals) for e in d)
 	elif isinstance(d, set):
-		return {roundIterable(e, maxDecimals) for e in d}
+		return set(roundIterable(e, maxDecimals) for e in d)
 	elif isinstance(d, tuple):
-		return (roundIterable(e, maxDecimals) for e in d)
+		return tuple(roundIterable(e, maxDecimals) for e in d)
 	return d
 
 def formatList(l, fString):
@@ -93,7 +93,7 @@ def writeYaml(dataDict, savePath, maxDecimals=1):
 		os.makedirs(absFolder)
 	with open(savePath, 'w') as f:
 		print('Writing to %s'%savePath)
-		yaml.dump(roundIterable(dataDict, maxDecimals), f, default_flow_style=None)
+		yaml.safe_dump(roundIterable(dataDict, maxDecimals), f, default_flow_style=None)
 
 def toDir(path):
 	"""Converts a folder or file path to a folder path"""

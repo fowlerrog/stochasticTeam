@@ -255,8 +255,9 @@ class OurPlanner(Planner):
 
         # Solve TSP
         localSearch = 'TSP_LOCAL_SEARCH' in self.params and self.params['TSP_LOCAL_SEARCH']
+        strategy = self.params['TSP_STRATEGY'] if 'TSP_STRATEGY' in self.params else None
         newReorderedPointOrder = solveTspWithFixedStartEnd(
-            costMatrix, 0, len(uavPoints) - 1, localSearch=localSearch
+            costMatrix, 0, len(uavPoints) - 1, localSearch=localSearch, strategy=strategy
         )
 
         # Feed TSP solution through existing reordering
@@ -811,8 +812,9 @@ class OurPlannerStochastic(OurPlanner):
         newTour = []
         if len(tour) > 3:
             thisTourCostMatrix = createSubmatrix(self.costMatrix['UAV'], tour)
+            strategy = self.params['TSP_STRATEGY'] if 'TSP_STRATEGY' in self.params else None
             newTourIndices = solveTspWithFixedStartEnd(
-                thisTourCostMatrix, 0, len(tour) - 1,
+                thisTourCostMatrix, 0, len(tour) - 1, strategy=strategy
             )
             newTour = [tour[j] for j in newTourIndices]
         return newTour

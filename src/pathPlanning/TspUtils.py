@@ -2,7 +2,7 @@
 import numpy as np
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 
-def solveTspWithFixedStartEnd(costMatrix : np.array, startIndex, endIndex, localSearch=False):
+def solveTspWithFixedStartEnd(costMatrix : np.array, startIndex, endIndex, localSearch=False, strategy=None):
 	"""Solves a TSP with a fixed start and end point"""
 
 	# Create the routing index manager, setting start and end locations correctly
@@ -27,9 +27,10 @@ def solveTspWithFixedStartEnd(costMatrix : np.array, startIndex, endIndex, local
 
 	# Setting first solution heuristic
 	searchParameters = pywrapcp.DefaultRoutingSearchParameters()
-	searchParameters.first_solution_strategy = (
-		routing_enums_pb2.FirstSolutionStrategy.CHRISTOFIDES)
-		# routing_enums_pb2.FirstSolutionStrategy.PARALLEL_CHEAPEST_INSERTION)
+	if strategy == 'CHRISTOFIDES' or strategy is None:
+		searchParameters.first_solution_strategy = (routing_enums_pb2.FirstSolutionStrategy.CHRISTOFIDES)
+	elif strategy == 'PATH_CHEAPEST_ARC':
+		searchParameters.first_solution_strategy = (routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC)
 
 	# Set local search metaheuristic to GUIDED_LOCAL_SEARCH
 	if localSearch:
