@@ -44,7 +44,8 @@ if __name__ == '__main__':
 	size = 4000
 	seed = 2
 	nSigFigs = 2
-	heuristic = 'FARTHEST'
+	# heuristic = 'FARTHEST'
+	heuristic = 'GREEDY'
 	strategy = 'PATH_CHEAPEST_ARC'
 	# strategy = 'CHRISTOFIDES'
 	# startPoints = [ [size//2,size//2,0] for _ in range(numTeams) ]

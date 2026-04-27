@@ -61,26 +61,57 @@ class ClusterSolver(object):
 
 		# add each point
 		while len(remainingPoints) > 0:
-			# choose a point
-			pIndex = self.choosePoint(remainingPoints, clusters, costMatrix)
+			# greedy heuristic: consider point and team combo
+			if 'HEURISTIC' in self.params and self.params['HEURISTIC'] == 'GREEDY':
+				minMakespan = float('inf')
+				muStar = None
+				muStarTspLength = None
+				pIndex = None
 
-			# test each cluster
-			tempTspLengths = []
-			for c in clusters:
-				costSubMatrix = createSubmatrix(costMatrix, c[:-1] + [pIndex, c[-1]])
-				tspSolution = solveTspWithFixedStartEnd(costSubMatrix, 0, len(c), strategy=tspStrategy)
-				tempTspLengths.append(self.totalLength(costSubMatrix, tspSolution))
+				# test each cluster for each point
+				for thisPIndex in remainingPoints:
+					tempTspLengths = []
+					for c in clusters:
+						costSubMatrix = createSubmatrix(costMatrix, c[:-1] + [thisPIndex, c[-1]])
+						tspSolution = solveTspWithFixedStartEnd(costSubMatrix, 0, len(c), strategy=tspStrategy)
+						tempTspLengths.append(self.totalLength(costSubMatrix, tspSolution))
 
-			# choose a cluster
-			muStar = np.argmin([
-				np.max([
-					tspLengths[:i] + [tempTspLengths[i]] + tspLengths[i+1:] # replace one team's length with the new length
-				]) for i in range(numTeams) # then take max over all teams
-			]) # then take minimum option
+					# choose a cluster
+					makespans = [np.max([
+						tspLengths[:i] + [tempTspLengths[i]] + tspLengths[i+1:] # replace one team's length with the new length
+					]) for i in range(numTeams)] # then take max over all teams
+					muStarThisPoint = np.argmin(makespans) # then take minimum option
+					thisMakespan = makespans[muStarThisPoint]
+
+					# accept or reject
+					#	note that this rejects ties, which are common because we're taking a max, but empirically this doesn't have a large effect on final makespan or path lengths
+					if thisMakespan < minMakespan:
+						minMakespan = thisMakespan
+						muStar = muStarThisPoint
+						muStarTspLength = tempTspLengths[muStar]
+						pIndex = thisPIndex
+			else:
+				# choose a point
+				pIndex = self.choosePoint(remainingPoints, clusters, costMatrix)
+
+				# test each cluster
+				tempTspLengths = []
+				for c in clusters:
+					costSubMatrix = createSubmatrix(costMatrix, c[:-1] + [pIndex, c[-1]])
+					tspSolution = solveTspWithFixedStartEnd(costSubMatrix, 0, len(c), strategy=tspStrategy)
+					tempTspLengths.append(self.totalLength(costSubMatrix, tspSolution))
+
+				# choose a cluster
+				muStar = np.argmin([
+					np.max([
+						tspLengths[:i] + [tempTspLengths[i]] + tspLengths[i+1:] # replace one team's length with the new length
+					]) for i in range(numTeams) # then take max over all teams
+				]) # then take minimum option
+				muStarTspLength = tempTspLengths[muStar]
 
 			# add to cluster
 			clusters[muStar] = clusters[muStar][:-1] + [pIndex, clusters[muStar][-1]] # keep it in order
-			tspLengths[muStar] = tempTspLengths[muStar]
+			tspLengths[muStar] = muStarTspLength
 			remainingPoints.remove(pIndex)
 
 		# convert from indices to points
