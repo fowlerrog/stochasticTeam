@@ -8,8 +8,8 @@
     ugv_landing_radius: 0.3
     landing_throttle_coefficient: 0.27
     takeoff_throttle_coefficient: 0.4
-    uav_base_link: /stl_frame
-    ugv_base_link: /ugv/base_link
+    uav_base_link: stl_frame
+    ugv_base_link: base_link
 
 /collision_force_injector:
   ros__parameters:
@@ -35,6 +35,13 @@
     landing_approach_height: 2.0
 
 /wheel_tf_publisher:
+  ros__parameters:
+    wheel_base: 0.375 # jackal numbers
+    wheel_track: 0.25
+    wheel_vertical_offset: 0.0375
+    wheel_radius: 0.098
+
+/wheel_tf_publisher_2:
   ros__parameters:
     wheel_base: 0.375 # jackal numbers
     wheel_track: 0.25
