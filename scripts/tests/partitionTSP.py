@@ -46,8 +46,8 @@ if __name__ == '__main__':
 	nSigFigs = 2
 	# heuristic = 'FARTHEST'
 	heuristic = 'GREEDY'
-	strategy = 'PATH_CHEAPEST_ARC'
-	# strategy = 'CHRISTOFIDES'
+	# strategy = 'PATH_CHEAPEST_ARC'
+	strategy = 'CHRISTOFIDES'
 	# startPoints = [ [size//2,size//2,0] for _ in range(numTeams) ]
 	# endPoints = [ [size//2, size//2, 0] for _ in range(numTeams) ]
 	startPoints = [[0.,0.,0.] for _ in range(numTeams)]
