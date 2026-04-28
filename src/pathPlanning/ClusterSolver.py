@@ -2,12 +2,14 @@
 import numpy as np
 from random import choice
 import time
+import os
 
 # project imports
 from .EnvUtils import envFromParams
 from .NodeUtils import createDistanceMatrix, createFunctionMatrix, createSubmatrix
 from .TspUtils import solveTspWithFixedStartEnd
-from .RunnerUtils import sigFigs
+from .RunnerUtils import sigFigs, writeYaml
+from .Constants import clusterResultsFilename
 
 class ClusterSolver(object):
 	"""
@@ -42,13 +44,21 @@ class ClusterSolver(object):
 		startTime = time.perf_counter()
 
 		if len(points[0]) > len(starts[0]): # trim or extend dimensions
-			starts = [[*s, *[0 * len(points[0]) - len(s)]] for s in starts]
-			ends = [[*e, *[0 * len(points[0]) - len(e)]] for e in ends]
+			starts = [[*s, *([0] * (len(points[0]) - len(s)))] for s in starts]
+			ends = [[*e, *([0] * (len(points[0]) - len(e)))] for e in ends]
 		elif len(points[0]) < len(starts[0]):
 			starts = [s[:len(points[0])] for s in starts]
 			ends = [e[:len(points[0])] for e in ends]
 
-		if 'HEURISTIC' in self.params and self.params['HEURISTIC'] == 'GREEDY':
+		if len(starts) == 1: # one team base case
+			masterPoints = points + starts + ends
+			costMatrix = self.createCostMatrix(masterPoints, agentType='UAV')
+			tspStrategy = self.params['STRATEGY'] if 'STRATEGY' in self.params else None
+			clusterPoints = [[starts[0]] + points + [ends[0]]]
+			tspLengths = [self.solveTSPlength(costMatrix, 0,
+				[len(masterPoints) - 2] + list(range(1, len(masterPoints) - 2)) + [len(masterPoints) - 1],
+				tspStrategy)]
+		elif 'HEURISTIC' in self.params and self.params['HEURISTIC'] == 'GREEDY':
 			clusterPoints, tspLengths = self.solveClusterProblemGreedy(points, starts, ends)
 		else:
 			clusterPoints, tspLengths = self.solveClusterProblemNonGreedy(points, starts, ends)
@@ -145,10 +155,10 @@ class ClusterSolver(object):
 			]) # then take minimum option
 			muStarTspLength = tempTspLengths[muStar]
 
-		# add to cluster
-		clusters[muStar] = clusters[muStar][:-1] + [pIndex, clusters[muStar][-1]] # keep it in order
-		tspLengths[muStar] = muStarTspLength
-		remainingPoints.remove(pIndex)
+			# add to cluster
+			clusters[muStar] = clusters[muStar][:-1] + [pIndex, clusters[muStar][-1]] # keep it in order
+			tspLengths[muStar] = muStarTspLength
+			remainingPoints.remove(pIndex)
 
 		# convert from indices to points
 		clusterPoints = [ 
@@ -188,3 +198,15 @@ class ClusterSolver(object):
 
 	def totalLength(self, costMatrix, pointList):
 		return sum(costMatrix[pointList[i]][pointList[i+1]] for i in range(len(pointList) - 1))
+
+	def standardizeSolution(self):
+		"""Cleans up solution dict for yaml printing, if necessary"""
+		return self.solution | {
+			'tsp_lengths' : [float(el) for el in self.solution['tsp_lengths']]
+		}
+
+	def printResultsToYaml(self, absSavePath=None, maxDecimals=2):
+		"""Prints solution results to a yaml file"""
+		if absSavePath is None:
+			absSavePath = os.path.join(self.params["RUN_FOLDER"], self.params["SAVE_PATH_FOLDER"], clusterResultsFilename)
+		writeYaml(self.standardizeSolution(), absSavePath, maxDecimals=maxDecimals)
