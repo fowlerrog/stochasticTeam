@@ -1,0 +1,12 @@
+calculations are:
+
+uav speed v = [1.5, 2], max wind w = 1
+M_uav = l * 0.5 * (1/(vmin-w) + (1/vmax+w))^2
+V_uav = l^2 * 1/12 * (1/(vmin-2) - 1/(vmax+w))^2
+
+which assumes a uniform dist b/t +-w for actual wind
+same for v ugv = [.15, .25], w=0
+
+
+seed_5 v1 encountered failure due to the UAV sliding off the UGV
+seed_9 failure is repeatable
