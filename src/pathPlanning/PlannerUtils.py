@@ -45,6 +45,7 @@ def runPlannerFromParamsMultiTeam(params):
 	Run a planner from a parameter dict (including run folder)
 	which will only produce ONE run for each of multiple teams
 	"""
+	validSavePath = "SAVE_PATH_FOLDER" in params and isinstance(params['SAVE_PATH_FOLDER'], str)
 
 	# Set seed if specified
 	if 'SEED' in params and params['SEED'] is not None:
@@ -54,16 +55,18 @@ def runPlannerFromParamsMultiTeam(params):
 	points = generatePoints(params['POINTS'])
 
 	# Distribute points between teams
-	clusterSolver = ClusterSolver(params['CLUSTER'])
+	savePathFolderDict = {'SAVE_PATH_FOLDER' : params['SAVE_PATH_FOLDER']} if validSavePath else {}
+	clusterSolver = ClusterSolver(params['CLUSTER'] | savePathFolderDict | {'RUN_FOLDER' : params['PLANNER']['RUN_FOLDER']})
 	numTeams = params['CLUSTER']['NUM_TEAMS']
 	pointsList = clusterSolver.solveClusterProblem(points,
 		[params['START_POINT'] for _ in range(numTeams)],
 		[params['END_POINT'] for _ in range(numTeams)]
 	)
+	if validSavePath:
+		clusterSolver.printResultsToYaml()
 
 	# Construct and call each solver
 	timeInfo = {"CLUSTER_TIME" : clusterSolver.timeInfo["CLUSTER_TIME"]}
-	validSavePath = "SAVE_PATH_FOLDER" in params and isinstance(params['SAVE_PATH_FOLDER'], str)
 	for i in range(numTeams):
 		savePathFolderDict = {'SAVE_PATH_FOLDER' : os.path.join(params['SAVE_PATH_FOLDER'], f'team_{i}')} if validSavePath else {}
 		planner = plannerFromParams(params['PLANNER'] | savePathFolderDict)

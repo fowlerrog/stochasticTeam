@@ -14,3 +14,5 @@ environmentSettingsFilename = 'env_settings.yaml'
 
 executeSettingsFilename = 'execute_settings.yaml'
 executeResultsFilename = 'execute_results.yaml'
+
+clusterResultsFilename = 'cluster_results.yaml'
