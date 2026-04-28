@@ -1,0 +1,10 @@
+TYPE: SplitEnvironment
+AGENT_ENVIRONMENTS: # this environment has the same mu & sigma as the gaussian
+  UAV:
+    TYPE: UniformEnvironment
+    WEIGHT_MIN: 0.117 # 0.1 - sqrt(3) * 0.01
+    WEIGHT_MAX: 0.083 # 0.1 + sqrt(3) * 0.01
+  UGV:
+    TYPE: UniformEnvironment
+    WEIGHT_MIN: 0.331 # 0.4 - sqrt(3) * 0.04
+    WEIGHT_MAX: 0.470 # 0.4 + sqrt(3) * 0.04

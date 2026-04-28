@@ -1,0 +1,38 @@
+To recreate thesis paper cases, run the following folders. Note that some cases may take hours to complete all runs on moderately powerful hardware.
+
+Table 5.2: PRO-SPECT Comp. Time and Mission Time and Table 5.3: PRO-SPECT Mean Empirical Failure Rate
+unparallelized PRO-SPECT: nonparallel_uniform
+parallelized PRO-SPECT: parallel_uniform
+(Table 5.2 considers the subset of runs with p_r = 0.1. You can use scripts/splitYaml.py to break out plan_time_results.yaml, and otherwise only specify results_*_RISK_0.1_* folders)
+
+Tables 5.4, 5.5: PRO-SPECT Offline vs. Online
+online_uniform_low_risk and online_uniform_high_risk
+Offline planning must be done before the online case can be run; the only difference is which execute settings file is used. Copy the results_* folders into offline_execution and online_execution subfolders before executing.
+
+Table 5.6: PRO-SPECT Tour Refinement
+nonparallel_uniform_knapsack
+
+Table 5.7: Online with Infeasible Solutions
+online_uniform_low_risk_infeasible
+Feasibility required cases are pulled from online_uniform_low_risk. Since the offline plans are the same, you can copy those results_* folders over before executing.
+
+Table 5.8: Multi-Team Results
+multiteam_uniform
+The 1-team case is left to the nonparallel_uniform folder. Presented in the table is only the FARTHEST heuristic.
+
+Table 5.9: Branch and Cut vs. PRO-SPECT
+branch_comparison
+Branch and Cut script is in scripts/branch_and_cut
+
+Table 5.10: Simulated Annealing vs. PRO-SPECT
+annealing_comparison
+Simulated Annealing script is in scripts/simulated_annealing
+
+Table 5.11: TERRA vs. PRO-SPECT
+terra_comparison
+TERRA script is in scripts/terra
+
+Table 5.12: RSPECT vs. PRO-SPECT
+deterministic_uniform
+PRO-SPECT results are pulled from nonparallel_uniform
+
