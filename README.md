@@ -5,7 +5,7 @@
 [![Paper](https://img.shields.io/badge/paper-IROS%202026-1f6feb)](https://doi.org/10.48550/arXiv.2604.02142)
 [![arXiv](https://img.shields.io/badge/arXiv-2603.22507-b31b1b)](https://doi.org/10.48550/arXiv.2604.02142)
 [![Video](https://img.shields.io/badge/video-experiments-c4302b)](https://youtu.be/w81nHt7OAxY)
-[![Thesis](https://img.shields.io/badge/thesis-Northeastern_University)](https://www.proquest.com/openview/aa1f80277bbcf0c2e0944fc5b1452d8d)
+[![Thesis](https://img.shields.io/badge/thesis-Northeastern_University-aa0022)](https://www.proquest.com/openview/aa1f80277bbcf0c2e0944fc5b1452d8d)
 
 Code for our paper in the *IEEE/RSJ International Conference on Intelligent Robots and Systems 2026 (IROS 2026)*: PRO-SPECT,
 including python scripts for planning, numerical simulation, and printing of stastics; and a ROS2 simulation.
@@ -31,7 +31,6 @@ Since this algorithm runs in polynomial time, it can also be evaluated on the fl
 /src/pathPlanning contains a python module for source code
 
 /scripts contains runnable python scripts
-- get run instructions by running: $ python scripts/scriptName.py -h
 
 /runs contains the results of various runs
 - *_settings.yaml files are lists of inputs.
@@ -77,14 +76,29 @@ Executing a plan requires pointing to execution settings, the original plan sett
 
 `python scripts/executePlan.py /path/to/execute_settings.yaml /path/to/plan_settings.yaml /path/to/plan/results/folder/`
 
-Many scripts will accept many repeated arguments, such as executing many plans with the same execution settings.
+Many scripts will accept repeated arguments, such as executing many plans with the same execution settings.
 
-# Comparison Cases
+## Comparison Cases
 
-Scripts for running comparison cases are contained in scripts/annealing/, scripts/branch_and_cut/, and scripts/terra/. These are implemented individually.
+To recreate thesis and IROS paper cases, run the following folders. Note that some cases may take hours to complete all runs on moderately powerful hardware.
+
+Scripts for running comparison cases for other algorithms contained in scripts/annealing/, scripts/branch_and_cut/, and scripts/terra/. These are implemented individually.
 Their accompanying process_* scripts should process their output files into usable numbers for comparison; these should be the numbers in the paper tables.
+However, RSPECT is implemented as a deterministic planner in the PRO-SPECT model, and uses the same scripts as PRO-SPECT.
 
-scripts/paper_run_cases.txt details which input files recreate which tables. They are labelled according to the thesis version, not the IROS paper, but the contents are generally the same.
+| IROS Table | Thesis Table | Run Folder | Scripts | Notes |
+|---|---|---|---|---|
+| TABLE II: PRO-SPECT Comp. Time and Mission Time | Table 5.2: PRO-SPECT Comp. Time and Mission Time | unparallelized PRO-SPECT: nonparallel_uniform<br> parallelized PRO-SPECT: parallel_uniform | computation time: scripts/printSolveTimes.py<br> mission time: scripts/printMissionTimes.py | Table 5.2 considers the subset of runs with p_r = 0.1. You can use scripts/splitYaml.py to break out plan_time_results.yaml, or otherwise only specify results\_\*\_RISK\_0.1\_\* folders |
+| TABLE III: PRO-SPECT Mean Empirical Failure Rate | Table 5.3: PRO-SPECT Mean Empirical Failure Rate | nonparallel_uniform or parallel_uniform | failure rate: scripts/printFailureRates.py | |
+| Table IV: PRO-SPECT Offline vs. Online | Table 5.4: PRO-SPECT Offline vs. Online | online_uniform_low_risk | Failure rate: scripts/printFailureRates.py | Offline planning must be done before the online case can be run; the only difference is which execute settings file is used. First do offline planning with scripts/planPath.py. Copy the results_* folders into offline_execution and online_execution subfolders, then execute with their respective execute_settings files. |
+| NA | Table 5.5: PRO-SPECT Offline vs. Online | online_uniform_high_risk | Done in the same way as online_planning_low_risk | |
+| NA | Table 5.6: PRO-SPECT Tour Refinement | nonparallel_uniform_knapsack | mission times and failure rates are processed with scripts/printMissionTimeComparison.py<br> computation time: scripts/printSolveTimeComparison.py | |
+| NA | Table 5.7: Online with Infeasible Solutions | online_uniform_low_risk_infeasible | failure rate: scripts/printFailureRates.py<br> mission time: scripts/printMissionTimes.py | Cases that were solved with the normal feasibility requirement are pulled from online_uniform_low_risk. Since the offline plans are the same, you can copy those results_* folders over before executing. |
+| NA | Table 5.8: Multi-Team Results | multiteam_uniform | computation time: scripts/printMultiSolveTimes.py<br> mission time: scripts/printMultiMissionTimes.py<br> failure rate: scripts/printMultiFailureRates.py | The 1-team case is left to the nonparallel_uniform folder. Presented in the table is only the FARTHEST heuristic. |
+| TABLE V: Branch and Cut vs. PRO-SPECT | Table 5.9: Branch and Cut vs. PRO-SPECT | branch_comparison | computation time: scripts/printSolveTimes.py<br> mission time: scripts/printMissionTimes.py | Branch and Cut script is in scripts/branch_and_cut, as is its processing script |
+| TABLE VI: Simulated Annealing | Table 5.10: Simulated Annealing vs. PRO-SPECT | annealing_comparison | computation time: scripts/printSolveTimes.py<br> mission time: scripts/printMissionTimes.py | Simulated Annealing script is in scripts/simulated_annealing, as is its processing script |
+| TABLE VII: TERRA vs. PRO-SPECT | Table 5.11: TERRA vs. PRO-SPECT | terra_comparison | computation time: scripts/printSolveTimes.py<br> mission time: scripts/printMissionTimes.py<br> failure rate: scripts/printFailureRates.py | TERRA script is in scripts/terra, as is its processing script |
+| TABLE VIII: RSPECT vs. PRO-SPECT | Table 5.12: RSPECT vs. PRO-SPECT | deterministic_uniform | computation time: scripts/printSolveTimes.py<br> mission time: scripts/printMissionTimes.py<br> failure rate: scripts/printFailureRates.py | PRO-SPECT results are pulled from nonparallel_uniform |
 
 ## Setting up Python Virtual Environment
 
