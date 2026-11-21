@@ -1,46 +1,92 @@
+# PROSPECT
 
-This repo contains code to run various UAV-UGV planners. Setting up the Python Virtual Environment is recommended.
+**Probabilistically Safe Scalable Planning for Energy-Aware Coordinated UAV-UGV Teams in Stochastic Environments**
 
-# Dependencies:
+[![Paper](https://img.shields.io/badge/paper-IROS%202026-1f6feb)](https://doi.org/10.48550/arXiv.2604.02142)
+[![arXiv](https://img.shields.io/badge/arXiv-2603.22507-b31b1b)](https://doi.org/10.48550/arXiv.2604.02142)
+[![Video](https://img.shields.io/badge/video-experiments-c4302b)](https://youtu.be/w81nHt7OAxY)
+[![Thesis](https://img.shields.io/badge/thesis-Northeastern_University)](https://www.proquest.com/openview/aa1f80277bbcf0c2e0944fc5b1452d8d)
 
-Julia (for deterministic planner)
+Code for our paper in the *IEEE/RSJ International Conference on Intelligent Robots and Systems 2026 (IROS 2026)*: PRO-SPECT,
+including python scripts for planning, numerical simulation, and printing of stastics; and a ROS2 simulation.
+Developed at the [Multi-Agent Robotics and Autonomy Lab](https://github.com/Multi-Agent-Robotics-and-Autonomy-Lab), Northeastern University.
+Work done in association with The Charles Stark Draper Laboratory, Cambridge MA.
 
-various python packages as listed in pythonEnv.txt
+## Abstract
 
-For gazebo simulator:
+We consider energy-aware planning for an unmanned aerial vehicle (UAV) and unmanned ground vehicle (UGV) team operating in a stochastic environment. The UAV must visit a set of air points in minimum time while respecting energy constraints, relying on the UGV as a mobile charging station. Unlike prior work that assumed deterministic travel times or used fixed robustness margins, we model travel times as random variables and bound the probability of failure (energy depletion) across the entire mission to a user-specified risk level. We formulate the problem as a Mixed-Integer Program and propose PRO-SPECT, a polynomial-time algorithm that generates risk-bounded plans. The algorithm supports both offline planning and online re-planning, enabling the team to adapt to disturbances while preserving the risk bound. We provide theoretical results on solution feasibility and time complexity. We also demonstrate the performance of our method via numerical comparisons and simulations.
 
-ROS2 : https://docs.ros.org/en/jazzy/index.html
+## Algorithm Overview
 
-Turtlebot 4 : https://github.com/turtlebot/turtlebot4_simulator
+Given a set of points to be visited in the air, a ground space traversable by a UGV, and a model to estimate the travel time mean and variance between any two points:
 
-Rosflight / Roscopter : https://github.com/rosflight/roscopter
+1. Solve a Traveling Salesperson Problem to estimate a minimum-time path between all air points, using the mean air travel time estimator.
+2. Split the path into multiple tours with a Dynamic Program that minimizes failure risk. Return a solution once the risk drops below a user-specified threshold.
+3. (Optionally) refine each tour by solving a TSP on only its points.
 
-# Structure:
+Since this algorithm runs in polynomial time, it can also be evaluated on the fly for online replanning. A receding horizon is used to reduce solve times.
+
+## Repository Structure
 
 /src/pathPlanning contains a python module for source code
 
 /scripts contains runnable python scripts
-
 - get run instructions by running: $ python scripts/scriptName.py -h
 
-/runs contains various runs
-
+/runs contains the results of various runs
 - *_settings.yaml files are lists of inputs.
 	- INDEPENDENT_VARIABLES define which variables will be varied across runs
 - plan_time_results.yaml files are output timing information for benchmarking
 - results_* folders are single-run path solutions
 
-/testCases contain pytest cases
+/testCases contain pytest cases for code verification
 
-# Usage:
+## Dependencies
 
-python scripts/runPlanner.py /path/to/settings.yaml
+This repo contains code to run various UAV-UGV planners.
+Setting up the Python Virtual Environment is recommended. Bash scripts are provided for this purpose.
+Python scripts should be platform-agnostic. ROS2 will only run on Linux.
 
-python scripts/plotPlan.py /path/to/results/folder/
+- Various python packages as listed in pythonEnv.txt
+- Julia (for deterministic planner)
+- For gazebo simulator:
+	- ROS2 : https://docs.ros.org/en/jazzy/index.html
+	- Turtlebot 4 : https://github.com/turtlebot/turtlebot4_simulator
+	- Rosflight / Roscopter : https://github.com/rosflight/roscopter
 
-python scripts/executePlan.py /path/to/execute_settings.yaml /path/to/plan_settings.yaml /path/to/plan/results/folder/
+## Usage
 
-# Setting up Python Virtual Environment:
+Running the planner requires a set of .yaml files that specify planner settings. These files can be combined, but separating them allows for reuse without redundancy.
+- env_settings.yaml contains the environmental models used to plan or execute
+- plan_settings.yaml contains planner parameters
+- execute_settings.yaml contains plan execution settings
+
+Scripts generally contain their own instructions and a short description. For any of them, you can get a short set of arguments with:
+
+`python scripts/script.py -h`
+
+Running the offline planner is as simple as providing a path to the plan settings file.
+
+`python scripts/planPath.py /path/to/plan_settings.yaml`
+
+Plotting the results of planning is also simple.
+
+`python scripts/plotPlan.py /path/to/results/folder/`
+
+Executing a plan requires pointing to execution settings, the original plan settings, and the results folder containing the plan you're executing on.
+
+`python scripts/executePlan.py /path/to/execute_settings.yaml /path/to/plan_settings.yaml /path/to/plan/results/folder/`
+
+Many scripts will accept many repeated arguments, such as executing many plans with the same execution settings.
+
+# Comparison Cases
+
+Scripts for running comparison cases are contained in scripts/annealing/, scripts/branch_and_cut/, and scripts/terra/. These are implemented individually.
+Their accompanying process_* scripts should process their output files into usable numbers for comparison; these should be the numbers in the paper tables.
+
+scripts/paper_run_cases.txt details which input files recreate which tables. They are labelled according to the thesis version, not the IROS paper, but the contents are generally the same.
+
+## Setting up Python Virtual Environment
 
 If you are having an environment issue, which may manifest itself as the pywrapcp optimizer not optimizing your TSP path solutions, create a python virtual environment (once):
 
@@ -68,13 +114,13 @@ Source it (once per session)
 
 And then run your scripts normally:
 
-`python scripts/runPlanner.py runs/test/settings.yaml`
+`python scripts/planPath.py runs/test/plan_settings.yaml`
 
 To exit the venv:
 
 `deactivate`
 
-# ROS2 Installation:
+## ROS2 Installation
 
 When installing the Gazebo simulator/ROS2, colcon does not seem to find packages or Python3 properly, so do not have the Python virtual environment active when building or running. Calls to the online planner are done by the Node independently entering and exiting the venv.
 
@@ -100,7 +146,7 @@ The script setup.sh is provided for your convenience which sources ROS2 and the 
 
 `source setup.sh`
 
-# Running Gazebo
+## Running Gazebo
 
 Launch files are in `gazebo\launch`
 
@@ -116,7 +162,7 @@ After it has stopped printing new messages (except for occasional status updates
 
 `ros2 service call /plan_manager/start std_srvs/srv/Trigger`
 
-# Gurobi:
+## Gurobi
 
 In order to use the Gurobi optimizer, you must have a Gurobi license. Free academic licenses are available at https://www.gurobi.com/academia/academic-program-and-licenses/
 

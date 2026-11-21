@@ -1,38 +1,66 @@
-To recreate thesis paper cases, run the following folders. Note that some cases may take hours to complete all runs on moderately powerful hardware.
+To recreate thesis and iros paper cases, run the following folders. Note that some cases may take hours to complete all runs on moderately powerful hardware.
 
-Table 5.2: PRO-SPECT Comp. Time and Mission Time and Table 5.3: PRO-SPECT Mean Empirical Failure Rate
+IROS PAPER: TABLE II: PRO-SPECT Comp. Time and Mission Time, T(X), Varying n
+THESIS: Table 5.2: PRO-SPECT Comp. Time and Mission Time
 unparallelized PRO-SPECT: nonparallel_uniform
 parallelized PRO-SPECT: parallel_uniform
-(Table 5.2 considers the subset of runs with p_r = 0.1. You can use scripts/splitYaml.py to break out plan_time_results.yaml, and otherwise only specify results_*_RISK_0.1_* folders)
+computation time is processed with scripts/printSolveTimes.py
+mission time is processed with scripts/printMissionTimes.py
+(Table 5.2 considers the subset of runs with p_r = 0.1. You can use scripts/splitYaml.py to break out plan_time_results.yaml, or otherwise only specify results_*_RISK_0.1_* folders)
 
-Tables 5.4, 5.5: PRO-SPECT Offline vs. Online
-online_uniform_low_risk and online_uniform_high_risk
-Offline planning must be done before the online case can be run; the only difference is which execute settings file is used. Copy the results_* folders into offline_execution and online_execution subfolders before executing.
+IROS PAPER: TABLE III: PRO-SPECT Mean Empirical Failure Rate, p_r, Varying n and p_r
+THESIS: Table 5.3: PRO-SPECT Mean Empirical Failure Rate
+nonparallel_uniform or parallel_uniform
+failure rate is processed with scripts/printFailureRates.py
 
-Table 5.6: PRO-SPECT Tour Refinement
+IROS PAPER: Table IV: PRO-SPECT Offline vs. Online: Empirical Failure Rate, p_r, and Empirical Successful Mission Time, T(X), for p_r = 0.1 and Varied n
+THESIS: Table 5.4: PRO-SPECT Offline vs. Online
+online_uniform_low_risk
+Offline planning must be done before the online case can be run; the only difference is which execute settings file is used. First do offline planning with scripts/planPath.py. Copy the results_* folders into offline_execution and online_execution subfolders, then execute with their respective execute_settings files.
+failure rate is processed with scripts/printFailureRates.py
+
+THESIS: Table 5.5: PRO-SPECT Offline vs. Online
+online_uniform_high_risk
+Done in the same way as online_planning_low_risk
+
+THESIS: Table 5.6: PRO-SPECT Tour Refinement
 nonparallel_uniform_knapsack
+mission times and failure rates are processed with scripts/printMissionTimeComparison.py
+computation time is processed with scripts/printSolveTimeComparison.py
 
-Table 5.7: Online with Infeasible Solutions
+THESIS: Table 5.7: Online with Infeasible Solutions
 online_uniform_low_risk_infeasible
-Feasibility required cases are pulled from online_uniform_low_risk. Since the offline plans are the same, you can copy those results_* folders over before executing.
+Cases that were solved with the normal feasibility requirement are pulled from online_uniform_low_risk. Since the offline plans are the same, you can copy those results_* folders over before executing.
+failure rate is processed with scripts/printFailureRates.py
+mission time is processed with scripts/printMissionTimes.py
 
-Table 5.8: Multi-Team Results
+THESIS: Table 5.8: Multi-Team Results
 multiteam_uniform
 The 1-team case is left to the nonparallel_uniform folder. Presented in the table is only the FARTHEST heuristic.
+computation time is processed with scripts/printMultiSolveTimes.py
+mission time is processed with scripts/printMultiMissionTimes.py
+failure rate is processed with scripts/printMultiFailureRates.py
 
-Table 5.9: Branch and Cut vs. PRO-SPECT
+IROS PAPER: TABLE V: Branch and Cut vs. PRO-SPECT: Computation Time and Mission Time, T(X), Varying n
+THESIS: Table 5.9: Branch and Cut vs. PRO-SPECT
 branch_comparison
-Branch and Cut script is in scripts/branch_and_cut
+Branch and Cut script is in scripts/branch_and_cut, as is its processing script
+computation time and mission time are processed as in Table II
 
-Table 5.10: Simulated Annealing vs. PRO-SPECT
+IROS PAPER: TABLE VI: Simulated Annealing Average Computation Time and Mission Time, T(X), Varying Tmax and Number of Steps
+THESIS: Table 5.10: Simulated Annealing vs. PRO-SPECT
 annealing_comparison
-Simulated Annealing script is in scripts/simulated_annealing
+Simulated Annealing script is in scripts/simulated_annealing, as is its processing script
+computation time and mission time are processed as in Table II
 
-Table 5.11: TERRA vs. PRO-SPECT
+IROS PAPER: TABLE VII: TERRA vs. PRO-SPECT: Computation Time, Mission Time, T(X), and Empirical Failure Rate, p_r, Varying n
+THESIS: Table 5.11: TERRA vs. PRO-SPECT
 terra_comparison
-TERRA script is in scripts/terra
+TERRA script is in scripts/terra, as is its processing script
+computation time, mission time, and failure rate are processed as in Tables II and III
 
-Table 5.12: RSPECT vs. PRO-SPECT
+TABLE VIII: RSPECT vs. PRO-SPECT: Comp. Time, Mission Time, T(X), and Empirical Failure Rate, ˆpr , Varying n, pr
+THESIS: Table 5.12: RSPECT vs. PRO-SPECT
 deterministic_uniform
 PRO-SPECT results are pulled from nonparallel_uniform
-
+computation time, mission time, and failure rate are processed as in Tables II and III
